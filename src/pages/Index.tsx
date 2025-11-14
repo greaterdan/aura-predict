@@ -183,22 +183,32 @@ const Index = () => {
 
   const marketCategories = [
     "All Markets",
+    "Trending",
+    "Breaking",
+    "New",
     "Politics",
-    "Sports", 
+    "Sports",
     "Finance",
     "Crypto",
-    "Entertainment",
-    "Technology",
-    "World Events"
+    "Geopolitics",
+    "Earnings",
+    "Tech",
+    "World",
+    "Elections"
   ];
 
   const getCategoryForPrediction = (question: string) => {
     const q = question.toLowerCase();
-    if (q.includes("trump") || q.includes("election") || q.includes("sbf") || q.includes("prison")) return "Politics";
-    if (q.includes("movie") || q.includes("thunderbolts")) return "Entertainment";
+    if (q.includes("trump") || q.includes("election")) return "Elections";
+    if (q.includes("sbf") || q.includes("prison")) return "Politics";
+    if (q.includes("movie") || q.includes("thunderbolts")) return "Breaking";
     if (q.includes("eth") || q.includes("crypto") || q.includes("bitcoin")) return "Crypto";
-    if (q.includes("ai") || q.includes("intelligence")) return "Technology";
-    return "World Events";
+    if (q.includes("ai") || q.includes("intelligence")) return "Tech";
+    if (q.includes("geopolitic")) return "Geopolitics";
+    if (q.includes("earnings") || q.includes("revenue")) return "Earnings";
+    if (q.includes("finance") || q.includes("stock")) return "Finance";
+    if (q.includes("sport")) return "Sports";
+    return "World";
   };
 
   const filteredPredictions = mockPredictions.filter(p => {
