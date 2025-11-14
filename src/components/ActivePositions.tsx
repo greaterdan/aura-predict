@@ -25,15 +25,15 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
   const winRate = agents.length > 0 ? (profitableAgents / agents.length) * 100 : 0;
 
   return (
-    <div className="h-24 bg-bg-card border-t border-border flex">
-      {/* Left Half: AI Agents (under bubble maps) */}
-      <div className="w-1/2 border-r border-border">
-        <div className="flex items-center gap-3 px-4 h-full overflow-x-auto">
+    <div className="h-24 bg-bg-card border-t border-border">
+      <div className="flex items-center h-full px-4 gap-4">
+        {/* AI Agents Section */}
+        <div className="flex items-center gap-3 flex-1">
           {agents.map((agent, index) => (
             <motion.button
               key={agent.id}
               onClick={() => onAgentClick(agent.id)}
-              className={`min-w-64 h-16 p-3 flex items-center gap-3 border transition-colors ${
+              className={`flex-1 max-w-[220px] h-16 p-3 flex items-center gap-3 border transition-colors ${
                 selectedAgent === agent.id
                   ? 'border-terminal-accent bg-muted'
                   : 'border-border bg-bg-elevated hover:bg-muted'
@@ -76,11 +76,12 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
             </motion.button>
           ))}
         </div>
-      </div>
 
-      {/* Right Half: Metrics (under performance chart) */}
-      <div className="w-1/2 h-full flex items-center px-6">
-        <div className="flex items-center gap-8 w-full justify-center">
+        {/* Vertical Separator */}
+        <div className="h-12 w-px bg-border flex-shrink-0" />
+
+        {/* Metrics Section */}
+        <div className="flex items-center gap-6 flex-shrink-0">
           {/* Total PnL */}
           <div className="flex flex-col">
             <div className="text-[10px] text-text-muted font-mono uppercase tracking-[0.08em] mb-1" style={{ fontWeight: 600 }}>
