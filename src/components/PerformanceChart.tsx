@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { TechnicalView } from "./TechnicalView";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 
 interface ChartDataPoint {
   time: string;
@@ -74,28 +76,30 @@ export const PerformanceChart = () => {
             </button>
           </div>
           
-          {/* Agent Filters */}
-          <div className="flex gap-1">
-          <button
-            onClick={() => setSelectedAgent(null)}
-            className={`text-xs px-2 py-1 border border-border ${
-              !selectedAgent ? 'bg-muted' : 'hover:bg-muted'
-            } transition-colors`}
-          >
-            All Agents
-          </button>
-          {agents.map((agent) => (
-            <button
-              key={agent.id}
-              onClick={() => setSelectedAgent(agent.id === selectedAgent ? null : agent.id)}
-              className={`text-xs px-2 py-1 border border-border ${
-                selectedAgent === agent.id ? 'bg-muted' : 'hover:bg-muted'
-              } transition-colors`}
-            >
-              {agent.name}
-            </button>
-          ))}
-          </div>
+          {/* Agent Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors border border-border bg-background">
+              {selectedAgent || "All Agents"}
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40 bg-background border-border">
+              <DropdownMenuItem
+                onClick={() => setSelectedAgent(null)}
+                className={`cursor-pointer ${!selectedAgent ? 'bg-muted text-primary font-medium' : ''}`}
+              >
+                All Agents
+              </DropdownMenuItem>
+              {agents.map((agent) => (
+                <DropdownMenuItem
+                  key={agent.id}
+                  onClick={() => setSelectedAgent(agent.id === selectedAgent ? null : agent.id)}
+                  className={`cursor-pointer ${selectedAgent === agent.id ? 'bg-muted text-primary font-medium' : ''}`}
+                >
+                  {agent.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
