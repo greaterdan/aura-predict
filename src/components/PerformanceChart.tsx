@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { TechnicalView } from "./TechnicalView";
 
 interface ChartDataPoint {
   time: string;
@@ -27,6 +28,7 @@ const agents = [
 
 export const PerformanceChart = () => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"chart" | "technical">("chart");
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -51,7 +53,29 @@ export const PerformanceChart = () => {
       {/* Chart Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="text-xs text-terminal-accent font-mono">&gt; PERFORMANCE_INDEX</div>
-        <div className="flex gap-1">
+        <div className="flex gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex gap-1 mr-2">
+            <button
+              onClick={() => setViewMode("chart")}
+              className={`text-xs px-2 py-1 border border-border ${
+                viewMode === "chart" ? 'bg-muted' : 'hover:bg-muted'
+              } transition-colors`}
+            >
+              CHART
+            </button>
+            <button
+              onClick={() => setViewMode("technical")}
+              className={`text-xs px-2 py-1 border border-border ${
+                viewMode === "technical" ? 'bg-muted' : 'hover:bg-muted'
+              } transition-colors`}
+            >
+              TECHNICAL
+            </button>
+          </div>
+          
+          {/* Agent Filters */}
+          <div className="flex gap-1">
           <button
             onClick={() => setSelectedAgent(null)}
             className={`text-xs px-2 py-1 border border-border ${
@@ -71,11 +95,15 @@ export const PerformanceChart = () => {
               {agent.name}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
-      {/* Chart Area */}
-      <div className="flex-1 p-4">
+      {/* Content Area */}
+      {viewMode === "chart" ? (
+        <>
+          {/* Chart Area */}
+          <div className="flex-1 p-4">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={mockChartData}>
             <defs>
@@ -111,11 +139,11 @@ export const PerformanceChart = () => {
               />
             ))}
           </LineChart>
-        </ResponsiveContainer>
-      </div>
+          </ResponsiveContainer>
+        </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2 border-t border-border text-xs">
+        {/* Legend */}
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-border text-xs">
         {agents.map((agent) => {
           const latestValue = mockChartData[mockChartData.length - 1][agent.id as keyof ChartDataPoint];
           return (
@@ -124,9 +152,13 @@ export const PerformanceChart = () => {
               <span className="font-mono text-muted-foreground">{agent.name}</span>
               <span className="font-bold">${latestValue}</span>
             </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </>
+      ) : (
+        <TechnicalView />
+      )}
     </div>
   );
 };
