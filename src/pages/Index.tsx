@@ -224,10 +224,11 @@ const Index = () => {
 
           {/* Prediction Nodes with Zoom */}
           <div 
-            className="relative h-full transition-transform duration-300 origin-center"
+            className="relative h-full origin-center"
             style={{ 
               transform: `scale(${zoomLevel}) translate(${panPosition.x / zoomLevel}px, ${panPosition.y / zoomLevel}px)`,
               pointerEvents: isDragging ? 'none' : 'auto',
+              transition: isDragging ? 'none' : 'transform 0.2s ease-out',
             }}
           >
             {filteredPredictions.map((prediction, index) => (
