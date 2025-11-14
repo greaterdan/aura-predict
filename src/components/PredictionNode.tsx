@@ -36,13 +36,16 @@ export const PredictionNode = ({ data, position, isHighlighted, onClick, onShowT
   return (
     <>
       <motion.div
-        className="absolute cursor-pointer select-none"
+        className="absolute cursor-move select-none"
         style={{ left: position.x, top: position.y }}
+        drag
+        dragMomentum={false}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={onClick}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* The actual circular bubble */}
         <div className={`relative w-56 h-56 rounded-full bg-card border-2 ${borderColor} p-4 flex flex-col items-center justify-center text-center ${isHighlighted ? 'opacity-100' : 'opacity-90'}`}>
