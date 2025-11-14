@@ -79,8 +79,8 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
       </div>
 
       {/* Right Half: Metrics (under performance chart) */}
-      <div className="w-1/2 px-6 h-full flex items-center">
-        <div className="grid grid-cols-4 gap-6 w-full">
+      <div className="w-1/2 flex items-center justify-center">
+        <div className="flex items-center gap-8">
           {/* Total PnL */}
           <div className="flex flex-col">
             <div className="text-[10px] text-text-muted font-mono uppercase tracking-[0.08em] mb-1" style={{ fontWeight: 600 }}>
