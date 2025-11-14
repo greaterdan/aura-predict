@@ -38,8 +38,6 @@ export const PredictionNode = ({ data, position, isHighlighted, onClick, onShowT
       <motion.div
         className="absolute cursor-pointer select-none"
         style={{ left: position.x, top: position.y }}
-        drag
-        dragMomentum={false}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={onClick}
