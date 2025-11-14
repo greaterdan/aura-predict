@@ -92,6 +92,7 @@ const Index = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [tradesPanelOpen, setTradesPanelOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionNodeData | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Simulate AI trading activity
   useEffect(() => {
@@ -139,6 +140,27 @@ const Index = () => {
     setTradesPanelOpen(true);
   };
 
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 0.2, 2));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 0.2, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+  };
+
+  // Handle mouse wheel zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY * -0.001;
+      setZoomLevel(prev => Math.max(0.5, Math.min(2, prev + delta)));
+    }
+  };
+
   const filteredPredictions = selectedAgent
     ? mockPredictions.filter(p => {
         const agent = mockAgents.find(a => a.id === selectedAgent);
@@ -162,7 +184,10 @@ const Index = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT: Prediction Nodes */}
-        <div className="w-1/2 relative border-r border-border">
+        <div 
+          className="w-1/2 relative border-r border-border overflow-hidden"
+          onWheel={handleWheel}
+        >
           {/* Subtle grid background */}
           <div 
             className="absolute inset-0 opacity-5"
@@ -175,8 +200,38 @@ const Index = () => {
             }}
           />
           
-          {/* Prediction Nodes */}
-          <div className="relative h-full">
+          {/* Zoom Controls */}
+          <div className="absolute top-4 right-4 z-40 flex flex-col gap-1 bg-card border border-border">
+            <button
+              onClick={handleZoomIn}
+              className="w-8 h-8 flex items-center justify-center hover:bg-muted transition-colors text-foreground font-mono"
+              title="Zoom In"
+            >
+              +
+            </button>
+            <button
+              onClick={handleResetZoom}
+              className="w-8 h-8 flex items-center justify-center hover:bg-muted transition-colors text-xs text-muted-foreground border-y border-border"
+              title="Reset Zoom"
+            >
+              {(zoomLevel * 100).toFixed(0)}%
+            </button>
+            <button
+              onClick={handleZoomOut}
+              className="w-8 h-8 flex items-center justify-center hover:bg-muted transition-colors text-foreground font-mono"
+              title="Zoom Out"
+            >
+              −
+            </button>
+          </div>
+
+          {/* Prediction Nodes with Zoom */}
+          <div 
+            className="relative h-full transition-transform duration-300 origin-center"
+            style={{ 
+              transform: `scale(${zoomLevel})`,
+            }}
+          >
             {filteredPredictions.map((prediction, index) => (
               <PredictionNode
                 key={prediction.id}
