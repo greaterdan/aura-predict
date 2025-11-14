@@ -239,8 +239,8 @@ const Index = () => {
         <div className="w-1/2 relative border-r border-border overflow-hidden flex flex-col bg-background">
           {/* Market Category Dropdown */}
           <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-bg-elevated">
-            <div className="flex items-center gap-3 flex-1">
-              <span className="text-xs text-terminal-accent font-mono leading-none">&gt; DASHBOARD</span>
+            <div className="flex items-center gap-3 flex-1 h-full">
+              <span className="text-xs text-terminal-accent font-mono leading-none flex items-center">&gt; DASHBOARD</span>
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors border border-border bg-background">
                   {selectedCategory}
