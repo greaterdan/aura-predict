@@ -67,7 +67,7 @@ export const TradesPanel = ({ isOpen, onClose, predictionTitle }: TradesPanelPro
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed right-0 bottom-24 w-1/2 h-1/2 bg-card border-t border-l border-border z-50 flex flex-col"
+          className="fixed left-0 bottom-24 w-1/2 h-1/2 bg-card border-t border-r border-border z-50 flex flex-col"
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
