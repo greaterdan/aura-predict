@@ -250,7 +250,7 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
             <motion.button
               key={agent.id}
               onClick={() => onAgentClick(agent.id)}
-              className={`flex-1 max-w-[160px] h-12 p-2 flex items-center gap-2 border transition-colors ${
+              className={`flex-1 max-w-[150px] h-12 p-2 flex items-center gap-2 border transition-colors ${
                 selectedAgent === agent.id
                   ? 'border-terminal-accent bg-muted'
                   : 'border-border bg-bg-elevated hover:bg-muted'

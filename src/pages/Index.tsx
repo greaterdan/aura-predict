@@ -19,12 +19,12 @@ interface Agent {
 }
 
 const mockAgents: Agent[] = [
-  { id: "grok", name: "GROK", emoji: "🤖", isActive: false, pnl: 42.5, openMarkets: 12, lastTrade: "YES on Trump 2024 @ $0.67" },
-  { id: "openai", name: "OPENAI", emoji: "🧠", isActive: true, pnl: 68.3, openMarkets: 15, lastTrade: "NO on Thunderbolts @ $0.004" },
-  { id: "deepseek", name: "DEEPSEEK", emoji: "🔮", isActive: false, pnl: -12.8, openMarkets: 8, lastTrade: "YES on ETH $3,500 @ $0.72" },
-  { id: "gemini", name: "GEMINI", emoji: "♊", isActive: false, pnl: 91.2, openMarkets: 18, lastTrade: "YES on SBF >20yrs @ $0.88" },
-  { id: "claude", name: "CLAUDE", emoji: "🎭", isActive: false, pnl: 55.7, openMarkets: 14, lastTrade: "NO on AI AGI 2030 @ $0.55" },
-  { id: "llama", name: "LLAMA", emoji: "🦙", isActive: false, pnl: 34.2, openMarkets: 9, lastTrade: "YES on Bitcoin $100K @ $0.82" },
+  { id: "grok", name: "GROK 4", emoji: "🔥", isActive: false, pnl: -63.0, openMarkets: 139, lastTrade: "NO on AI Sentience @ $0.40" },
+  { id: "gpt5", name: "GPT-5", emoji: "✨", isActive: true, pnl: -83.7, openMarkets: 60, lastTrade: "YES on Quantum Chip @ $0.24" },
+  { id: "deepseek", name: "DEEPSEEK V3", emoji: "🔮", isActive: false, pnl: 16.4, openMarkets: 23, lastTrade: "YES on ETH $3,500 @ $0.72" },
+  { id: "gemini", name: "GEMINI 2.5", emoji: "♊", isActive: false, pnl: -30.2, openMarkets: 101, lastTrade: "NO on Mars Mission @ $0.39" },
+  { id: "claude", name: "CLAUDE 4.5", emoji: "🧠", isActive: false, pnl: 16.2, openMarkets: 158, lastTrade: "YES on Fed Rate Cut @ $0.66" },
+  { id: "qwen", name: "QWEN 2.5", emoji: "🤖", isActive: false, pnl: 7.9, openMarkets: 219, lastTrade: "NO on Trump 2028 @ $0.34" },
 ];
 
 const mockPredictions: PredictionNodeData[] = [
@@ -35,7 +35,7 @@ const mockPredictions: PredictionNodeData[] = [
     position: "NO",
     price: 0.004,
     change: -2.5,
-    agentName: "GEMINI",
+    agentName: "GEMINI 2.5",
     agentEmoji: "♊",
     reasoning: "Historical patterns in superhero films show market saturation. Competition from other major franchises and quality concerns suggest limited box office potential.",
   },
@@ -46,8 +46,8 @@ const mockPredictions: PredictionNodeData[] = [
     position: "YES",
     price: 0.67,
     change: 3.2,
-    agentName: "GROK",
-    agentEmoji: "🤖",
+    agentName: "GROK 4",
+    agentEmoji: "🔥",
     reasoning: "Current polling data and swing state dynamics indicate favorable conditions. Economic indicators and campaign momentum support moderate-to-high probability.",
   },
   {
@@ -57,7 +57,7 @@ const mockPredictions: PredictionNodeData[] = [
     position: "YES",
     price: 0.72,
     change: 5.8,
-    agentName: "DEEPSEEK",
+    agentName: "DEEPSEEK V3",
     agentEmoji: "🔮",
     reasoning: "Strong bullish signals in market momentum. On-chain metrics show increasing network activity and institutional adoption patterns.",
   },
@@ -68,7 +68,7 @@ const mockPredictions: PredictionNodeData[] = [
     position: "YES",
     price: 0.88,
     change: 1.2,
-    agentName: "GEMINI",
+    agentName: "GEMINI 2.5",
     agentEmoji: "♊",
     reasoning: "Legal precedent for financial fraud cases of this magnitude strongly suggests lengthy sentence. Federal guidelines support assessment.",
   },
@@ -79,8 +79,8 @@ const mockPredictions: PredictionNodeData[] = [
     position: "NO",
     price: 0.55,
     change: -1.8,
-    agentName: "OPENAI",
-    agentEmoji: "🧠",
+    agentName: "GPT-5",
+    agentEmoji: "✨",
     reasoning: "While AI capabilities advance rapidly, achieving AGI that surpasses human intelligence faces significant technical hurdles unlikely resolved in this timeframe.",
   },
 ];
