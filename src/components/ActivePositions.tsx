@@ -25,61 +25,62 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
   const winRate = agents.length > 0 ? (profitableAgents / agents.length) * 100 : 0;
 
   return (
-    <div className="h-24 bg-bg-card border-t border-border">
-      <div className="flex items-center h-full px-4 gap-6">
-        {/* AI Agents */}
-        {agents.map((agent, index) => (
-          <motion.button
-            key={agent.id}
-            onClick={() => onAgentClick(agent.id)}
-            className={`min-w-60 h-16 p-3 flex items-center gap-3 border transition-colors ${
-              selectedAgent === agent.id
-                ? 'border-terminal-accent bg-muted'
-                : 'border-border bg-bg-elevated hover:bg-muted'
-            }`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {/* Agent Icon with Status */}
-            <div className="relative">
-              <div className="text-2xl">{agent.emoji}</div>
-              {agent.isActive && (
-                <motion.div
-                  className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-trade-yes"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              )}
-            </div>
+    <div className="h-24 bg-bg-card border-t border-border flex">
+      {/* Left Half: AI Agents (under bubble maps) */}
+      <div className="w-1/2">
+        <div className="flex items-center gap-3 px-4 h-full overflow-x-auto">
+          {agents.map((agent, index) => (
+            <motion.button
+              key={agent.id}
+              onClick={() => onAgentClick(agent.id)}
+              className={`min-w-64 h-16 p-3 flex items-center gap-3 border transition-colors ${
+                selectedAgent === agent.id
+                  ? 'border-terminal-accent bg-muted'
+                  : 'border-border bg-bg-elevated hover:bg-muted'
+              }`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {/* Agent Icon with Status */}
+              <div className="relative">
+                <div className="text-2xl">{agent.emoji}</div>
+                {agent.isActive && (
+                  <motion.div
+                    className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-trade-yes"
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                )}
+              </div>
 
-            {/* Info */}
-            <div className="flex-1 min-w-0 text-left">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-foreground" style={{ fontWeight: 500 }}>{agent.name}</span>
-                  <span className={`text-[11px] ${agent.isActive ? 'text-trade-yes' : 'text-text-muted'}`} style={{ fontWeight: 400 }}>
-                    {agent.isActive ? 'ACTIVE' : 'IDLE'}
+              {/* Info */}
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-foreground" style={{ fontWeight: 500 }}>{agent.name}</span>
+                    <span className={`text-[11px] ${agent.isActive ? 'text-trade-yes' : 'text-text-muted'}`} style={{ fontWeight: 400 }}>
+                      {agent.isActive ? 'ACTIVE' : 'IDLE'}
+                    </span>
+                  </div>
+                  <span className={`text-sm ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`} style={{ fontWeight: 600 }}>
+                    {agent.pnl >= 0 ? '+' : ''}{agent.pnl.toFixed(1)}%
                   </span>
                 </div>
-                <span className={`text-sm ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`} style={{ fontWeight: 600 }}>
-                  {agent.pnl >= 0 ? '+' : ''}{agent.pnl.toFixed(1)}%
-                </span>
+                <div className="text-xs text-text-secondary truncate" style={{ fontWeight: 400 }}>
+                  {agent.openMarkets} markets • {agent.lastTrade}
+                </div>
               </div>
-              <div className="text-xs text-text-secondary truncate" style={{ fontWeight: 400 }}>
-                {agent.openMarkets} markets • {agent.lastTrade}
-              </div>
-            </div>
-          </motion.button>
-        ))}
+            </motion.button>
+          ))}
+        </div>
+      </div>
 
-        {/* Vertical Separator */}
-        <div className="h-12 w-px bg-border" />
-
-        {/* Metrics - Inline with agents */}
-        <div className="flex items-center gap-8 flex-1">
+      {/* Right Half: Metrics (under performance chart) */}
+      <div className="w-1/2 px-6 h-full flex items-center">
+        <div className="grid grid-cols-4 gap-6 w-full">
           {/* Total PnL */}
           <div className="flex flex-col">
             <div className="text-[10px] text-text-muted font-mono uppercase tracking-[0.08em] mb-1" style={{ fontWeight: 600 }}>
