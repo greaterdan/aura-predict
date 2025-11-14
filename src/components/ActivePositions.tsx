@@ -242,15 +242,15 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
   };
 
   return (
-    <div className="h-20 bg-bg-card border-t border-border">
-      <div className="flex items-center h-full px-3 gap-3">
+    <div className="h-16 bg-bg-card border-t border-border">
+      <div className="flex items-center h-full px-2.5 gap-2.5">
         {/* AI Agents Section */}
         <div className="flex items-center gap-2.5 flex-1">
           {agents.map((agent, index) => (
             <motion.button
               key={agent.id}
               onClick={() => onAgentClick(agent.id)}
-              className={`flex-1 max-w-[200px] h-14 p-2.5 flex items-center gap-2.5 border transition-colors ${
+              className={`flex-1 max-w-[180px] h-12 p-2 flex items-center gap-2 border transition-colors ${
                 selectedAgent === agent.id
                   ? 'border-terminal-accent bg-muted'
                   : 'border-border bg-bg-elevated hover:bg-muted'
@@ -263,7 +263,7 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
             >
               {/* Agent Icon with Status */}
               <div className="relative">
-                <div className="text-xl">{agent.emoji}</div>
+                <div className="text-lg">{agent.emoji}</div>
                 {agent.isActive && (
                   <motion.div
                     className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-trade-yes"
@@ -276,17 +276,17 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
               {/* Info */}
               <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-center justify-between mb-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-foreground" style={{ fontWeight: 500 }}>{agent.name}</span>
-                    <span className={`text-[10px] ${agent.isActive ? 'text-trade-yes' : 'text-text-muted'}`} style={{ fontWeight: 400 }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-foreground" style={{ fontWeight: 500 }}>{agent.name}</span>
+                    <span className={`text-[9px] ${agent.isActive ? 'text-trade-yes' : 'text-text-muted'}`} style={{ fontWeight: 400 }}>
                       {agent.isActive ? 'ACTIVE' : 'IDLE'}
                     </span>
                   </div>
-                  <span className={`text-xs ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`} style={{ fontWeight: 600 }}>
+                  <span className={`text-[11px] ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`} style={{ fontWeight: 600 }}>
                     {agent.pnl >= 0 ? '+' : ''}{agent.pnl.toFixed(1)}%
                   </span>
                 </div>
-                <div className="text-[11px] text-text-secondary truncate" style={{ fontWeight: 400 }}>
+                <div className="text-[10px] text-text-secondary truncate" style={{ fontWeight: 400 }}>
                   {agent.openMarkets} markets • {agent.lastTrade}
                 </div>
               </div>
@@ -295,27 +295,27 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
         </div>
 
         {/* Vertical Separator */}
-        <div className="h-10 w-px bg-border flex-shrink-0" />
+        <div className="h-8 w-px bg-border flex-shrink-0" />
 
         {/* Metrics Section - Clickable */}
         <motion.button
           onClick={cycleMetricView}
-          className="flex items-center gap-5 flex-shrink-0 px-3 py-2 hover:bg-muted/30 transition-colors rounded border border-transparent hover:border-border group"
+          className="flex items-center gap-4 flex-shrink-0 px-2.5 py-1.5 hover:bg-muted/30 transition-colors rounded border border-transparent hover:border-border group"
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
         >
           {renderMetrics()}
           
           {/* View Indicator */}
-          <div className="ml-3 flex flex-col items-center gap-0.5">
-            <div className="text-[8px] text-terminal-accent font-mono uppercase tracking-wider opacity-60 group-hover:opacity-100 transition-opacity">
+          <div className="ml-2 flex flex-col items-center gap-0.5">
+            <div className="text-[7px] text-terminal-accent font-mono uppercase tracking-wider opacity-60 group-hover:opacity-100 transition-opacity">
               {getViewLabel()}
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-0.5">
               {(['overview', 'performance', 'prediction', 'behavior'] as MetricView[]).map((view) => (
                 <div
                   key={view}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${
+                  className={`w-1 h-1 rounded-full transition-all ${
                     view === metricView ? 'bg-terminal-accent' : 'bg-border'
                   }`}
                 />
