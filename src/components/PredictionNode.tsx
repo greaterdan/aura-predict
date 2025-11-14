@@ -18,9 +18,10 @@ interface PredictionNodeProps {
   position: { x: number; y: number };
   isHighlighted?: boolean;
   onClick?: () => void;
+  onShowTrades?: () => void;
 }
 
-export const PredictionNode = ({ data, position, isHighlighted, onClick }: PredictionNodeProps) => {
+export const PredictionNode = ({ data, position, isHighlighted, onClick, onShowTrades }: PredictionNodeProps) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const borderColor = data.position === "YES" 
     ? "border-trade-yes" 
@@ -113,11 +114,15 @@ export const PredictionNode = ({ data, position, isHighlighted, onClick }: Predi
           <div className="text-xs text-foreground mb-2">
             Current odds: <span className={accentColor}>{data.probability}%</span>
           </div>
-          <div className="flex gap-2 pt-2 border-t border-border">
-            <button className="text-xs px-2 py-1 border border-border hover:bg-muted transition-colors">
-              Open in Chart
-            </button>
-            <button className="text-xs px-2 py-1 border border-border hover:bg-muted transition-colors">
+          <div className="pt-2 border-t border-border">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowTrades?.();
+                setShowTooltip(false);
+              }}
+              className="w-full text-xs px-2 py-1 border border-border hover:bg-muted transition-colors"
+            >
               Show Trades
             </button>
           </div>

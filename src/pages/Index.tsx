@@ -4,6 +4,7 @@ import { PerformanceChart } from "@/components/PerformanceChart";
 import { SystemStatusBar } from "@/components/SystemStatusBar";
 import { ActivePositions } from "@/components/ActivePositions";
 import { ConnectionLine } from "@/components/ConnectionLine";
+import { TradesPanel } from "@/components/TradesPanel";
 
 interface Agent {
   id: string;
@@ -89,6 +90,8 @@ const Index = () => {
     agentId: string;
   } | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [tradesPanelOpen, setTradesPanelOpen] = useState(false);
+  const [selectedPrediction, setSelectedPrediction] = useState<PredictionNodeData | null>(null);
 
   // Simulate AI trading activity
   useEffect(() => {
@@ -129,6 +132,11 @@ const Index = () => {
 
   const handleNodeClick = (nodeId: string) => {
     setSelectedNode(selectedNode === nodeId ? null : nodeId);
+  };
+
+  const handleShowTrades = (prediction: PredictionNodeData) => {
+    setSelectedPrediction(prediction);
+    setTradesPanelOpen(true);
   };
 
   const filteredPredictions = selectedAgent
@@ -176,6 +184,7 @@ const Index = () => {
                 position={nodePositions[index]}
                 isHighlighted={selectedNode === prediction.id || (selectedAgent ? prediction.agentName === mockAgents.find(a => a.id === selectedAgent)?.name : false)}
                 onClick={() => handleNodeClick(prediction.id)}
+                onShowTrades={() => handleShowTrades(prediction)}
               />
             ))}
           </div>
@@ -200,6 +209,14 @@ const Index = () => {
         agents={agents}
         selectedAgent={selectedAgent}
         onAgentClick={handleAgentClick}
+      />
+
+      {/* Trades Panel */}
+      <TradesPanel
+        isOpen={tradesPanelOpen}
+        onClose={() => setTradesPanelOpen(false)}
+        predictionTitle={selectedPrediction?.question || ""}
+        trades={[]}
       />
     </div>
   );
