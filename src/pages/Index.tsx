@@ -231,13 +231,13 @@ const Index = () => {
         {/* LEFT: Prediction Nodes */}
         <div className="w-1/2 relative border-r border-border overflow-hidden flex flex-col">
           {/* Market Category Dropdown */}
-          <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-card/50 backdrop-blur-sm">
+          <div className="px-4 py-2 border-b border-border flex items-center justify-between bg-card">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-mono text-muted-foreground">DASHBOARD</span>
+              <span className="text-xs text-terminal-accent font-mono">&gt; DASHBOARD</span>
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/50 rounded-md transition-colors border border-border bg-background">
+                <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors border border-border bg-background">
                   {selectedCategory}
-                  <ChevronDown className="h-4 w-4 opacity-50" />
+                  <ChevronDown className="h-3 w-3 opacity-50" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48 bg-background border-border">
                   {marketCategories.map((category) => (

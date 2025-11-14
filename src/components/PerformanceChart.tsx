@@ -51,7 +51,7 @@ export const PerformanceChart = () => {
   return (
     <div className="h-full flex flex-col bg-card border border-border">
       {/* Chart Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card">
         <div className="text-xs text-terminal-accent font-mono">&gt; PERFORMANCE_INDEX</div>
         <div className="flex gap-2">
           {/* View Mode Toggle */}
