@@ -3,7 +3,6 @@ import { PredictionNode, PredictionNodeData } from "@/components/PredictionNode"
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { SystemStatusBar } from "@/components/SystemStatusBar";
 import { ActivePositions } from "@/components/ActivePositions";
-import { ConnectionLine } from "@/components/ConnectionLine";
 import { TradesPanel } from "@/components/TradesPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
@@ -86,11 +85,6 @@ const mockPredictions: PredictionNodeData[] = [
 const Index = () => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [agents, setAgents] = useState(mockAgents);
-  const [activeConnection, setActiveConnection] = useState<{
-    start: { x: number; y: number };
-    end: { x: number; y: number };
-    agentId: string;
-  } | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [tradesPanelOpen, setTradesPanelOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionNodeData | null>(null);
@@ -104,25 +98,13 @@ const Index = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       const randomAgentIndex = Math.floor(Math.random() * mockAgents.length);
-      const randomAgent = mockAgents[randomAgentIndex];
       
       setAgents(prev => prev.map((agent, idx) => ({
         ...mockAgents[idx], // Preserve all properties from mockAgents
         isActive: idx === randomAgentIndex
       })));
 
-      // Trigger connection animation (from bottom to node)
-      const agentIndex = mockAgents.findIndex(a => a.id === randomAgent.id);
-      const randomNode = Math.floor(Math.random() * mockPredictions.length);
-      
-      setActiveConnection({
-        start: { x: 150 + (agentIndex * 280), y: window.innerHeight - 50 },
-        end: { x: 200 + (randomNode % 3) * 280, y: 120 + Math.floor(randomNode / 3) * 200 },
-        agentId: randomAgent.id
-      });
-
       setTimeout(() => {
-        setActiveConnection(null);
         setAgents(prev => prev.map((agent, idx) => ({
           ...mockAgents[idx], // Preserve all properties
           isActive: false
@@ -309,14 +291,6 @@ const Index = () => {
                 />
               ))}
             </div>
-
-            {/* Active Connection Line */}
-            {activeConnection && (
-              <ConnectionLine
-                startPos={activeConnection.start}
-                endPos={activeConnection.end}
-              />
-            )}
           </div>
         </div>
 

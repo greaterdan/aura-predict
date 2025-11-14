@@ -48,7 +48,7 @@ export const PredictionNode = ({ data, position, isHighlighted, onClick, onShowT
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* The actual circular bubble */}
-        <div 
+        <motion.div 
           className={`relative w-56 h-56 rounded-full bg-bg-elevated border ${borderColor} p-4 flex flex-col items-center justify-center text-center shadow-xl`}
           style={{
             borderWidth: '1px',
@@ -57,6 +57,26 @@ export const PredictionNode = ({ data, position, isHighlighted, onClick, onShowT
               : data.position === "NO"
               ? '0 0 0 1px hsl(var(--trade-no) / 0.7), inset 0 0 60px hsl(var(--trade-no) / 0.08)'
               : '0 0 0 1px hsl(var(--border))'
+          }}
+          animate={{
+            boxShadow: data.position === "YES"
+              ? [
+                  '0 0 0 1px hsl(var(--trade-yes) / 0.7), inset 0 0 60px hsl(var(--trade-yes) / 0.08), 0 0 20px hsl(var(--trade-yes) / 0.3)',
+                  '0 0 0 1px hsl(var(--trade-yes) / 0.9), inset 0 0 80px hsl(var(--trade-yes) / 0.12), 0 0 40px hsl(var(--trade-yes) / 0.5)',
+                  '0 0 0 1px hsl(var(--trade-yes) / 0.7), inset 0 0 60px hsl(var(--trade-yes) / 0.08), 0 0 20px hsl(var(--trade-yes) / 0.3)'
+                ]
+              : data.position === "NO"
+              ? [
+                  '0 0 0 1px hsl(var(--trade-no) / 0.7), inset 0 0 60px hsl(var(--trade-no) / 0.08), 0 0 20px hsl(var(--trade-no) / 0.3)',
+                  '0 0 0 1px hsl(var(--trade-no) / 0.9), inset 0 0 80px hsl(var(--trade-no) / 0.12), 0 0 40px hsl(var(--trade-no) / 0.5)',
+                  '0 0 0 1px hsl(var(--trade-no) / 0.7), inset 0 0 60px hsl(var(--trade-no) / 0.08), 0 0 20px hsl(var(--trade-no) / 0.3)'
+                ]
+              : ['0 0 0 1px hsl(var(--border))', '0 0 0 1px hsl(var(--border))', '0 0 0 1px hsl(var(--border))']
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut"
           }}
         >
           {/* Probability */}
@@ -94,17 +114,17 @@ export const PredictionNode = ({ data, position, isHighlighted, onClick, onShowT
               {data.change >= 0 ? '+' : ''}{data.change.toFixed(1)}%
             </span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Pulse animation on highlight */}
         {isHighlighted && (
           <motion.div
             className={`absolute inset-0 border-2 ${borderColor} pointer-events-none rounded-full`}
             animate={{
-              opacity: [0.5, 0, 0.5],
-              scale: [1, 1.1, 1],
+              opacity: [0.8, 0, 0.8],
+              scale: [1, 1.2, 1],
             }}
-            transition={{ duration: 2, repeat: Infinity }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
           />
         )}
       </motion.div>
