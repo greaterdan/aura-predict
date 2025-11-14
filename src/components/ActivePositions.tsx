@@ -245,12 +245,12 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
     <div className="h-16 bg-bg-card border-t border-border">
       <div className="flex items-center h-full px-2.5 gap-2.5">
         {/* AI Agents Section */}
-        <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
           {agents.map((agent, index) => (
             <motion.button
               key={agent.id}
               onClick={() => onAgentClick(agent.id)}
-              className={`flex-shrink-0 w-[140px] h-12 p-2 flex items-center gap-2 border transition-colors ${
+              className={`flex-shrink-0 w-[130px] h-12 p-1.5 flex items-center gap-1.5 border transition-colors ${
                 selectedAgent === agent.id
                   ? 'border-terminal-accent bg-muted'
                   : 'border-border bg-bg-elevated hover:bg-muted'
@@ -276,7 +276,7 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
               {/* Info */}
               <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-center justify-between mb-0.5">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span className="text-[10px] font-mono text-foreground" style={{ fontWeight: 500 }}>{agent.name}</span>
                     <span className={`text-[9px] ${agent.isActive ? 'text-trade-yes' : 'text-text-muted'}`} style={{ fontWeight: 400 }}>
                       {agent.isActive ? 'ACTIVE' : 'IDLE'}
@@ -286,8 +286,8 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
                     {agent.pnl >= 0 ? '+' : ''}{agent.pnl.toFixed(1)}%
                   </span>
                 </div>
-                <div className="text-[10px] text-text-secondary truncate" style={{ fontWeight: 400 }}>
-                  {agent.openMarkets} markets • {agent.lastTrade}
+                <div className="text-[9px] text-text-secondary truncate" style={{ fontWeight: 400 }}>
+                  {agent.openMarkets} markets • {agent.lastTrade.substring(0, 20)}...
                 </div>
               </div>
             </motion.button>
