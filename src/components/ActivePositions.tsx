@@ -243,14 +243,14 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
 
   return (
     <div className="h-16 bg-bg-card border-t border-border">
-      <div className="flex items-center h-full px-2.5 gap-2.5">
+      <div className="flex items-center h-full px-2 gap-2">
         {/* AI Agents Section */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
           {agents.map((agent, index) => (
             <motion.button
               key={agent.id}
               onClick={() => onAgentClick(agent.id)}
-              className={`flex-shrink-0 w-[130px] h-12 p-1.5 flex items-center gap-1.5 border transition-colors ${
+              className={`flex-shrink-0 w-[115px] h-12 p-1.5 flex items-center gap-1.5 border transition-colors ${
                 selectedAgent === agent.id
                   ? 'border-terminal-accent bg-muted'
                   : 'border-border bg-bg-elevated hover:bg-muted'
@@ -300,7 +300,7 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
         {/* Metrics Section - Clickable */}
         <motion.button
           onClick={cycleMetricView}
-          className="flex items-center gap-4 flex-shrink-0 px-2.5 py-1.5 hover:bg-muted/30 transition-colors rounded border border-transparent hover:border-border group"
+          className="flex items-center gap-2.5 flex-shrink-0 px-2 py-1.5 hover:bg-muted/30 transition-colors rounded border border-transparent hover:border-border group"
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
         >
