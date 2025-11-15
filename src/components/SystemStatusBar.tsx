@@ -1,54 +1,91 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { LoginButton } from "./LoginButton";
+import { CustodialWallet } from "./CustodialWallet";
+import { getOrCreateWallet } from "@/lib/wallet";
+import { Button } from "@/components/ui/button";
+import { Bot } from "lucide-react";
 
-interface FeedItem {
-  id: string;
-  text: string;
-}
-
-const feedItems: FeedItem[] = [
-  { id: "1", text: "GROK bought YES on Trump 2024 @ 0.67" },
-  { id: "2", text: "DEEPSEEK flipped to NO on AGI 2030" },
-  { id: "3", text: "GEMINI decreased confidence on ETH > $4k" },
-  { id: "4", text: "OPENAI executed: NO on Thunderbolts @ 0.004" },
-  { id: "5", text: "GROK analyzing: SBF sentencing outcomes" },
-];
-
-export const SystemStatusBar = () => {
-  const [currentTime, setCurrentTime] = useState(new Date());
+export const SystemStatusBar = ({ onToggleAgentBuilder }: { onToggleAgentBuilder?: () => void }) => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | undefined>();
+  const [walletAddress, setWalletAddress] = useState<string | undefined>();
+  const [custodialWallet, setCustodialWallet] = useState<{ publicKey: string; privateKey: string } | null>(null);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    // Check if user is already logged in (from localStorage or session)
+    const storedEmail = localStorage.getItem('userEmail');
+    const storedWallet = localStorage.getItem('walletAddress');
+    
+    if (storedEmail || storedWallet) {
+      setIsLoggedIn(true);
+      if (storedEmail) setUserEmail(storedEmail);
+      if (storedWallet) setWalletAddress(storedWallet);
+      
+      // Generate or retrieve custodial wallet
+      const userId = storedEmail || storedWallet || 'default';
+      const wallet = getOrCreateWallet(userId);
+      setCustodialWallet({
+        publicKey: wallet.publicKey,
+        privateKey: wallet.privateKey,
+      });
+    }
   }, []);
 
-  const formatTime = (date: Date) => {
-    return date.toTimeString().split(' ')[0];
+  const handleLogin = (method: 'phantom' | 'gmail', data?: { address?: string; email?: string }) => {
+    setIsLoggedIn(true);
+    const userId = method === 'phantom' ? data?.address : data?.email || 'default';
+    
+    if (method === 'phantom' && data?.address) {
+      setWalletAddress(data.address);
+      localStorage.setItem('walletAddress', data.address);
+    } else if (method === 'gmail' && data?.email) {
+      setUserEmail(data.email);
+      localStorage.setItem('userEmail', data.email);
+    }
+    
+    // Generate or retrieve custodial wallet for this user
+    const wallet = getOrCreateWallet(userId || 'default');
+    setCustodialWallet({
+      publicKey: wallet.publicKey,
+      privateKey: wallet.privateKey,
+    });
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUserEmail(undefined);
+    setWalletAddress(undefined);
+    setCustodialWallet(null);
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('walletAddress');
   };
 
   return (
-    <div className="h-8 bg-bg-elevated border-b border-border flex items-center px-4 text-xs font-mono hover:bg-bg-card transition-colors">
-      {/* Left: Status */}
-      <div className="flex items-center gap-2 min-w-32">
-        <span className="text-text-secondary uppercase" style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em' }}>&gt; LIVE_FEED</span>
-        <div className="w-1.5 h-1.5 rounded-full bg-trade-yes animate-pulse" />
-      </div>
-
-      {/* Center: Scrolling Feed */}
-      <div className="flex-1 overflow-hidden mx-4">
-        <div className="animate-marquee whitespace-nowrap text-text-secondary">
-          {feedItems.map((item, index) => (
-            <span key={item.id}>
-              {item.text}
-              {index < feedItems.length - 1 && " | "}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Right: System Time */}
-      <div className="text-text-muted min-w-40 text-right">
-        SYS_TIME {formatTime(currentTime)}
-      </div>
+    <div className="h-11 bg-bg-elevated border-b border-border flex items-center justify-end gap-2 px-4 py-2">
+      {isLoggedIn && custodialWallet && (
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleAgentBuilder}
+            className="h-7 px-2.5 text-xs font-mono border-border bg-background hover:bg-bg-elevated rounded-full"
+          >
+            <Bot className="w-2.5 h-2.5 mr-1.5" />
+            Build Agent
+          </Button>
+          <CustodialWallet
+            walletAddress={custodialWallet.publicKey}
+            privateKey={custodialWallet.privateKey}
+          />
+        </>
+      )}
+      <LoginButton
+        onLogin={handleLogin}
+        onLogout={handleLogout}
+        isLoggedIn={isLoggedIn}
+        userEmail={userEmail}
+        walletAddress={walletAddress}
+      />
     </div>
   );
 };

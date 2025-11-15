@@ -1,5 +1,14 @@
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 
+const AGENT_LOGO: Record<string, string> = {
+  deepseek: "/Deepseek-logo-icon.svg",
+  claude: "/Claude_AI_symbol.svg",
+  qwen: "/Qwen_logo.svg",
+  gemini: "/GEMENI.png",
+  grok: "/grok.png",
+  gpt5: "/GPT.png",
+};
+
 interface AgentStats {
   id: string;
   name: string;
@@ -134,66 +143,78 @@ const riskMetricsData = [
   { metric: "W/L Ratio", deepseek: 39.13, claude: 48.1, qween: 37.0, gemini: 41.58, grok: 42.45, gpt5: 25.0 },
 ];
 
+const AgentCard = ({ agent, index }: { agent: AgentStats; index: number }) => (
+  <div className="bg-card border border-border p-3 rounded-2xl h-full flex flex-col">
+    {/* Header */}
+    <div className="flex items-center gap-2 mb-2.5">
+      <span className="text-terminal-accent font-mono text-xs">#{index + 1}</span>
+      <img 
+        src={`/${agent.id === 'grok' ? 'grok.png' : agent.id === 'gpt5' ? 'GPT.png' : agent.id === 'gemini' ? 'GEMENI.png' : agent.id === 'deepseek' ? 'Deepseek-logo-icon.svg' : agent.id === 'claude' ? 'Claude_AI_symbol.svg' : agent.id === 'qwen' ? 'Qwen_logo.svg' : 'placeholder.svg'}`}
+        alt={agent.name}
+        className={`object-contain ${agent.id === 'gemini' ? 'w-7 h-7' : 'w-6 h-6'}`}
+      />
+      <span className="text-xs font-mono truncate" style={{ color: agent.color }}>
+        {agent.name}
+      </span>
+    </div>
+
+    {/* Stats Grid */}
+    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono flex-1">
+      <div className="text-muted-foreground">Cash</div>
+      <div className="text-right text-foreground">${agent.cash.toFixed(2)}</div>
+
+      <div className="text-muted-foreground">Total</div>
+      <div className="text-right text-foreground">${agent.total.toFixed(2)}</div>
+
+      <div className="text-muted-foreground">P&L</div>
+      <div className={`text-right font-bold ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`}>
+        {agent.pnl >= 0 ? '+' : ''}${agent.pnl.toFixed(2)}
+      </div>
+
+      <div className="text-muted-foreground">Win%</div>
+      <div className="text-right text-foreground">{agent.winRate.toFixed(2)}%</div>
+
+      <div className="text-muted-foreground">Wins</div>
+      <div className="text-right text-foreground">{agent.wins}</div>
+
+      <div className="text-muted-foreground">Losses</div>
+      <div className="text-right text-trade-no">{agent.losses}</div>
+
+      <div className="text-muted-foreground">Exposure</div>
+      <div className="text-right text-foreground">${agent.exposure.toFixed(2)}</div>
+
+      <div className="text-muted-foreground">MaxExp%</div>
+      <div className="text-right text-foreground">{agent.maxExposure.toFixed(2)}%</div>
+
+      <div className="text-muted-foreground">Calls</div>
+      <div className="text-right text-foreground">{agent.calls}</div>
+
+      <div className="text-muted-foreground">MinConf</div>
+      <div className="text-right text-foreground">{agent.minConf.toFixed(2)}</div>
+    </div>
+  </div>
+);
+
 export const TechnicalView = () => {
+  const topAgents = mockAgentStats.slice(0, 3); // First 3 agents
+  const bottomAgents = mockAgentStats.slice(3, 6); // Last 3 agents
+
   return (
-    <div className="h-full flex flex-col bg-background overflow-y-auto">
-      {/* Agent Stats Cards Grid */}
-      <div className="grid grid-cols-3 gap-3 p-4">
-        {mockAgentStats.map((agent, index) => (
-          <div key={agent.id} className="bg-card border border-border p-3">
-            {/* Header */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-terminal-accent font-mono text-xs">#{index + 1}</span>
-              <span className="text-lg">{agent.emoji}</span>
-              <span className="text-xs font-mono" style={{ color: agent.color }}>
-                {agent.name}
-              </span>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-mono">
-              <div className="text-muted-foreground">Cash</div>
-              <div className="text-right text-foreground">${agent.cash.toFixed(2)}</div>
-
-              <div className="text-muted-foreground">Total</div>
-              <div className="text-right text-foreground">${agent.total.toFixed(2)}</div>
-
-              <div className="text-muted-foreground">P&L</div>
-              <div className={`text-right font-bold ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`}>
-                {agent.pnl >= 0 ? '+' : ''}${agent.pnl.toFixed(2)}
-              </div>
-
-              <div className="text-muted-foreground">Win%</div>
-              <div className="text-right text-foreground">{agent.winRate.toFixed(2)}%</div>
-
-              <div className="text-muted-foreground">Wins</div>
-              <div className="text-right text-foreground">{agent.wins}</div>
-
-              <div className="text-muted-foreground">Losses</div>
-              <div className="text-right text-trade-no">{agent.losses}</div>
-
-              <div className="text-muted-foreground">Exposure</div>
-              <div className="text-right text-foreground">${agent.exposure.toFixed(2)}</div>
-
-              <div className="text-muted-foreground">MaxExp%</div>
-              <div className="text-right text-foreground">{agent.maxExposure.toFixed(2)}%</div>
-
-              <div className="text-muted-foreground">Calls</div>
-              <div className="text-right text-foreground">{agent.calls}</div>
-
-              <div className="text-muted-foreground">MinConf</div>
-              <div className="text-right text-foreground">{agent.minConf.toFixed(2)}</div>
-            </div>
-          </div>
+    <div className="h-full flex flex-col bg-background overflow-hidden">
+      {/* Top 3 Agents */}
+      <div className="grid grid-cols-3 gap-3 px-3 pt-3 pb-1.5 flex-shrink-0">
+        {topAgents.map((agent, index) => (
+          <AgentCard key={agent.id} agent={agent} index={index} />
         ))}
       </div>
 
-      {/* Radar Charts Grid */}
-      <div className="grid grid-cols-3 gap-3 p-4 pt-0">
+      {/* Radar Charts Grid - Metrics in the middle */}
+      <div className="grid grid-cols-3 gap-2.5 px-2.5 pt-1.5 pb-2.5 flex-1 min-h-0">
         {/* Performance Metrics */}
-        <div className="bg-card border border-border p-4">
-          <div className="text-xs text-center text-foreground mb-2 font-mono">Performance Metrics</div>
-          <ResponsiveContainer width="100%" height={200}>
+        <div className="bg-card border border-border p-3 rounded-2xl flex flex-col min-h-0">
+          <div className="text-[10px] text-center text-foreground mb-2 font-mono flex-shrink-0">Performance Metrics</div>
+          <div className="flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={performanceData}>
               <PolarGrid stroke="#2d3748" />
               <PolarAngleAxis dataKey="metric" tick={{ fill: '#64748b', fontSize: 9 }} />
@@ -202,12 +223,14 @@ export const TechnicalView = () => {
               <Radar name="Qwen" dataKey="qwen" stroke="#6b9e7d" fill="#6b9e7d" fillOpacity={0.15} />
             </RadarChart>
           </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Trading Activity */}
-        <div className="bg-card border border-border p-4">
-          <div className="text-xs text-center text-foreground mb-2 font-mono">Trading Activity</div>
-          <ResponsiveContainer width="100%" height={200}>
+        <div className="bg-card border border-border p-3 rounded-2xl flex flex-col min-h-0">
+          <div className="text-[10px] text-center text-foreground mb-2 font-mono flex-shrink-0">Trading Activity</div>
+          <div className="flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={tradingActivityData}>
               <PolarGrid stroke="#2d3748" />
               <PolarAngleAxis dataKey="metric" tick={{ fill: '#64748b', fontSize: 9 }} />
@@ -216,12 +239,14 @@ export const TechnicalView = () => {
               <Radar name="Qwen" dataKey="qwen" stroke="#6b9e7d" fill="#6b9e7d" fillOpacity={0.15} />
             </RadarChart>
           </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Risk Metrics */}
-        <div className="bg-card border border-border p-4">
-          <div className="text-xs text-center text-foreground mb-2 font-mono">Risk Metrics</div>
-          <ResponsiveContainer width="100%" height={200}>
+        <div className="bg-card border border-border p-3 rounded-2xl flex flex-col min-h-0">
+          <div className="text-[10px] text-center text-foreground mb-2 font-mono flex-shrink-0">Risk Metrics</div>
+          <div className="flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={riskMetricsData}>
               <PolarGrid stroke="#2d3748" />
               <PolarAngleAxis dataKey="metric" tick={{ fill: '#64748b', fontSize: 9 }} />
@@ -230,20 +255,14 @@ export const TechnicalView = () => {
               <Radar name="Qwen" dataKey="qwen" stroke="#6b9e7d" fill="#6b9e7d" fillOpacity={0.15} />
             </RadarChart>
           </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
-      {/* Agent Indicators */}
-      <div className="flex gap-2 px-4 pb-4">
-        {mockAgentStats.map((agent) => (
-          <div
-            key={agent.id}
-            className="flex-1 h-12 border border-border flex items-center justify-center text-xs font-mono"
-            style={{ backgroundColor: agent.color }}
-          >
-            <span className="mr-1">{agent.emoji}</span>
-            <span className="text-background font-bold">{agent.name}</span>
-          </div>
+      {/* Bottom 3 Agents */}
+      <div className="grid grid-cols-3 gap-3 px-3 pb-3 flex-shrink-0">
+        {bottomAgents.map((agent, index) => (
+          <AgentCard key={agent.id} agent={agent} index={index + 3} />
         ))}
       </div>
     </div>

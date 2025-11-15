@@ -204,12 +204,12 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
     <div className="h-16 bg-bg-card border-t border-border">
       <div className="flex items-center h-full px-2 gap-2">
         {/* AI Agents Section */}
-        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
+        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
           {agents.map((agent, index) => (
             <motion.button
               key={agent.id}
               onClick={() => onAgentClick(agent.id)}
-              className={`flex-shrink-0 w-[105px] h-12 p-1.5 flex items-center gap-1.5 border transition-colors ${
+              className={`flex-shrink-0 w-[200px] h-12 p-2.5 flex items-center gap-2.5 border rounded-full transition-colors ${
                 selectedAgent === agent.id
                   ? 'border-terminal-accent bg-muted'
                   : 'border-border bg-bg-elevated hover:bg-muted'
@@ -222,10 +222,14 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
             >
               {/* Agent Icon with Status */}
               <div className="relative">
-                <div className="text-lg">{agent.emoji}</div>
+                <img 
+                  src={`/${agent.id === 'grok' ? 'grok.png' : agent.id === 'gpt5' ? 'GPT.png' : agent.id === 'gemini' ? 'GEMENI.png' : agent.id === 'deepseek' ? 'Deepseek-logo-icon.svg' : agent.id === 'claude' ? 'Claude_AI_symbol.svg' : agent.id === 'qwen' ? 'Qwen_logo.svg' : 'placeholder.svg'}`}
+                  alt={agent.name}
+                  className={`object-contain ${agent.id === 'gemini' ? 'w-14 h-14' : 'w-10 h-10'}`}
+                />
                 {agent.isActive && (
                   <motion.div
-                    className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-trade-yes"
+                    className="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full bg-trade-yes border-2 border-bg-elevated"
                     animate={{ opacity: [1, 0.3, 1] }}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   />
@@ -236,13 +240,13 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
               <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-center justify-between mb-0.5">
                   <div className="flex items-center gap-1">
-                    <span className="text-[9px] font-mono text-foreground" style={{ fontWeight: 500 }}>{agent.name}</span>
+                    <span className="text-xs font-mono text-foreground" style={{ fontWeight: 500 }}>{agent.name}</span>
                   </div>
-                  <span className={`text-[11px] ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`} style={{ fontWeight: 600 }}>
+                  <span className={`text-sm ${agent.pnl >= 0 ? 'text-trade-yes' : 'text-trade-no'}`} style={{ fontWeight: 600 }}>
                     {agent.pnl >= 0 ? '+' : ''}{agent.pnl.toFixed(1)}%
                   </span>
                 </div>
-                <div className="text-[8px] text-text-secondary truncate" style={{ fontWeight: 400 }}>
+                <div className="text-[10px] text-text-secondary truncate" style={{ fontWeight: 400 }}>
                   {agent.openMarkets} mkt • {agent.isActive ? 'ACTIVE' : 'IDLE'}
                 </div>
               </div>
@@ -256,7 +260,7 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
         {/* Metrics Section - Clickable */}
         <motion.button
           onClick={cycleMetricView}
-          className="flex items-center gap-2 flex-shrink-0 px-1.5 py-1.5 hover:bg-muted/30 transition-colors rounded border border-transparent hover:border-border group"
+          className="flex items-center gap-2 flex-shrink-0 px-1.5 py-1.5 hover:bg-muted/30 transition-colors rounded-xl border border-transparent hover:border-border group"
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
         >

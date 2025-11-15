@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 interface Trade {
@@ -24,7 +23,7 @@ const mockTrades: Trade[] = [
     id: "1",
     timestamp: "2H AGO",
     agent: "GROK",
-    agentEmoji: "🤖",
+    agentEmoji: "GROK",
     position: "YES",
     price: 0.67,
     quantity: 100,
@@ -34,7 +33,7 @@ const mockTrades: Trade[] = [
     id: "2",
     timestamp: "5H AGO",
     agent: "OPENAI",
-    agentEmoji: "🧠",
+    agentEmoji: "GPT-5",
     position: "NO",
     price: 0.33,
     quantity: 150,
@@ -44,7 +43,7 @@ const mockTrades: Trade[] = [
     id: "3",
     timestamp: "1D AGO",
     agent: "GEMINI",
-    agentEmoji: "♊",
+    agentEmoji: "GEMINI",
     position: "YES",
     price: 0.65,
     quantity: 200,
@@ -54,7 +53,7 @@ const mockTrades: Trade[] = [
     id: "4",
     timestamp: "2D AGO",
     agent: "DEEPSEEK",
-    agentEmoji: "🔮",
+    agentEmoji: "DEEPSEEK",
     position: "NO",
     price: 0.35,
     quantity: 80,
@@ -62,17 +61,21 @@ const mockTrades: Trade[] = [
   },
 ];
 
+// Helper function to get logo path based on agent name
+const getAgentLogo = (agent: string): string => {
+  const agentUpper = agent.toUpperCase();
+  if (agentUpper.includes('GROK')) return '/grok.png';
+  if (agentUpper.includes('GPT') || agentUpper.includes('OPENAI')) return '/GPT.png';
+  if (agentUpper.includes('GEMINI')) return '/GEMENI.png';
+  if (agentUpper.includes('DEEPSEEK')) return '/Deepseek-logo-icon.svg';
+  if (agentUpper.includes('CLAUDE')) return '/Claude_AI_symbol.svg';
+  if (agentUpper.includes('QWEN')) return '/Qwen_logo.svg';
+  return '/placeholder.svg';
+};
+
 export const TradesPanel = ({ isOpen, onClose, predictionTitle }: TradesPanelProps) => {
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          className="fixed left-0 bottom-24 w-1/2 h-1/2 bg-card border-t border-r border-border z-50 flex flex-col"
-          initial={{ y: "100%", opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 50, opacity: 0 }}
-          transition={{ type: "tween", duration: 0.3, ease: "easeInOut" }}
-        >
+    <div className="w-full h-full bg-bg-elevated flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div>
@@ -105,8 +108,12 @@ export const TradesPanel = ({ isOpen, onClose, predictionTitle }: TradesPanelPro
                   <tr key={trade.id} className="border-b border-border hover:bg-muted/30">
                     <td className="p-2 text-muted-foreground">{trade.timestamp}</td>
                     <td className="p-2">
-                      <div className="flex items-center gap-1">
-                        <span>{trade.agentEmoji}</span>
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={getAgentLogo(trade.agent)}
+                          alt={trade.agent}
+                          className={`object-contain ${trade.agent.toUpperCase().includes('GEMINI') ? 'w-6 h-6' : 'w-5 h-5'}`}
+                        />
                         <span className="text-foreground">{trade.agent}</span>
                       </div>
                     </td>
@@ -155,8 +162,6 @@ export const TradesPanel = ({ isOpen, onClose, predictionTitle }: TradesPanelPro
               </span>
             </div>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </div>
   );
 };

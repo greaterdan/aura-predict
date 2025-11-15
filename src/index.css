@@ -221,4 +221,50 @@ All colors MUST be HSL.
   .text-glow-blue {
     text-shadow: 0 0 8px hsla(208, 100%, 65%, 0.5), 0 0 12px hsla(208, 100%, 65%, 0.25);
   }
+
+  @keyframes bubble-float-gentle {
+    0% {
+      transform: translate3d(0px, 0px, 0);
+    }
+    25% {
+      transform: translate3d(1px, -1.5px, 0);
+    }
+    50% {
+      transform: translate3d(-0.5px, 1px, 0);
+    }
+    75% {
+      transform: translate3d(-1px, -0.5px, 0);
+    }
+    100% {
+      transform: translate3d(0px, 0px, 0);
+    }
+  }
+
+  @keyframes bubble-orbit {
+    0%   { transform: translate3d(0px, 0px, 0) scale(1); }
+    20%  { transform: translate3d(8px, -12px, 0) scale(1.01); }
+    40%  { transform: translate3d(-10px, 6px, 0) scale(0.99); }
+    60%  { transform: translate3d(6px, 10px, 0) scale(1.01); }
+    80%  { transform: translate3d(-8px, -6px, 0) scale(0.99); }
+    100% { transform: translate3d(0px, 0px, 0) scale(1); }
+  }
+
+  .banter-bubble-wrapper {
+    will-change: transform;
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+
+  .banter-bubble-inner {
+    border-radius: 9999px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+
+  .banter-bubble-inner:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    transform: translateZ(0) scale(1.02);
+  }
 }
