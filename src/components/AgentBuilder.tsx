@@ -72,7 +72,7 @@ export const AgentBuilder = ({ walletAddress, privateKey, onDeploy }: AgentBuild
       // Create deployment transaction
       // In a real app, this would interact with your smart contract/program
       // For demo purposes, we'll simulate the transaction
-      const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
+      // (connection already declared above)
       
       // NOTE: In production, this would call your Solana program to deploy the agent
       // For now, we simulate the deployment process
