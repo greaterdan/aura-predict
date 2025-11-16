@@ -1,40 +1,44 @@
 # Aura Predict
 
+**AI-Powered Prediction Market Terminal**
+
 A professional prediction and trading platform built with modern web technologies, featuring AI-powered agents and real-time market analysis.
 
-## Technology Stack
+## 🚀 Overview
 
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Solana](https://img.shields.io/badge/Solana-9945FF?style=for-the-badge&logo=solana&logoColor=white)
+Aura Predict is a comprehensive trading and prediction platform that integrates multiple AI agents for market analysis and decision-making. The platform provides real-time market data, technical analysis, and automated trading capabilities with a focus on Solana-based prediction markets.
 
-## Overview
+## ✨ Features
 
-Aura Predict is a comprehensive trading and prediction platform that integrates AI agents for market analysis and decision-making. The platform provides real-time market data, technical analysis, and automated trading capabilities with a focus on Solana-based markets.
+- **🤖 AI-Powered Agents**: Multiple AI agents (GPT, Claude, Grok, DeepSeek, Gemini) for market analysis and predictions
+- **📊 Real-Time Market Data**: Live feed integration with Polymarket and other prediction market providers
+- **📈 Technical Analysis**: Advanced charting and technical indicators
+- **💼 Trading Dashboard**: Comprehensive trading interface with position management
+- **🔐 Custodial Wallet Integration**: Secure wallet management for Solana transactions
+- **📉 Performance Tracking**: Real-time performance metrics and analytics
+- **🎯 Agent Builder**: Create and deploy custom AI trading agents with a user-friendly wizard interface
 
-## Features
+## 🛠️ Technology Stack
 
-- **AI-Powered Agents**: Multiple AI agents for market analysis and predictions
-- **Real-Time Market Data**: Live feed integration with market data providers
-- **Technical Analysis**: Advanced charting and technical indicators
-- **Trading Dashboard**: Comprehensive trading interface with position management
-- **Custodial Wallet Integration**: Secure wallet management for Solana transactions
-- **Performance Tracking**: Real-time performance metrics and analytics
+- **Frontend**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **State Management**: TanStack Query (React Query)
+- **Routing**: React Router DOM
+- **Blockchain**: Solana Web3.js
+- **Charts**: Recharts
+- **Animations**: Framer Motion
+- **Backend**: Express.js + Node.js
 
-## Prerequisites
+## 📋 Prerequisites
 
 - Node.js 18.x or higher
 - npm or yarn package manager
 
-## Installation
+## 🔧 Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/greaterdan/aura-predict.git
 cd aura-predict
 ```
 
@@ -43,7 +47,7 @@ cd aura-predict
 npm install
 ```
 
-## Development
+## 🏃 Development
 
 Start the development server:
 ```bash
@@ -60,9 +64,9 @@ Start both frontend and backend concurrently:
 npm run dev:all
 ```
 
-The application will be available at `http://localhost:5173` (or the port specified by Vite).
+The application will be available at `http://localhost:3000` (frontend) and `http://localhost:3002` (backend).
 
-## Build
+## 🏗️ Build
 
 Build for production:
 ```bash
@@ -79,19 +83,14 @@ Preview production build:
 npm run preview
 ```
 
-## Linting
-
-Run ESLint to check code quality:
-```bash
-npm run lint
-```
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 aura-predict/
 ├── src/
 │   ├── components/     # React components
+│   │   ├── ui/         # shadcn/ui components
+│   │   └── ...         # Feature components
 │   ├── pages/          # Page components
 │   ├── hooks/          # Custom React hooks
 │   ├── lib/            # Utility libraries and API clients
@@ -99,22 +98,46 @@ aura-predict/
 │   └── App.tsx         # Main application component
 ├── public/             # Static assets
 ├── server.js           # Express backend server
-└── package.json        # Project dependencies
+├── package.json        # Project dependencies
+└── vite.config.ts      # Vite configuration
 ```
 
-## Key Technologies
+## 🔑 Key Features
 
-- **Frontend Framework**: React 18 with TypeScript
-- **Build Tool**: Vite 5
-- **Styling**: Tailwind CSS with shadcn/ui components
-- **State Management**: React Query (TanStack Query)
-- **Routing**: React Router DOM
-- **Blockchain**: Solana Web3.js
-- **Charts**: Recharts
-- **Animations**: Framer Motion
-- **Form Handling**: React Hook Form with Zod validation
-- **Backend**: Express.js
+### AI Agent System
+- Multiple AI models for diverse trading strategies
+- Real-time decision making and market analysis
+- Performance tracking and analytics
 
-## License
+### Prediction Market Integration
+- Polymarket API integration
+- Real-time market data
+- Category filtering and search
+
+### Trading Interface
+- Interactive bubble visualization
+- Zoom and pan controls
+- Real-time position tracking
+- Trade execution on Solana
+
+### Agent Builder
+- 3-step wizard interface
+- Strategy configuration
+- Risk management settings
+- Live testing and deployment
+
+## 📝 License
 
 This project is private and proprietary.
+
+## 🤝 Contributing
+
+This is a private project. For access or questions, please contact the repository owner.
+
+## 📧 Contact
+
+For inquiries about Aura Predict, please reach out through the repository.
+
+---
+
+**Built with ❤️ for the prediction market community**
