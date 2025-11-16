@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#050609"/>
+  <circle cx="600" cy="315" r="200" fill="#f6c86a" opacity="0.2"/>
+  <circle cx="600" cy="315" r="120" fill="#f6c86a" opacity="0.3"/>
+  <circle cx="600" cy="315" r="60" fill="#f6c86a"/>
+  <circle cx="600" cy="315" r="30" fill="#050609"/>
+  <path d="M 550 315 L 580 295 L 580 315 L 580 335 Z" fill="#f6c86a"/>
+  <text x="600" y="450" font-family="Inter, sans-serif" font-size="48" font-weight="700" fill="#f6c86a" text-anchor="middle">AURA PREDICT</text>
+  <text x="600" y="500" font-family="Inter, sans-serif" font-size="24" font-weight="400" fill="#C6CBD9" text-anchor="middle">AI-Powered Prediction Market Terminal</text>
+</svg>

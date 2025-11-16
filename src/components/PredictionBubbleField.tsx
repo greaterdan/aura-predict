@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PredictionNodeData } from "./PredictionNode";
 import { PredictionNode } from "./PredictionNode";
 import { layoutRadialBubbleCloud } from "@/lib/layoutRadialBubbleCloud";
@@ -23,6 +23,7 @@ export const PredictionBubbleField: React.FC<Props> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [isSizeReady, setIsSizeReady] = useState(false);
+  const [hasRendered, setHasRendered] = useState(false);
   const [hoveredBubbleId, setHoveredBubbleId] = useState<string | null>(null);
   const [draggedBubbleId, setDraggedBubbleId] = useState<string | null>(null);
   const [bubblePositions, setBubblePositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -33,6 +34,7 @@ export const PredictionBubbleField: React.FC<Props> = ({
   useLayoutEffect(() => {
     let mounted = true;
     const sizeRef = { width: 0, height: 0 };
+    let measureTimeout: NodeJS.Timeout | null = null;
     
     function measure() {
       if (!containerRef.current || !mounted) return;
@@ -46,20 +48,37 @@ export const PredictionBubbleField: React.FC<Props> = ({
         sizeRef.height = height;
         setSize({ width, height });
         setIsSizeReady(true);
+      } else if (width < 200 || height < 200) {
+        // Reset if size becomes too small
+        setIsSizeReady(false);
       }
     }
 
-    // Initial measure - wait for container to be properly sized
-    const timeout = setTimeout(() => {
-      if (mounted) measure();
-    }, 150);
+    // Initial measure - wait for container to be properly sized and DOM to be ready
+    const initialTimeout = setTimeout(() => {
+      if (mounted) {
+        measure();
+        // Double-check after a short delay to ensure stable size
+        measureTimeout = setTimeout(() => {
+          if (mounted) measure();
+        }, 100);
+      }
+    }, 200);
     
     // Use ResizeObserver for reliable size tracking
-    const resizeObserver = new ResizeObserver(() => {
-      if (mounted) {
-        // Debounce resize to prevent glitches
-        setTimeout(measure, 50);
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (!mounted) return;
+      
+      // Clear any pending timeout
+      if (measureTimeout) {
+        clearTimeout(measureTimeout);
+        measureTimeout = null;
       }
+      
+      // Debounce resize to prevent glitches
+      measureTimeout = setTimeout(() => {
+        if (mounted) measure();
+      }, 100);
     });
 
     if (containerRef.current) {
@@ -70,7 +89,8 @@ export const PredictionBubbleField: React.FC<Props> = ({
     
     return () => {
       mounted = false;
-      clearTimeout(timeout);
+      clearTimeout(initialTimeout);
+      if (measureTimeout) clearTimeout(measureTimeout);
       resizeObserver.disconnect();
       window.removeEventListener("resize", measure);
       if (animationFrameRef.current) {
@@ -82,30 +102,45 @@ export const PredictionBubbleField: React.FC<Props> = ({
   const initialBubbles = useMemo(() => {
     // Don't calculate layout if size is not ready (prevents glitch on refresh)
     // Require minimum valid dimensions to avoid calculating with tiny sizes
-    if (!isSizeReady || size.width < 200 || size.height < 200) {
+    if (!isSizeReady || size.width < 200 || size.height < 200 || markets.length === 0) {
       return [];
     }
     // For "All Markets" - show as many as possible, otherwise limit to 200
     const maxVisible = markets.length > 200 ? markets.length : 200;
     
-    return layoutRadialBubbleCloud(
-      markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
-      size.width,
-      size.height,
-      maxVisible // Show all markets if possible
-    );
+    try {
+      return layoutRadialBubbleCloud(
+        markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
+        size.width,
+        size.height,
+        maxVisible // Show all markets if possible
+      );
+    } catch (error) {
+      console.error('Error calculating bubble layout:', error);
+      return [];
+    }
   }, [markets, size.width, size.height, isSizeReady]);
 
   // Merge initial positions with dragged positions
   const bubbles = useMemo(() => {
-    return initialBubbles.map(bubble => {
+    const result = initialBubbles.map(bubble => {
       const draggedPos = bubblePositions[bubble.id];
       if (draggedPos) {
         return { ...bubble, x: draggedPos.x, y: draggedPos.y };
       }
       return bubble;
     });
+    
+    return result;
   }, [initialBubbles, bubblePositions]);
+  
+  // Mark as rendered once we have bubbles and size is ready
+  useEffect(() => {
+    if (bubbles.length > 0 && isSizeReady && !hasRendered) {
+      const timer = setTimeout(() => setHasRendered(true), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [bubbles.length, isSizeReady, hasRendered]);
 
   const handleMouseDown = (e: React.MouseEvent, bubbleId: string, bubbleX: number, bubbleY: number) => {
     if (e.button !== 0) return; // Only left mouse button
@@ -235,7 +270,7 @@ export const PredictionBubbleField: React.FC<Props> = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {isSizeReady && bubbles.map((bubble) => {
+      {isSizeReady && bubbles.length > 0 && bubbles.map((bubble) => {
         const isSelected =
           selectedNodeId === bubble.id ||
           (selectedAgent &&
@@ -266,10 +301,12 @@ export const PredictionBubbleField: React.FC<Props> = ({
                 ? 'none' // NO transition when dragging - instant response
                 : bubblePositions[bubble.id] && bubble.id !== draggedBubbleId
                 ? 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), top 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s ease'
-                : 'opacity 0.2s ease',
+                : hasRendered 
+                ? 'opacity 0.3s ease, transform 0.3s ease'
+                : 'opacity 0.5s ease, transform 0.5s ease',
               willChange: isDragging ? 'transform' : 'auto',
               transform: 'translateZ(0)',
-              opacity: opacity,
+              opacity: hasRendered ? opacity : 0,
             }}
             onMouseDown={(e) => handleMouseDown(e, bubble.id, bubble.x, bubble.y)}
             onClick={(e) => {
