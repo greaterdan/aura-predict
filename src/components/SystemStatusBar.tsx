@@ -99,7 +99,7 @@ export const SystemStatusBar = ({
         size="sm"
         onClick={onToggleSummary}
         className={`h-7 w-7 p-0 border-border rounded-full transition-colors ${
-          isSummaryOpen 
+          isSummaryOpen && !showNewsFeed
             ? 'bg-terminal-accent/20 border-terminal-accent/50 text-terminal-accent hover:bg-terminal-accent/30' 
             : 'bg-background hover:bg-bg-elevated text-foreground hover:text-foreground'
         }`}

@@ -403,6 +403,8 @@ const Index = () => {
     setIsSummaryOpen(newState);
     if (newState) {
       // Opening Summary - always restore to default size (30%)
+      // Also switch from News Feed to Summary
+      setShowNewsFeed(false);
       const defaultSize = 30;
       setRightPanelSize(defaultSize);
       setSavedRightPanelSize(defaultSize);
@@ -417,7 +419,8 @@ const Index = () => {
         : 100 - defaultSize;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
     } else {
-      // Closing Summary - collapse to 0
+      // Closing Summary - collapse to 0 and also close News Feed
+      setShowNewsFeed(false);
       setRightPanelSize(0);
       rightPanelRef.current.size = 0;
       // Immediately expand middle panel to full space minus performance
@@ -429,7 +432,20 @@ const Index = () => {
   };
 
   const handleToggleNewsFeed = () => {
-    // Toggle news feed - if Summary panel is closed, open it first
+    // If News Feed is already showing and panel is open, close it
+    if (showNewsFeed && isSummaryOpen) {
+      setIsSummaryOpen(false);
+      setShowNewsFeed(false);
+      setRightPanelSize(0);
+      rightPanelRef.current.size = 0;
+      const newMiddle = isPerformanceOpen 
+        ? 100 - leftPanelSize
+        : 100;
+      setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      return;
+    }
+    
+    // Opening News Feed - if panel is closed, open it
     if (!isSummaryOpen) {
       setIsSummaryOpen(true);
       const defaultSize = 30;
@@ -443,8 +459,9 @@ const Index = () => {
         : 100 - defaultSize;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
     }
-    // Toggle news feed state
-    setShowNewsFeed(!showNewsFeed);
+    
+    // Show News Feed (this will hide Summary)
+    setShowNewsFeed(true);
   };
 
   return (

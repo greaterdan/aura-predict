@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Customized } from "recharts";
 import { TechnicalView } from "./TechnicalView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
 
 interface ChartDataPoint {
   time: string;
@@ -226,9 +226,10 @@ const LineEndpoints = (props: any) => {
 export const PerformanceChart = () => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"chart" | "technical">("chart");
+  const [zoomLevel, setZoomLevel] = useState(1); // 1 = normal, >1 = zoomed in, <1 = zoomed out
 
-  // Calculate Y-axis domain for proper scaling
-  const { minValue, maxValue } = useMemo(() => {
+  // Calculate base Y-axis domain for proper scaling
+  const { baseMinValue, baseMaxValue } = useMemo(() => {
     let min = Infinity;
     let max = -Infinity;
     mockChartData.forEach((point) => {
@@ -243,10 +244,29 @@ export const PerformanceChart = () => {
     // Add some padding
     const padding = (max - min) * 0.1;
     return {
-      minValue: Math.max(0, Math.floor(min - padding)),
-      maxValue: Math.ceil(max + padding),
+      baseMinValue: Math.max(0, Math.floor(min - padding)),
+      baseMaxValue: Math.ceil(max + padding),
     };
   }, []);
+
+  // Calculate zoomed Y-axis domain
+  const { minValue, maxValue } = useMemo(() => {
+    const range = baseMaxValue - baseMinValue;
+    const center = (baseMaxValue + baseMinValue) / 2;
+    const zoomedRange = range / zoomLevel;
+    return {
+      minValue: Math.max(0, Math.floor(center - zoomedRange / 2)),
+      maxValue: Math.ceil(center + zoomedRange / 2),
+    };
+  }, [baseMinValue, baseMaxValue, zoomLevel]);
+
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev * 1.5, 5)); // Max 5x zoom
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev / 1.5, 0.5)); // Min 0.5x zoom (zoom out)
+  };
 
   // Generate Y-axis ticks
   const yAxisTicks = useMemo(() => {
@@ -261,14 +281,36 @@ export const PerformanceChart = () => {
   return (
     <div className="h-full flex flex-col bg-bg-elevated">
       {/* Chart Header */}
-      <div className="h-10 flex items-center justify-between px-4 border-b border-border bg-bg-elevated">
-        <span className="text-xs text-terminal-accent font-mono leading-none flex items-center">&gt; PERFORMANCE_INDEX</span>
-        <div className="flex gap-2">
+      <div className="h-10 flex items-center justify-between px-2 sm:px-4 border-b border-border bg-bg-elevated min-w-0 overflow-hidden">
+        <span className="text-[10px] sm:text-xs text-terminal-accent font-mono leading-none flex items-center flex-shrink-0 whitespace-nowrap">
+          <span className="hidden sm:inline">&gt; PERFORMANCE_INDEX</span>
+          <span className="sm:hidden">&gt; PERF</span>
+        </span>
+        <div className="flex gap-1 sm:gap-2 items-center min-w-0 flex-shrink">
+          {/* Zoom Controls - only show in chart view */}
+          {viewMode === "chart" && (
+            <div className="flex gap-0.5 sm:gap-1 items-center border-r border-border pr-1 sm:pr-2 mr-1 sm:mr-2 flex-shrink-0">
+              <button
+                onClick={handleZoomOut}
+                className="text-[9px] sm:text-xs px-1 sm:px-1.5 py-0.5 sm:py-1 border border-border rounded-full hover:bg-muted transition-colors flex items-center justify-center"
+                title="Zoom Out"
+              >
+                <ZoomOut className="h-2.5 sm:h-3 w-2.5 sm:w-3" />
+              </button>
+              <button
+                onClick={handleZoomIn}
+                className="text-[9px] sm:text-xs px-1 sm:px-1.5 py-0.5 sm:py-1 border border-border rounded-full hover:bg-muted transition-colors flex items-center justify-center"
+                title="Zoom In"
+              >
+                <ZoomIn className="h-2.5 sm:h-3 w-2.5 sm:w-3" />
+              </button>
+            </div>
+          )}
           {/* View Mode Toggle */}
-          <div className="flex gap-1 mr-2">
+          <div className="flex gap-0.5 sm:gap-1 flex-shrink-0">
             <button
               onClick={() => setViewMode("chart")}
-              className={`text-xs px-2 py-1 border border-border rounded-full ${
+              className={`text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 border border-border rounded-full whitespace-nowrap ${
                 viewMode === "chart" ? 'bg-muted' : 'hover:bg-muted'
               } transition-colors`}
             >
@@ -276,19 +318,19 @@ export const PerformanceChart = () => {
             </button>
             <button
               onClick={() => setViewMode("technical")}
-              className={`text-xs px-2 py-1 border border-border rounded-full ${
+              className={`text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 border border-border rounded-full whitespace-nowrap ${
                 viewMode === "technical" ? 'bg-muted' : 'hover:bg-muted'
               } transition-colors`}
             >
-              TECHNICAL
+              TECH
             </button>
           </div>
           
           {/* Agent Dropdown */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors border border-border bg-background rounded-full">
-              {selectedAgent || "All Agents"}
-              <ChevronDown className="h-3 w-3 opacity-50" />
+            <DropdownMenuTrigger className="flex items-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-0.5 sm:py-1 text-[9px] sm:text-xs font-medium text-foreground hover:bg-muted/50 transition-colors border border-border bg-background rounded-full min-w-0 overflow-hidden">
+              <span className="truncate max-w-[60px] sm:max-w-none">{selectedAgent || "All"}</span>
+              <ChevronDown className="h-2.5 sm:h-3 w-2.5 sm:w-3 opacity-50 flex-shrink-0" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40 bg-background border-border rounded-xl">
               <DropdownMenuItem
