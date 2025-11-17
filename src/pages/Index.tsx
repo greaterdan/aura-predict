@@ -7,6 +7,7 @@ import { SystemStatusBar } from "@/components/SystemStatusBar";
 import { ActivePositions } from "@/components/ActivePositions";
 import { TradesPanel } from "@/components/TradesPanel";
 import { AISummaryPanel } from "@/components/AISummaryPanel";
+import { NewsFeed } from "@/components/NewsFeed";
 import { AgentBuilder } from "@/components/AgentBuilder";
 import { getOrCreateWallet } from "@/lib/wallet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -55,6 +56,8 @@ const Index = () => {
   // Panel visibility state - both open by default
   const [isPerformanceOpen, setIsPerformanceOpen] = useState(true);
   const [isSummaryOpen, setIsSummaryOpen] = useState(true);
+  // News feed toggle state
+  const [showNewsFeed, setShowNewsFeed] = useState(false);
   // Store saved panel sizes to restore when reopened
   // Load from localStorage on mount, default to 30/40/30 (dashboard gets most space)
   // Initialize all panel sizes together to ensure they add up to 100%
@@ -425,6 +428,25 @@ const Index = () => {
     }
   };
 
+  const handleToggleNewsFeed = () => {
+    // Toggle news feed - if Summary panel is closed, open it first
+    if (!isSummaryOpen) {
+      setIsSummaryOpen(true);
+      const defaultSize = 30;
+      setRightPanelSize(defaultSize);
+      setSavedRightPanelSize(defaultSize);
+      rightPanelRef.current.size = defaultSize;
+      localStorage.setItem('savedRightPanelSize', '30');
+      localStorage.removeItem('react-resizable-panels:panel-layout');
+      const newMiddle = isPerformanceOpen 
+        ? 100 - leftPanelSize - defaultSize
+        : 100 - defaultSize;
+      setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+    }
+    // Toggle news feed state
+    setShowNewsFeed(!showNewsFeed);
+  };
+
   return (
     <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
       {/* Top Status Bar */}
@@ -432,8 +454,10 @@ const Index = () => {
         onToggleAgentBuilder={() => setShowAgentBuilder(!showAgentBuilder)}
         onTogglePerformance={handleTogglePerformance}
         onToggleSummary={handleToggleSummary}
+        onToggleNewsFeed={handleToggleNewsFeed}
         isPerformanceOpen={isPerformanceOpen}
         isSummaryOpen={isSummaryOpen}
+        showNewsFeed={showNewsFeed}
       />
 
       {/* Main Content Area */}
@@ -809,6 +833,8 @@ const Index = () => {
                     setShowAgentBuilder(false);
                   }}
                 />
+              ) : showNewsFeed ? (
+                <NewsFeed />
               ) : (
                 <AISummaryPanel />
               )

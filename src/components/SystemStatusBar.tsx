@@ -3,22 +3,26 @@ import { LoginButton } from "./LoginButton";
 import { CustodialWallet } from "./CustodialWallet";
 import { getOrCreateWallet } from "@/lib/wallet";
 import { Button } from "@/components/ui/button";
-import { Bot, BarChart3, Users } from "lucide-react";
+import { Bot, BarChart3, Users, Newspaper } from "lucide-react";
 
 interface SystemStatusBarProps {
   onToggleAgentBuilder?: () => void;
   onTogglePerformance?: () => void;
   onToggleSummary?: () => void;
+  onToggleNewsFeed?: () => void;
   isPerformanceOpen?: boolean;
   isSummaryOpen?: boolean;
+  showNewsFeed?: boolean;
 }
 
 export const SystemStatusBar = ({ 
   onToggleAgentBuilder, 
   onTogglePerformance, 
   onToggleSummary,
+  onToggleNewsFeed,
   isPerformanceOpen = true,
-  isSummaryOpen = true
+  isSummaryOpen = true,
+  showNewsFeed = false
 }: SystemStatusBarProps) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState<string | undefined>();
@@ -102,6 +106,19 @@ export const SystemStatusBar = ({
         title="Summary"
       >
         <Users className="w-3.5 h-3.5" />
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onToggleNewsFeed}
+        className={`h-7 w-7 p-0 border-border rounded-full transition-colors ${
+          showNewsFeed && isSummaryOpen
+            ? 'bg-terminal-accent/20 border-terminal-accent/50 text-terminal-accent hover:bg-terminal-accent/30' 
+            : 'bg-background hover:bg-bg-elevated text-foreground hover:text-foreground'
+        }`}
+        title="News Feed"
+      >
+        <Newspaper className="w-3.5 h-3.5" />
       </Button>
       
       {isLoggedIn && custodialWallet && (
