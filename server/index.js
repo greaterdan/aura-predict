@@ -254,10 +254,14 @@ const deduplicateArticles = (articles) => {
 
 // Fetch news from NewsAPI
 const fetchNewsAPI = async () => {
-  // Get date from 7 days ago to ensure we get results
+  // Get date from last 24 hours for freshest news
   const fromDate = new Date();
-  fromDate.setDate(fromDate.getDate() - 7);
-  const fromDateStr = fromDate.toISOString().split('T')[0];
+  fromDate.setHours(fromDate.getHours() - 24); // Last 24 hours
+  const fromDateStr = fromDate.toISOString();
+  
+  // Get current date for 'to' parameter
+  const toDate = new Date();
+  const toDateStr = toDate.toISOString();
   
   // Try multiple queries to get more results
   const queries = [
@@ -273,7 +277,8 @@ const fetchNewsAPI = async () => {
   
   const fetchPromises = queries.map(async (query) => {
     try {
-      const url = `${NEWS_API_URL}?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=20&from=${fromDateStr}&apiKey=${NEWS_API_KEY}`;
+      // Use from and to parameters for last 24 hours, sort by publishedAt (newest first)
+      const url = `${NEWS_API_URL}?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=20&from=${fromDateStr}&to=${toDateStr}&apiKey=${NEWS_API_KEY}`;
       
       const response = await fetch(url);
       
@@ -284,10 +289,20 @@ const fetchNewsAPI = async () => {
       const data = await response.json();
       
       if (data.status === 'ok' && data.articles) {
-        return data.articles.map(article => ({
-          ...article,
-          sourceApi: 'newsapi',
-        }));
+        // Filter to only articles from last 24 hours (double-check)
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        return data.articles
+          .filter(article => {
+            if (!article.publishedAt) return false;
+            const publishedDate = new Date(article.publishedAt);
+            return publishedDate >= twentyFourHoursAgo;
+          })
+          .map(article => ({
+            ...article,
+            sourceApi: 'newsapi',
+          }));
       }
       
       return [];
@@ -315,6 +330,11 @@ const fetchNewsAPI = async () => {
 
 // Fetch news from NewsData.io
 const fetchNewsData = async () => {
+  // Get date from last 24 hours for freshest news
+  const fromDate = new Date();
+  fromDate.setHours(fromDate.getHours() - 24);
+  const fromDateStr = fromDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  
   // NewsData.io uses different query parameters - try multiple queries
   const queries = [
     'prediction',
@@ -333,7 +353,8 @@ const fetchNewsData = async () => {
   // Fetch from multiple queries and combine results
   const fetchPromises = queries.map(async (query) => {
     try {
-      const url = `${NEWSDATA_API_URL}?apikey=${NEWSDATA_API_KEY}&q=${encodeURIComponent(query)}&language=en&size=10`;
+      // NewsData.io supports time_from parameter for filtering by date
+      const url = `${NEWSDATA_API_URL}?apikey=${NEWSDATA_API_KEY}&q=${encodeURIComponent(query)}&language=en&size=10&time_from=${fromDateStr}`;
       
       const response = await fetch(url);
       
@@ -344,7 +365,15 @@ const fetchNewsData = async () => {
       const data = await response.json();
       
       if (data.status === 'success' && data.results) {
-        return data.results;
+        // Filter to only articles from last 24 hours (double-check)
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        return data.results.filter(article => {
+          if (!article.pubDate) return false;
+          const publishedDate = new Date(article.pubDate);
+          return publishedDate >= twentyFourHoursAgo;
+        });
       }
       
       return [];
@@ -391,6 +420,11 @@ const fetchGNews = async () => {
     return [];
   }
   
+  // Get date from last 24 hours for freshest news
+  const fromDate = new Date();
+  fromDate.setHours(fromDate.getHours() - 24);
+  const fromDateStr = fromDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  
   // GNews has rate limits, so use fewer broader queries
   // Using broader queries to get more diverse results with fewer API calls
   const queries = [
@@ -410,7 +444,8 @@ const fetchGNews = async () => {
         await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
       }
       
-      const url = `${GNEWS_API_URL}?q=${encodeURIComponent(query)}&lang=en&max=20&apikey=${GNEWS_API_KEY}`;
+      // GNews supports 'from' and 'to' parameters for time filtering
+      const url = `${GNEWS_API_URL}?q=${encodeURIComponent(query)}&lang=en&max=20&from=${fromDateStr}&apikey=${GNEWS_API_KEY}`;
       
       const response = await fetch(url);
       
@@ -424,7 +459,17 @@ const fetchGNews = async () => {
       const data = await response.json();
       
       if (data.articles && Array.isArray(data.articles)) {
-        allArticles.push(...data.articles);
+        // Filter to only articles from last 24 hours (double-check)
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        const filteredArticles = data.articles.filter(article => {
+          if (!article.publishedAt && !article.pubDate) return false;
+          const publishedDate = new Date(article.publishedAt || article.pubDate);
+          return publishedDate >= twentyFourHoursAgo;
+        });
+        
+        allArticles.push(...filteredArticles);
       }
     } catch (error) {
       // Continue to next query
@@ -466,8 +511,8 @@ app.get('/api/news', async (req, res) => {
   try {
     // Check cache
     const cacheKey = `news-${source}`;
-    const now = Date.now();
-    if (newsCache.data && newsCache.timestamp && (now - newsCache.timestamp) < newsCache.CACHE_DURATION) {
+    const cacheNow = Date.now();
+    if (newsCache.data && newsCache.timestamp && (cacheNow - newsCache.timestamp) < newsCache.CACHE_DURATION) {
       // Filter by source if needed
       if (source === 'all') {
       return res.json(newsCache.data);
@@ -501,6 +546,15 @@ app.get('/api/news', async (req, res) => {
     // Deduplicate articles
     allArticles = deduplicateArticles(allArticles);
     
+    // Final filter: Only show articles from last 24 hours (safety check)
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    allArticles = allArticles.filter(article => {
+      if (!article.publishedAt) return false;
+      const publishedDate = new Date(article.publishedAt);
+      return publishedDate >= twentyFourHoursAgo;
+    });
+    
     // Sort by published date (newest first)
     allArticles.sort((a, b) => {
       const dateA = new Date(a.publishedAt || 0).getTime();
@@ -522,11 +576,11 @@ app.get('/api/news', async (req, res) => {
       },
     };
     
-      // Cache the response
+      // Cache the response - reduced to 2 minutes for fresher news
       newsCache = {
       data: responseData,
         timestamp: Date.now(),
-        CACHE_DURATION: 5 * 60 * 1000,
+        CACHE_DURATION: 2 * 60 * 1000, // 2 minutes instead of 5
       };
       
     // Filter by source if needed

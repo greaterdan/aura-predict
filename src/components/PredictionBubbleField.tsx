@@ -464,11 +464,10 @@ export const PredictionBubbleField: React.FC<Props> = ({
       if (!hasCollision) break;
     }
     
-      // Clamp final position to container bounds - allow bubbles closer to edges
-      // Y must be at least navbarHeight + radius to stay below navbar
-      const navbarHeight = 44; // Navbar is h-11 (44px)
-      const clampedX = Math.max(draggedBubble.radius, Math.min(size.width - draggedBubble.radius, finalX));
-      const clampedY = Math.max(navbarHeight + draggedBubble.radius, Math.min(size.height - draggedBubble.radius, finalY));
+      // Clamp final position to container bounds with padding - container already accounts for navbars
+      const edgePadding = 20; // Padding to keep bubbles away from edges (glow extends ~15px)
+      const clampedX = Math.max(edgePadding + draggedBubble.radius, Math.min(size.width - edgePadding - draggedBubble.radius, finalX));
+      const clampedY = Math.max(edgePadding + draggedBubble.radius, Math.min(size.height - edgePadding - draggedBubble.radius, finalY));
     
       // COLLISION DETECTION: Only push other bubbles if we're actually dragging
       // Don't push on click - only on drag
@@ -526,10 +525,10 @@ export const PredictionBubbleField: React.FC<Props> = ({
             }
           }
           
-          // Y must be at least navbarHeight + radius to stay below navbar
-          const navbarHeight = 44;
-          const clampedPushX = Math.max(otherBubble.radius, Math.min(size.width - otherBubble.radius, finalTargetX));
-          const clampedPushY = Math.max(navbarHeight + otherBubble.radius, Math.min(size.height - otherBubble.radius, finalTargetY));
+          // Container already accounts for navbars, so use container bounds with padding
+          const edgePadding = 20; // Padding to keep bubbles away from edges
+          const clampedPushX = Math.max(edgePadding + otherBubble.radius, Math.min(size.width - edgePadding - otherBubble.radius, finalTargetX));
+          const clampedPushY = Math.max(edgePadding + otherBubble.radius, Math.min(size.height - edgePadding - otherBubble.radius, finalTargetY));
           
           if (clampedPushX !== currentPos.x || clampedPushY !== currentPos.y) {
             pushedBubbles[otherBubble.id] = { x: clampedPushX, y: clampedPushY };
@@ -557,11 +556,10 @@ export const PredictionBubbleField: React.FC<Props> = ({
           pos.x = clampedX - Math.cos(angle) * requiredDistance;
           pos.y = clampedY - Math.sin(angle) * requiredDistance;
           
-          // Clamp again - allow closer to edges
-          // Y must be at least navbarHeight + radius to stay below navbar
-          const navbarHeight = 44;
-          pos.x = Math.max(bubble.radius, Math.min(size.width - bubble.radius, pos.x));
-          pos.y = Math.max(navbarHeight + bubble.radius, Math.min(size.height - bubble.radius, pos.y));
+          // Clamp again - container already accounts for navbars, add padding
+          const edgePadding = 20; // Padding to keep bubbles away from edges
+          pos.x = Math.max(edgePadding + bubble.radius, Math.min(size.width - edgePadding - bubble.radius, pos.x));
+          pos.y = Math.max(edgePadding + bubble.radius, Math.min(size.height - edgePadding - bubble.radius, pos.y));
         }
         
         // Check against other pushed bubbles
@@ -580,9 +578,9 @@ export const PredictionBubbleField: React.FC<Props> = ({
             pos.x = otherPos.x + Math.cos(otherAngle) * otherRequiredDistance;
             pos.y = otherPos.y + Math.sin(otherAngle) * otherRequiredDistance;
             
-            // Clamp again
+            // Clamp again - container already accounts for navbars
             pos.x = Math.max(bubble.radius, Math.min(size.width - bubble.radius, pos.x));
-            pos.y = Math.max(navbarHeight + bubble.radius, Math.min(size.height - bubble.radius, pos.y));
+            pos.y = Math.max(bubble.radius, Math.min(size.height - bubble.radius, pos.y));
           }
         }
       }
@@ -627,16 +625,15 @@ export const PredictionBubbleField: React.FC<Props> = ({
       style={{ 
         width: '100%', 
         height: '100%',
-        overflow: 'visible',
+        overflow: 'hidden', // CRITICAL: Clip bubbles to container bounds
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        minWidth: '100vw',
-        minHeight: '100vh',
-        // Performance optimizations
-        contain: 'layout style paint',
+        // REMOVED minWidth/minHeight - container should respect parent bounds only
+        // Performance optimizations - removed 'paint' to allow glow to extend outside
+        contain: 'layout style',
         willChange: 'scroll-position',
         // Use GPU acceleration
         transform: 'translateZ(0)',
@@ -685,8 +682,9 @@ export const PredictionBubbleField: React.FC<Props> = ({
               willChange: isDragging ? 'transform' : 'auto',
               transform: 'translateZ(0)',
               opacity: hasRendered ? opacity : 0,
-              // CSS containment for better rendering performance
-              contain: 'layout style paint',
+              // CSS containment - removed 'paint' to allow glow to extend outside
+              contain: 'layout style',
+              overflow: 'visible', // CRITICAL: Allow glow to extend outside
               // Use GPU acceleration
               backfaceVisibility: 'hidden',
               perspective: 1000,

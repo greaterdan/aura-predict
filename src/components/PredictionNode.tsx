@@ -105,6 +105,7 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
           MozUserSelect: 'none',
           msUserSelect: 'none',
           WebkitTapHighlightColor: 'transparent',
+          overflow: 'visible', // CRITICAL: Allow glow to extend outside
           '--tw-ring-width': '0',
           '--tw-ring-offset-width': '0',
           '--tw-ring-color': 'transparent',
@@ -126,6 +127,22 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
         }}
         tabIndex={-1} // Prevent keyboard focus
       >
+        {/* OUTER GLOW LAYER - Subtle outer glow - +20% more */}
+        <div
+          className="pointer-events-none absolute rounded-full"
+          style={{ 
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: `${bubbleSize + 10}px`,
+            height: `${bubbleSize + 10}px`,
+            zIndex: 0,
+            boxShadow: data.position === "YES"
+              ? '0 0 7px rgba(48, 230, 140, 0.35), 0 0 14px rgba(48, 230, 140, 0.25)'
+              : '0 0 7px rgba(255, 79, 100, 0.35), 0 0 14px rgba(255, 79, 100, 0.25)'
+          }}
+        />
+        
         {/* The actual circular bubble - Size based on price, color based on position */}
         <div 
           className={`relative banter-bubble-inner flex items-center justify-center rounded-full overflow-hidden cursor-pointer`}
@@ -133,6 +150,8 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             width: `${bubbleSize}px`,
             height: `${bubbleSize}px`,
             borderRadius: '50%', // Ensure perfectly round
+            position: 'relative',
+            zIndex: 1,
             backgroundColor: data.imageUrl 
               ? 'transparent' 
               : data.position === "NO"
@@ -142,20 +161,18 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
-            // Better image quality
-            imageRendering: 'auto' as any, // Better quality
-            WebkitImageRendering: 'auto' as any,
-            msImageRendering: 'auto' as any,
-            // Force hardware acceleration for better rendering
-            transform: 'translateZ(0)',
-            WebkitTransform: 'translateZ(0)',
+            // Better image quality - let browser use default high-quality rendering
+            // Force high quality rendering and hardware acceleration
+            willChange: 'transform',
+            transform: 'translateZ(0) scale(1)',
+            WebkitTransform: 'translateZ(0) scale(1)',
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
             pointerEvents: 'auto',
-            // VERY VISIBLE colored glow - green for YES, red for NO
+            // Subtle colored glow - green for YES, red for NO - +20% more
             boxShadow: data.position === "YES"
-              ? '0 0 20px rgba(48, 230, 140, 0.8), 0 0 30px rgba(48, 230, 140, 0.5), 0 0 40px rgba(48, 230, 140, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-              : '0 0 20px rgba(255, 79, 100, 0.8), 0 0 30px rgba(255, 79, 100, 0.5), 0 0 40px rgba(255, 79, 100, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+              ? '0 0 5px rgba(48, 230, 140, 0.35), 0 0 10px rgba(48, 230, 140, 0.25)'
+              : '0 0 5px rgba(255, 79, 100, 0.35), 0 0 10px rgba(255, 79, 100, 0.25)',
             // AGGRESSIVE: Prevent any focus rectangles, borders, rings
             outline: 'none',
             border: 'none',
@@ -174,11 +191,11 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
           }}
           tabIndex={-1} // Prevent keyboard focus
         >
-          {/* Lighter overlay to ensure text is readable but images are clearer */}
+          {/* Lighter overlay to ensure text is readable but images are clearer - reduced opacity for clearer images */}
           {data.imageUrl && (
             <div
               className={`absolute inset-0 rounded-full ${
-                data.position === "NO" ? 'bg-red-900/40' : 'bg-black/40'
+                data.position === "NO" ? 'bg-red-900/20' : 'bg-black/20'
               }`}
               style={{ zIndex: 1 }}
             />
@@ -194,19 +211,8 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             style={{ 
               zIndex: 3,
               boxShadow: data.position === "YES"
-                ? '0 0 15px rgba(48, 230, 140, 1), 0 0 25px rgba(48, 230, 140, 0.6), inset 0 0 10px rgba(48, 230, 140, 0.4)'
-                : '0 0 15px rgba(255, 79, 100, 1), 0 0 25px rgba(255, 79, 100, 0.6), inset 0 0 10px rgba(255, 79, 100, 0.4)'
-            }}
-          />
-          
-          {/* Additional outer glow layer for maximum visibility */}
-          <div
-            className="pointer-events-none absolute inset-[-4px] rounded-full"
-            style={{ 
-              zIndex: -1,
-              boxShadow: data.position === "YES"
-                ? '0 0 30px rgba(48, 230, 140, 0.6), 0 0 50px rgba(48, 230, 140, 0.3)'
-                : '0 0 30px rgba(255, 79, 100, 0.6), 0 0 50px rgba(255, 79, 100, 0.3)'
+                ? '0 0 5px rgba(48, 230, 140, 0.5), 0 0 10px rgba(48, 230, 140, 0.35)'
+                : '0 0 5px rgba(255, 79, 100, 0.5), 0 0 10px rgba(255, 79, 100, 0.35)'
             }}
           />
           
@@ -242,15 +248,15 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
           </div>
         </div>
 
-        {/* Subtle glow/pulse effect when clicked or highlighted */}
+        {/* Enhanced glow/pulse effect when clicked or highlighted - MAXIMUM INTENSITY */}
         {(isHighlighted || isPressed) && (
           <div
             className="absolute inset-0 pointer-events-none rounded-full"
             style={{
-              border: `2px solid ${data.position === "YES" ? 'hsl(var(--trade-yes))' : 'hsl(var(--trade-no))'}`,
+              border: `3px solid ${data.position === "YES" ? 'hsl(var(--trade-yes))' : 'hsl(var(--trade-no))'}`,
               boxShadow: data.position === "YES"
-                ? `0 0 ${isPressed ? '20px' : '12px'} hsl(var(--trade-yes) / ${isPressed ? '0.6' : '0.4'}), 0 0 ${isPressed ? '30px' : '20px'} hsl(var(--trade-yes) / ${isPressed ? '0.3' : '0.2'})`
-                : `0 0 ${isPressed ? '20px' : '12px'} hsl(var(--trade-no) / ${isPressed ? '0.6' : '0.4'}), 0 0 ${isPressed ? '30px' : '20px'} hsl(var(--trade-no) / ${isPressed ? '0.3' : '0.2'})`,
+                ? `0 0 ${isPressed ? '7px' : '5px'} hsl(var(--trade-yes) / ${isPressed ? '0.5' : '0.35'}), 0 0 ${isPressed ? '12px' : '10px'} hsl(var(--trade-yes) / ${isPressed ? '0.35' : '0.25'})`
+                : `0 0 ${isPressed ? '7px' : '5px'} hsl(var(--trade-no) / ${isPressed ? '0.5' : '0.35'}), 0 0 ${isPressed ? '12px' : '10px'} hsl(var(--trade-no) / ${isPressed ? '0.35' : '0.25'})`,
               transition: 'box-shadow 0.2s ease, border 0.2s ease',
               animation: isPressed ? 'pulse-glow 0.3s ease-out' : 'none',
             }}

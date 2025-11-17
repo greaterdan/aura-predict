@@ -154,11 +154,11 @@ export const NewsFeed = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update every 1 minute - server handles caching (5 min cache) so we can poll frequently
+  // Update every 30 seconds - server caches for 2 minutes, so we poll frequently for freshest news
   useEffect(() => {
     const interval = setInterval(() => {
       fetchNews();
-    }, 60 * 1000); // 1 minute (server caches for 5 minutes)
+    }, 30 * 1000); // 30 seconds (server caches for 2 minutes)
 
     return () => clearInterval(interval);
   }, []);

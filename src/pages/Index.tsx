@@ -497,7 +497,7 @@ const Index = () => {
   };
 
   const handleToggleSummary = () => {
-    // If Summary is already showing, close the panel
+    // If Summary is already showing (and no other view is active), close the panel
     if (isSummaryOpen && !showNewsFeed && !showAgentBuilder) {
       setIsSummaryOpen(false);
       setRightPanelSize(0);
@@ -509,16 +509,16 @@ const Index = () => {
       return;
     }
     
-    // Opening Summary - switch to Summary view
+    // Opening Summary - switch to Summary view (close other views)
     setShowNewsFeed(false);
     setShowAgentBuilder(false);
-    if (!isSummaryOpen) {
-      setIsSummaryOpen(true);
-    }
+    setIsSummaryOpen(true);
     const defaultSize = 30;
     setRightPanelSize(defaultSize);
     setSavedRightPanelSize(defaultSize);
-    rightPanelRef.current.size = defaultSize;
+    if (rightPanelRef.current) {
+      rightPanelRef.current.size = defaultSize;
+    }
     localStorage.setItem('savedRightPanelSize', '30');
     localStorage.removeItem('react-resizable-panels:panel-layout');
     const newMiddle = isPerformanceOpen 
@@ -543,12 +543,10 @@ const Index = () => {
       return;
     }
     
-    // Opening Agent Builder - switch to Agent Builder view
+    // Opening Agent Builder - switch to Agent Builder view (close other views)
     setShowNewsFeed(false);
     setShowAgentBuilder(true);
-    if (!isSummaryOpen) {
-      setIsSummaryOpen(true);
-    }
+    setIsSummaryOpen(true); // Always open summary panel when showing agent builder
     const defaultSize = 30;
     setRightPanelSize(defaultSize);
     setSavedRightPanelSize(defaultSize);
@@ -570,7 +568,9 @@ const Index = () => {
       setShowNewsFeed(false);
       setShowAgentBuilder(false);
       setRightPanelSize(0);
-      rightPanelRef.current.size = 0;
+      if (rightPanelRef.current) {
+        rightPanelRef.current.size = 0;
+      }
       const newMiddle = isPerformanceOpen 
         ? 100 - leftPanelSize
         : 100;
@@ -578,24 +578,22 @@ const Index = () => {
       return;
     }
     
-    // Opening News Feed - if panel is closed, open it
-    if (!isSummaryOpen) {
-      setIsSummaryOpen(true);
-      setShowAgentBuilder(false);
-      const defaultSize = 30;
-      setRightPanelSize(defaultSize);
-      setSavedRightPanelSize(defaultSize);
-      rightPanelRef.current.size = defaultSize;
-      localStorage.setItem('savedRightPanelSize', '30');
-      localStorage.removeItem('react-resizable-panels:panel-layout');
-      const newMiddle = isPerformanceOpen 
-        ? 100 - leftPanelSize - defaultSize
-        : 100 - defaultSize;
-      setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-    }
-    
-    // Show News Feed (this will hide Summary)
+    // Opening News Feed - switch to News Feed view (close other views)
     setShowNewsFeed(true);
+    setShowAgentBuilder(false);
+    setIsSummaryOpen(true); // Always open summary panel when showing news feed
+    const defaultSize = 30;
+    setRightPanelSize(defaultSize);
+    setSavedRightPanelSize(defaultSize);
+    if (rightPanelRef.current) {
+      rightPanelRef.current.size = defaultSize;
+    }
+    localStorage.setItem('savedRightPanelSize', '30');
+    localStorage.removeItem('react-resizable-panels:panel-layout');
+    const newMiddle = isPerformanceOpen 
+      ? 100 - leftPanelSize - defaultSize
+      : 100 - defaultSize;
+    setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
   };
 
   return (
@@ -665,10 +663,10 @@ const Index = () => {
                   onClose={handleCloseMarketDetails}
                 />
               ) : (
-                <PerformanceChart 
-                  predictions={predictions}
-                  selectedMarketId={selectedNode}
-                />
+              <PerformanceChart 
+                predictions={predictions}
+                selectedMarketId={selectedNode}
+              />
               )
             )}
           </ResizablePanel>
@@ -1052,14 +1050,14 @@ const Index = () => {
 
           </div>
 
-          {/* Prediction Map Container - FULL SPACE - NO OVERFLOW RESTRICTIONS */}
+          {/* Prediction Map Container - FULL SPACE - CLIP TO BOUNDS */}
           <div 
             className="flex-1 relative"
             style={{ 
               width: '100%',
               height: '100%',
               position: 'relative',
-              overflow: 'visible',
+              overflow: 'hidden', // CRITICAL: Clip bubbles to prevent navbar overlap
             }}
           >
             {/* Subtle grid background */}

@@ -25,10 +25,11 @@ export function layoutRadialBubbleCloud<T>(
       return [];
     }
     
-  // Use FULL screen - bubbles fill entire viewport
-  const navbarHeight = 44;
-  const startY = 0; // Start from top (bubbles can go behind navbar if needed, but we'll avoid it)
-  const endY = height; // Use full height
+  // Container height already accounts for navbars (viewport - top navbar - bottom navbar)
+  // Add padding to keep bubbles away from edges (glow extends ~15px)
+  const edgePadding = 20; // Padding to keep bubbles away from container edges
+  const startY = edgePadding; // Start with padding from top
+  const endY = height - edgePadding; // End with padding from bottom
 
   // NO LIMITING - show ALL bubbles requested, make them smaller if needed
   const visible = items.slice(0, maxVisible);
@@ -105,12 +106,12 @@ export function layoutRadialBubbleCloud<T>(
 
   const positions: { x: number; y: number }[] = [];
 
-  // Generate positions across the ENTIRE available space - edge to edge
-  // Fill from top to bottom - FULL SCREEN
-  const startX = 0; // Start at absolute left
-  const endX = width; // End at absolute right
-  const startYPos = 0; // Start from top
-  const endYPos = height; // End at absolute bottom
+  // Generate positions across the ENTIRE available space - with edge padding
+  // Fill from top to bottom - CONTAINER with padding (container already accounts for navbars)
+  const startX = edgePadding; // Start with padding from left
+  const endX = width - edgePadding; // End with padding from right
+  const startYPos = edgePadding; // Start with padding from top
+  const endYPos = height - edgePadding; // End with padding from bottom
   
   for (let row = 0; row < rows; row++) {
     const y = startYPos + (row / Math.max(1, rows - 1)) * (endYPos - startYPos); // Distribute across FULL height
@@ -191,8 +192,8 @@ export function layoutRadialBubbleCloud<T>(
     if (!hasCollision(preferredX, preferredY, radius)) {
       // Clamp to bounds - allow bubbles to fill entire screen (just radius minimum from edges)
       // Allow bubbles to go anywhere on screen, including behind navbar
-      const x = Math.max(radius, Math.min(width - radius, preferredX));
-      const y = Math.max(radius, Math.min(height - radius, preferredY)); // Start from top, not navbar
+      const x = Math.max(edgePadding + radius, Math.min(width - edgePadding - radius, preferredX));
+      const y = Math.max(edgePadding + radius, Math.min(height - edgePadding - radius, preferredY)); // Stay within container bounds with padding
       if (!hasCollision(x, y, radius)) {
         return { x, y };
       }
@@ -278,8 +279,8 @@ export function layoutRadialBubbleCloud<T>(
     if (!pos) {
       let attempts = 0;
       while (!pos && attempts < maxRandomAttempts) {
-        const randomX = radius + Math.random() * (width - 2 * radius);
-        const randomY = radius + Math.random() * (height - 2 * radius);
+        const randomX = edgePadding + radius + Math.random() * (width - 2 * edgePadding - 2 * radius);
+        const randomY = edgePadding + radius + Math.random() * (height - 2 * edgePadding - 2 * radius);
         pos = findNonCollidingPosition(radius, randomX, randomY);
         attempts++;
       }
@@ -378,10 +379,10 @@ export function layoutRadialBubbleCloud<T>(
       
       // Also apply boundary forces - allow bubbles closer to edges
       const padding = bubble.radius; // Just radius, no extra gap
-      if (bubble.x < padding) fx += (padding - bubble.x) * 0.5;
-      if (bubble.x > width - padding) fx -= (bubble.x - (width - padding)) * 0.5;
-      if (bubble.y < padding) fy += (padding - bubble.y) * 0.5; // Fill entire screen
-      if (bubble.y > height - padding) fy -= (bubble.y - (height - padding)) * 0.5;
+      if (bubble.x < edgePadding + padding) fx += (edgePadding + padding - bubble.x) * 0.5;
+      if (bubble.x > width - edgePadding - padding) fx -= (bubble.x - (width - edgePadding - padding)) * 0.5;
+      if (bubble.y < edgePadding + padding) fy += (edgePadding + padding - bubble.y) * 0.5; // Stay within container top with padding
+      if (bubble.y > height - edgePadding - padding) fy -= (bubble.y - (height - edgePadding - padding)) * 0.5; // Stay within container bottom with padding
       
       // Apply forces
       if (fx !== 0 || fy !== 0) {
@@ -389,8 +390,8 @@ export function layoutRadialBubbleCloud<T>(
         bubble.y += fy;
         
         // Clamp to bounds - fill entire screen
-        bubble.x = Math.max(bubble.radius, Math.min(width - bubble.radius, bubble.x));
-        bubble.y = Math.max(bubble.radius, Math.min(height - bubble.radius, bubble.y));
+        bubble.x = Math.max(edgePadding + bubble.radius, Math.min(width - edgePadding - bubble.radius, bubble.x));
+        bubble.y = Math.max(edgePadding + bubble.radius, Math.min(height - edgePadding - bubble.radius, bubble.y));
         totalMoved++;
       }
     }

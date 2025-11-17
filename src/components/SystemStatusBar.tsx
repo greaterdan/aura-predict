@@ -81,7 +81,7 @@ export const SystemStatusBar = ({
   };
 
   return (
-    <div className="h-11 bg-bg-elevated border-b border-border flex items-center gap-2 px-4 py-2 relative">
+    <div className="h-11 bg-bg-elevated border-b border-border flex items-center gap-2 px-4 py-2 relative" style={{ zIndex: 1000 }}>
       {/* Left side - empty */}
       <div className="flex items-center gap-2"></div>
 
