@@ -328,11 +328,21 @@ const Index = () => {
   // Track if we're currently resizing to prevent glitching
   const isResizingRef = useRef(false);
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Track which panel is being directly resized (to prevent interference)
+  const isDirectlyResizingLeftRef = useRef(false);
+  const isDirectlyResizingRightRef = useRef(false);
+  // REMOVED: All inversion logic and refs for Summary panel
+  // Summary now drags normally just like Performance - no special handling needed
 
   // Calculate middle panel size based on which panels are open
-  // Update immediately when panels are toggled, debounce only during resize
+  // CRITICAL: Skip updates during resize to prevent interference between panels
   useEffect(() => {
-    // Always calculate the correct size
+    // SKIP if any panel is being directly resized - this prevents interference
+    if (isDirectlyResizingLeftRef.current || isDirectlyResizingRightRef.current || isResizingRef.current) {
+      return; // DO NOT update middle panel during resize - panels must be independent
+    }
+    
+    // Only update when panels are toggled (opened/closed), not during resize
     let newMiddleSize: number;
     if (isPerformanceOpen && isSummaryOpen) {
       // Both panels open - middle takes remaining space
@@ -349,42 +359,29 @@ const Index = () => {
     }
     
     const finalSize = Math.max(20, Math.min(100, newMiddleSize));
-    
-    // If we're actively resizing, debounce the update
-    if (isResizingRef.current) {
-      // Clear any pending timeout
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
-      }
-      // Debounce the update during resize
-      resizeTimeoutRef.current = setTimeout(() => {
-        setMiddlePanelSize(finalSize);
-      }, 50);
-    } else {
-      // Update immediately when panels are toggled (not during resize)
-      setMiddlePanelSize(finalSize);
-    }
-    
-    return () => {
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
-      }
-    };
-  }, [isPerformanceOpen, isSummaryOpen, leftPanelSize, rightPanelSize]);
+    setMiddlePanelSize(finalSize);
+  }, [isPerformanceOpen, isSummaryOpen]);
 
 
   const handleTogglePerformance = () => {
     const newState = !isPerformanceOpen;
     setIsPerformanceOpen(newState);
     if (newState) {
-      // Opening Performance - restore saved size
-      setLeftPanelSize(savedLeftPanelSize);
-      leftPanelRef.current.size = savedLeftPanelSize;
+      // Opening Performance - always restore to default size (30%)
+      const defaultSize = 30;
+      setLeftPanelSize(defaultSize);
+      setSavedLeftPanelSize(defaultSize);
+      leftPanelRef.current.size = defaultSize;
+      // Update localStorage immediately to override any saved values
+      localStorage.setItem('savedLeftPanelSize', '30');
+      // Clear react-resizable-panels localStorage to prevent interference
+      localStorage.removeItem('react-resizable-panels:panel-layout');
       // Immediately update middle panel size
       const newMiddle = isSummaryOpen 
-        ? 100 - savedLeftPanelSize - rightPanelSize
-        : 100 - savedLeftPanelSize;
+        ? 100 - defaultSize - rightPanelSize
+        : 100 - defaultSize;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      // DO NOT touch Summary refs - keep panels independent
     } else {
       // Closing Performance - collapse to 0
       setLeftPanelSize(0);
@@ -394,6 +391,7 @@ const Index = () => {
         ? 100 - rightPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      // DO NOT touch Summary refs - keep panels independent
     }
   };
 
@@ -401,13 +399,19 @@ const Index = () => {
     const newState = !isSummaryOpen;
     setIsSummaryOpen(newState);
     if (newState) {
-      // Opening Summary - restore saved size
-      setRightPanelSize(savedRightPanelSize);
-      rightPanelRef.current.size = savedRightPanelSize;
+      // Opening Summary - always restore to default size (30%)
+      const defaultSize = 30;
+      setRightPanelSize(defaultSize);
+      setSavedRightPanelSize(defaultSize);
+      rightPanelRef.current.size = defaultSize;
+      // Update localStorage immediately to override any saved values
+      localStorage.setItem('savedRightPanelSize', '30');
+      // Clear react-resizable-panels localStorage to prevent interference
+      localStorage.removeItem('react-resizable-panels:panel-layout');
       // Immediately update middle panel size
       const newMiddle = isPerformanceOpen 
-        ? 100 - leftPanelSize - savedRightPanelSize
-        : 100 - savedRightPanelSize;
+        ? 100 - leftPanelSize - defaultSize
+        : 100 - defaultSize;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
     } else {
       // Closing Summary - collapse to 0
@@ -442,17 +446,23 @@ const Index = () => {
         >
           {/* LEFT: Performance Chart */}
           <ResizablePanel 
-            defaultSize={isPerformanceOpen ? savedLeftPanelSize : 0}
+            defaultSize={isPerformanceOpen ? 30 : 0}
             onResize={(size) => {
-              // Mark as resizing
+              // Mark as resizing IMMEDIATELY to prevent any interference
               isResizingRef.current = true;
+              isDirectlyResizingLeftRef.current = true;
               
-              // Only allow resizing when panel is open
+              // ONLY update Performance panel - DO NOT touch Summary panel state
               if (isPerformanceOpen && size >= 10) {
-                setLeftPanelSize(size);
+                // Clamp to valid range - max is initial/default size (30%)
+                const clampedSize = Math.max(15, Math.min(30, size));
+                setLeftPanelSize(clampedSize);
                 // Save the size so it restores to the same size when reopened
-                setSavedLeftPanelSize(size);
-                leftPanelRef.current.size = size; // Update ref
+                setSavedLeftPanelSize(clampedSize);
+                leftPanelRef.current.size = clampedSize; // Update ref
+                
+                // DO NOT update middlePanelSize here - let the library handle it naturally
+                // Updating it causes interference with other panels
               }
               
               // Clear resizing flag after a short delay
@@ -460,11 +470,14 @@ const Index = () => {
                 clearTimeout(resizeTimeoutRef.current);
               }
               resizeTimeoutRef.current = setTimeout(() => {
-                isResizingRef.current = false;
-              }, 100);
+                if (isDirectlyResizingLeftRef.current) {
+                  isResizingRef.current = false;
+                  isDirectlyResizingLeftRef.current = false;
+                }
+              }, 150);
             }}
-            minSize={0} 
-            maxSize={60} 
+            minSize={15} 
+            maxSize={30} 
             collapsible={true}
             collapsedSize={0}
             className={`${isPerformanceOpen ? 'border-r border-border' : ''} overflow-hidden relative`}
@@ -478,9 +491,16 @@ const Index = () => {
           {/* MIDDLE: Prediction Nodes / Dashboard - EXPANDS TO FULL SPACE */}
           {/* Middle panel dynamically expands to fill available space */}
           <ResizablePanel 
-            key={`middle-${isPerformanceOpen}-${isSummaryOpen}-${middlePanelSize}`}
+            key={`middle-${isPerformanceOpen}-${isSummaryOpen}`}
             defaultSize={middlePanelSize}
             onResize={(size) => {
+              // CRITICAL: Completely skip if ANY side panel is being dragged
+              // This ensures panels are TOTALLY INDEPENDENT
+              if (isDirectlyResizingLeftRef.current || isDirectlyResizingRightRef.current) {
+                return; // DO NOT PROCESS - panels must be completely independent
+              }
+              
+              // Only process middle panel resize when manually dragging middle panel handle
               // Mark as resizing
               isResizingRef.current = true;
               
@@ -488,6 +508,7 @@ const Index = () => {
               if (isPerformanceOpen && isSummaryOpen) {
                 setMiddlePanelSize(size);
                 // When middle panel is resized, adjust side panels proportionally
+                // BUT only update sizes, don't touch Summary refs to maintain independence
                 const availableSpace = 100 - size;
                 const totalSidePanels = leftPanelSize + rightPanelSize;
                 if (totalSidePanels > 0) {
@@ -495,21 +516,31 @@ const Index = () => {
                   const rightRatio = rightPanelSize / totalSidePanels;
                   const newLeftSize = availableSpace * leftRatio;
                   const newRightSize = availableSpace * rightRatio;
-                  setLeftPanelSize(newLeftSize);
-                  setRightPanelSize(newRightSize);
+                  
+                  // IMPORTANT: Clamp sizes to valid range - max is initial/default size (30%)
+                  const clampedLeftSize = Math.max(15, Math.min(30, newLeftSize));
+                  const clampedRightSize = Math.max(15, Math.min(30, newRightSize));
+                  
+                  setLeftPanelSize(clampedLeftSize);
+                  setRightPanelSize(clampedRightSize);
                   // Save the sizes so they restore to the same size when reopened
-                  setSavedLeftPanelSize(newLeftSize);
-                  setSavedRightPanelSize(newRightSize);
+                  setSavedLeftPanelSize(clampedLeftSize);
+                  setSavedRightPanelSize(clampedRightSize);
+                  // CRITICAL: DO NOT update Summary refs - this breaks independence
+                  // Summary panel manages its own refs independently
                 }
               }
               
-              // Clear resizing flag after a short delay
+              // Clear resizing flag after a delay
               if (resizeTimeoutRef.current) {
                 clearTimeout(resizeTimeoutRef.current);
               }
               resizeTimeoutRef.current = setTimeout(() => {
-                isResizingRef.current = false;
-              }, 100);
+                // Only clear if no side panels are being dragged
+                if (!isDirectlyResizingLeftRef.current && !isDirectlyResizingRightRef.current) {
+                  isResizingRef.current = false;
+                }
+              }, 200);
             }}
             minSize={20} 
             maxSize={100}
@@ -729,32 +760,44 @@ const Index = () => {
 
           {/* RIGHT: AI Summary Panel or Agent Builder */}
           <ResizablePanel 
-            defaultSize={isSummaryOpen ? savedRightPanelSize : 0}
+            key={`summary-${isSummaryOpen}`}
+            defaultSize={isSummaryOpen ? 30 : 0}
             onResize={(size) => {
-              // Mark as resizing
+              // Mark as resizing IMMEDIATELY to prevent interference
               isResizingRef.current = true;
+              isDirectlyResizingRightRef.current = true;
               
               // Only allow resizing when panel is open
+              // NO INVERSION - drag normally just like Performance panel
               if (isSummaryOpen && size >= 10) {
-                setRightPanelSize(size);
-                // Save the size so it restores to the same size when reopened
-                setSavedRightPanelSize(size);
-                rightPanelRef.current.size = size; // Update ref
+                // Clamp to valid range - max is initial/default size (30%)
+                const clampedSize = Math.max(15, Math.min(30, size));
+                
+                // Update state directly - no inversion, no refs, just like Performance
+                setRightPanelSize(clampedSize);
+                setSavedRightPanelSize(clampedSize);
+                rightPanelRef.current.size = clampedSize;
+                
+                // DO NOT update middlePanelSize here - let the library handle it naturally
+                // Updating it causes interference with other panels
               }
               
-              // Clear resizing flag after a short delay
+              // Clear resizing flag after a delay
               if (resizeTimeoutRef.current) {
                 clearTimeout(resizeTimeoutRef.current);
               }
               resizeTimeoutRef.current = setTimeout(() => {
-                isResizingRef.current = false;
-              }, 100);
+                if (isDirectlyResizingRightRef.current) {
+                  isResizingRef.current = false;
+                  isDirectlyResizingRightRef.current = false;
+                }
+              }, 150);
             }}
-            minSize={0} 
-            maxSize={60} 
+            minSize={15} 
+            maxSize={30} 
             collapsible={true}
             collapsedSize={0}
-            className="overflow-hidden relative"
+            className={`${isSummaryOpen ? 'border-l border-border' : ''} overflow-hidden relative`}
           >
             {isSummaryOpen && rightPanelSize >= 10 && (
               showAgentBuilder && custodialWallet ? (

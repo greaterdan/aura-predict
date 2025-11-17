@@ -285,7 +285,7 @@ export const AISummaryPanel = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background border-l border-border overflow-hidden">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-bg-elevated flex-shrink-0">
         <span className="text-xs text-terminal-accent font-mono leading-none flex items-center">
@@ -305,7 +305,7 @@ export const AISummaryPanel = () => {
       </div>
 
       {/* Activity Feed */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         <div className="p-3 space-y-3">
           {decisions.map((decision, index) => {
             const isExpanded = expandedId === decision.id;
