@@ -18,30 +18,24 @@ export function layoutRadialBubbleCloud<T>(
   items: BubbleItem<T>[],
   width: number,
   height: number,
-  maxVisible = 1000 // Show ALL markets - no artificial limit
+  maxVisible = 10000 // Show ALL markets - no artificial limit (increased for performance)
 ): PositionedBubble<T>[] {
   try {
     if (!width || !height || items.length === 0) {
-      console.log('⚠️ Layout skipped: invalid dimensions or no items', { width, height, itemsLength: items.length });
       return [];
     }
 
-  // Navbar is h-11 (44px) - bubbles must stay below it
+  // Use FULL screen - bubbles fill entire viewport
   const navbarHeight = 44;
-  const startY = navbarHeight; // Start below navbar
+  const startY = 0; // Start from top (bubbles can go behind navbar if needed, but we'll avoid it)
+  const endY = height; // Use full height
 
   const visible = items.slice(0, maxVisible);
   const n = visible.length;
 
-  // USE FULL SPACE - ABSOLUTE MINIMAL PADDING - BUBBLES GO TO EDGES
-  // Don't estimate - calculate properly from actual bubble sizes
-  // We'll recalculate after we know bubble sizes, but use a conservative estimate first
-  const tempMaxRadius = 70; // Conservative max radius estimate
-  const tempMinPadding = 0; // NO padding - bubbles go to absolute edges
-  
-  // Use FULL width and height - NO padding - bubbles fill edge to edge
+  // USE FULL SPACE - BUBBLES FILL ENTIRE SCREEN
   const usableWidth = width;
-  const usableHeight = height;
+  const usableHeight = height; // Use full height
   
   // NO CENTER CALCULATION - we spread across FULL space, not centered
   
@@ -50,41 +44,55 @@ export function layoutRadialBubbleCloud<T>(
   const areaPer = totalArea / (n * 1.5); // Space per bubble
   let estimatedRadius = Math.sqrt(areaPer / Math.PI);
 
-  // Base radius - ADJUST SIZE BASED ON SPACE AVAILABLE AND NUMBER OF ITEMS
-  // Smaller bubbles = more space to prevent stacking
+  // Base radius - MAKE BUBBLES BIGGER to fill screen
   // Calculate based on available space and item count
   const spacePerBubble = (usableWidth * usableHeight) / n;
-  const radiusFromSpace = Math.sqrt(spacePerBubble / Math.PI) * 0.4; // Use 40% of available space per bubble
+  const radiusFromSpace = Math.sqrt(spacePerBubble / Math.PI) * 0.6; // Use 60% of available space per bubble (increased from 40%)
   
-  // Size constraints - make smaller to fit more bubbles densely packed
-  const minRadius = n > 100 ? 35 : n > 50 ? 40 : 45; // Smaller base sizes for denser packing
-  const maxRadius = n > 100 ? 50 : n > 50 ? 60 : 70; // Smaller max sizes
+  // Size constraints - MAKE BIGGER to fill screen
+  const minRadius = n > 100 ? 50 : n > 50 ? 60 : 70; // Bigger base sizes
+  const maxRadius = n > 100 ? 90 : n > 50 ? 110 : 130; // Much bigger max sizes
   const baseRadius = Math.max(minRadius, Math.min(maxRadius, Math.min(radiusFromSpace, estimatedRadius)));
   
-  // Calculate bubble sizes based on price (higher price = bigger bubble)
-  // Price range: 0.01 to 0.99, map to radius range
-  const minPriceRadius = baseRadius * 0.8; // 80% of base for low prices
-  const maxPriceRadius = baseRadius * 1.3; // 130% of base for high prices
+  // Calculate bubble sizes based on VOLUME (higher volume = bigger bubble)
+  // First, find min/max volume to normalize
+  const volumes: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const item = visible[i];
+    const data = item.data as any;
+    const volume = typeof data?.volume === 'string' ? parseFloat(data.volume) : (data?.volume || 0);
+    volumes.push(Math.max(0, volume)); // Ensure non-negative
+  }
+  
+  const nonZeroVolumes = volumes.filter(v => v > 0);
+  const minVolume = nonZeroVolumes.length > 0 ? Math.min(...nonZeroVolumes) : 0;
+  const maxVolume = volumes.length > 0 ? Math.max(...volumes) : 1;
+  const volumeRange = maxVolume - minVolume;
+  
+  // Size range: smaller bubbles for low volume, bigger for high volume
+  // Make size range bigger to fill screen better
+  const minVolumeRadius = baseRadius * 0.7; // 70% of base for low volume
+  const maxVolumeRadius = baseRadius * 2.5; // 250% of base for high volume (bigger range for more variation)
   
   // Bubbles should be close together - minimal gap just for visual separation
   // CRITICAL: Account for visual effects that extend beyond bubble radius:
   // - 2px border (border-2)
   // - Box shadow blur (~8px extension)
   // - Border glow effect (~10-15px visible extension)
-  const visualExtension = 10; // Reduced - account for borders, shadows, and glows extending beyond radius
-  const minGap = 5; // MINIMAL gap between bubbles - they should be close together like banter bubbles
+  const visualExtension = 8; // Reduced further for tighter spacing
+  const minGap = 2; // VERY MINIMAL gap between bubbles - they should be close together like real bubbles
   const effectiveMinGap = minGap + visualExtension; // Minimal gap with visual extension
   
   // Use ACTUAL max radius for bounds checking only - NO padding, bubbles go to edges
-  const actualMaxRadius = maxPriceRadius;
+  const actualMaxRadius = maxVolumeRadius;
   const actualMinimalPadding = 0; // NO padding - use full space
   
   // CRITICAL: Use FULL width and height - bubbles go edge to edge
   const actualUsableWidth = width;
   const actualUsableHeight = height;
   
-  const horizontalSpacing = 2 * maxPriceRadius + effectiveMinGap;
-  const verticalSpacing = Math.sqrt(3) * (maxPriceRadius + effectiveMinGap * 0.5);
+  const horizontalSpacing = 2 * maxVolumeRadius + effectiveMinGap;
+  const verticalSpacing = Math.sqrt(3) * (maxVolumeRadius + effectiveMinGap * 0.5);
 
   // Calculate how many rows/cols we need to fit all items across the FULL available space
   // Use hexagonal grid layout spread across ENTIRE area - no center clustering
@@ -94,27 +102,26 @@ export function layoutRadialBubbleCloud<T>(
   const positions: { x: number; y: number }[] = [];
 
   // Generate positions across the ENTIRE available space - edge to edge
-  // Fill from below navbar to absolute bottom - NO PADDING on sides
-  // startY is already set to navbarHeight above
+  // Fill from top to bottom - FULL SCREEN
   const startX = 0; // Start at absolute left
   const endX = width; // End at absolute right
-  const endY = height; // End at absolute bottom
+  const startYPos = 0; // Start from top
+  const endYPos = height; // End at absolute bottom
   
   for (let row = 0; row < rows; row++) {
-    const y = startY + (row / Math.max(1, rows - 1)) * (endY - startY); // Distribute across FULL height
+    const y = startYPos + (row / Math.max(1, rows - 1)) * (endYPos - startYPos); // Distribute across FULL height
     const rowOffset = row % 2 === 0 ? 0 : horizontalSpacing / 2;
 
     for (let col = 0; col < cols; col++) {
       const x = startX + (col / Math.max(1, cols - 1)) * (endX - startX) + rowOffset; // Distribute across FULL width
 
       // Use FULL width and height - spread from absolute edge to absolute edge
-      if (x >= 0 && x <= width && y >= 0 && y <= height) {
+      // Allow bubbles to go slightly outside bounds for better coverage
+      if (x >= -maxVolumeRadius && x <= width + maxVolumeRadius && y >= -maxVolumeRadius && y <= height + maxVolumeRadius) {
         positions.push({ x, y });
       }
     }
   }
-  
-  console.log(`📐 Layout space: ${width}x${height}, Usable: ${actualUsableWidth}x${actualUsableHeight}, Positions: ${positions.length} (${rows} rows x ${cols} cols)`);
 
   // DON'T sort by center - spread across FULL space!
   // Sort by a deterministic pattern (left-to-right, top-to-bottom) for stable layout
@@ -130,15 +137,24 @@ export function layoutRadialBubbleCloud<T>(
 
   const bubbles: PositionedBubble<T>[] = [];
   
-  // Calculate all bubble radii first
+  // Calculate all bubble radii based on VOLUME (most popular = bigger)
   const bubbleRadii: number[] = [];
   for (let i = 0; i < n; i++) {
     const item = visible[i];
     const data = item.data as any;
-    const price = data?.price ?? 0.5;
-    const position = data?.position ?? 'YES';
-    const priceMultiplier = position === 'YES' ? price : (1 - price);
-    const radius = minPriceRadius + (maxPriceRadius - minPriceRadius) * priceMultiplier;
+    const volume = typeof data?.volume === 'string' ? parseFloat(data.volume) : (data?.volume || 0);
+    
+    // Normalize volume to 0-1 range for sizing
+    let volumeMultiplier = 0.5; // Default to middle size if no volume
+    if (volumeRange > 0 && volume > 0) {
+      volumeMultiplier = (volume - minVolume) / volumeRange;
+    } else if (volume > 0) {
+      // All volumes are the same, use default
+      volumeMultiplier = 0.5;
+    }
+    
+    // Calculate radius based on volume (higher volume = bigger bubble)
+    const radius = minVolumeRadius + (maxVolumeRadius - minVolumeRadius) * volumeMultiplier;
     bubbleRadii.push(radius);
   }
 
@@ -165,10 +181,10 @@ export function layoutRadialBubbleCloud<T>(
   const findNonCollidingPosition = (radius: number, preferredX: number, preferredY: number): { x: number; y: number } | null => {
     // First try the preferred position
     if (!hasCollision(preferredX, preferredY, radius)) {
-      // Clamp to bounds - allow bubbles to go closer to edges (just radius minimum)
-      // Y must be at least navbarHeight + radius to stay below navbar
+      // Clamp to bounds - allow bubbles to fill entire screen (just radius minimum from edges)
+      // Allow bubbles to go anywhere on screen, including behind navbar
       const x = Math.max(radius, Math.min(width - radius, preferredX));
-      const y = Math.max(navbarHeight + radius, Math.min(height - radius, preferredY));
+      const y = Math.max(radius, Math.min(height - radius, preferredY)); // Start from top, not navbar
       if (!hasCollision(x, y, radius)) {
         return { x, y };
       }
@@ -188,10 +204,9 @@ export function layoutRadialBubbleCloud<T>(
         const x = preferredX + Math.cos(angle) * spiralRadius;
         const y = preferredY + Math.sin(angle) * spiralRadius;
         
-        // Clamp to bounds - allow bubbles closer to edges (just radius minimum)
-        // Y must be at least navbarHeight + radius to stay below navbar
+        // Clamp to bounds - allow bubbles to fill entire screen (just radius minimum from edges)
         const clampedX = Math.max(radius, Math.min(width - radius, x));
-        const clampedY = Math.max(navbarHeight + radius, Math.min(height - radius, y));
+        const clampedY = Math.max(radius, Math.min(height - radius, y)); // Fill entire screen
         
         if (!hasCollision(clampedX, clampedY, radius)) {
           return { x: clampedX, y: clampedY };
@@ -248,7 +263,6 @@ export function layoutRadialBubbleCloud<T>(
     const pos = findNonCollidingPosition(radius, preferredX, preferredY);
     
     if (!pos) {
-      console.warn(`⚠️ Could not find position for bubble ${i}, skipping`);
       continue;
     }
 
@@ -319,8 +333,6 @@ export function layoutRadialBubbleCloud<T>(
     // If no bubbles moved, we're done
     if (!moved) break;
   }
-  
-  console.log(`🔧 Relaxation: ${totalMoved} moves made across iterations`);
 
   // STRICT Final verification - run MULTIPLE passes until ZERO overlaps remain
   // This is the ABSOLUTE last resort to ensure perfect separation
@@ -409,16 +421,8 @@ export function layoutRadialBubbleCloud<T>(
     }
   }
   
-  if (finalOverlaps > 0) {
-    console.warn(`⚠️ WARNING: ${finalOverlaps} overlaps still remain after ${verificationPasses} verification passes!`);
-  } else {
-    console.log(`✅ Verification: All bubbles properly separated (${verificationPasses} passes)`);
-  }
-
-  console.log(`📊 Layout: ${n} items, ${positions.length} positions generated, ${bubbles.length} bubbles created`);
   return bubbles;
   } catch (error) {
-    console.error('❌ Error in layoutRadialBubbleCloud:', error);
     return [];
   }
 }

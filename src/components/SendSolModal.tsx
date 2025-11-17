@@ -39,7 +39,6 @@ export const SendSolModal = ({ open, onOpenChange, walletAddress, privateKey, on
       const balanceSol = balanceLamports / 1_000_000_000;
       setBalance(balanceSol);
     } catch (error) {
-      console.error("Error fetching balance:", error);
       setBalance(0);
     } finally {
       setIsLoadingBalance(false);
@@ -148,7 +147,6 @@ export const SendSolModal = ({ open, onOpenChange, walletAddress, privateKey, on
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
-      console.error("Send error:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to send SOL",

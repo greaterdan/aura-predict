@@ -56,7 +56,6 @@ export const CustodialWallet = ({ walletAddress, privateKey }: CustodialWalletPr
         setBalance(solBalance.toFixed(4));
       }
     } catch (error) {
-      console.error('Error fetching balance:', error);
       setBalance("0.00");
     } finally {
       setIsLoading(false);

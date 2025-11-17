@@ -25,6 +25,10 @@ export interface PredictionNodeData {
   marketSlug?: string; // Store the Polymarket market slug for linking
   conditionId?: string; // Store the Polymarket condition_id for linking
   imageUrl?: string; // Store the market image URL from Polymarket
+  volume?: number | string; // Market volume
+  liquidity?: number | string; // Market liquidity
+  volume24h?: number; // 24h volume
+  volume7d?: number; // 7d volume
 }
 
 interface PredictionNodeProps {
@@ -40,6 +44,21 @@ interface PredictionNodeProps {
   onDragEnd?: (id: string) => void;
   isDragging?: boolean;
 }
+
+// Custom comparison function for memo to prevent unnecessary re-renders
+const areEqual = (prevProps: PredictionNodeProps, nextProps: PredictionNodeProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.data.id === nextProps.data.id &&
+    prevProps.data.price === nextProps.data.price &&
+    prevProps.data.probability === nextProps.data.probability &&
+    prevProps.data.position === nextProps.data.position &&
+    prevProps.size === nextProps.size &&
+    prevProps.isHighlighted === nextProps.isHighlighted &&
+    prevProps.isDragging === nextProps.isDragging &&
+    prevProps.animationIndex === nextProps.animationIndex
+  );
+};
 
 export const PredictionNode = memo(({ data, position, size, animationIndex = 0, isHighlighted, onClick, onShowTrades, onDragStart, onDrag, onDragEnd, isDragging: externalIsDragging }: PredictionNodeProps) => {
   // Use provided size, or fallback to fixed size (prevents glitch on refresh)
@@ -76,11 +95,21 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
         style={{ 
           pointerEvents: 'auto',
           cursor: 'pointer',
+          outline: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          MozUserSelect: 'none',
+          msUserSelect: 'none',
         }}
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           onClick?.();
         }}
+        onMouseDown={(e) => {
+          e.preventDefault(); // Prevent text selection
+        }}
+        tabIndex={-1} // Prevent keyboard focus
       >
         {/* The actual circular bubble - Size based on price, color based on position */}
         <div 
@@ -88,6 +117,7 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
           style={{
             width: `${bubbleSize}px`,
             height: `${bubbleSize}px`,
+            borderRadius: '50%', // Ensure perfectly round
             backgroundColor: data.imageUrl 
               ? 'transparent' 
               : data.position === "NO"
@@ -98,6 +128,8 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
             pointerEvents: 'auto',
+            // Make it more bubbly with subtle shadow
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
           }}
         >
           {/* Dark overlay to ensure text is readable over image */}
@@ -168,14 +200,4 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
 
     </>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison function for memo - only re-render if relevant props change
-  return (
-    prevProps.data.id === nextProps.data.id &&
-    prevProps.position.x === nextProps.position.x &&
-    prevProps.position.y === nextProps.position.y &&
-    prevProps.size === nextProps.size &&
-    prevProps.isHighlighted === nextProps.isHighlighted &&
-    prevProps.isDragging === nextProps.isDragging
-  );
-});
+}, areEqual);

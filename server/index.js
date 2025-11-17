@@ -24,10 +24,6 @@ app.get('/api/health', (req, res) => {
 
 // Main endpoint: Get predictions (ready-to-use format)
 app.get('/api/predictions', async (req, res) => {
-  console.log(`📥 Received request: ${req.method} ${req.path}`, {
-    query: req.query,
-  });
-  
   try {
     const { category = 'All Markets', limit = 10000 } = req.query;
     
@@ -36,8 +32,6 @@ app.get('/api/predictions', async (req, res) => {
     if (category !== 'All Markets' && category !== 'Trending' && category !== 'Breaking' && category !== 'New') {
       polymarketCategory = mapCategoryToPolymarket(category);
     }
-    
-    console.log(`🔍 Fetching markets for category: ${category} (Polymarket: ${polymarketCategory || 'all'})`);
     
     // Fetch markets from Polymarket - limit to 100 for "All Markets" to reduce glitchiness
     const maxMarkets = category === 'All Markets' ? 100 : 1000;
@@ -51,12 +45,9 @@ app.get('/api/predictions', async (req, res) => {
     // Limit markets for "All Markets" category
     const limitedMarkets = category === 'All Markets' ? markets.slice(0, 100) : markets;
     
-    console.log(`✅ Fetched ${markets.length} raw markets from Polymarket`);
-    
     // Transform markets to predictions (server-side filtering and transformation)
-    const predictions = transformMarkets(limitedMarkets);
-    
-    console.log(`✅ Transformed to ${predictions.length} predictions`);
+    // Note: transformMarkets is now async to fetch prices from /prices endpoint
+    const predictions = await transformMarkets(limitedMarkets);
     
     // Filter by category if needed (client-side category filtering)
     let filteredPredictions = predictions;
@@ -68,7 +59,6 @@ app.get('/api/predictions', async (req, res) => {
         }
         return (p.category || 'World') === category;
       });
-      console.log(`✅ Filtered to ${filteredPredictions.length} predictions for category: ${category}`);
     }
     
     // Apply limit if specified
@@ -83,7 +73,6 @@ app.get('/api/predictions', async (req, res) => {
       totalTransformed: predictions.length,
     });
   } catch (error) {
-    console.error('❌ Error in /api/predictions:', error);
     res.status(500).json({ 
       error: error.message,
       predictions: [],
@@ -94,8 +83,6 @@ app.get('/api/predictions', async (req, res) => {
 
 // Legacy endpoint for backwards compatibility
 app.get('/api/polymarket/markets', async (req, res) => {
-  console.log(`📥 Legacy endpoint called: ${req.method} ${req.path}`);
-  
   try {
     const { limit = 50, active = 'true', category, offset = 0 } = req.query;
     
@@ -124,7 +111,6 @@ app.get('/api/polymarket/markets', async (req, res) => {
       total: markets.length,
     });
   } catch (error) {
-    console.error('❌ Error in legacy endpoint:', error);
     res.status(500).json({
       error: error.message,
       markets: [],
@@ -218,7 +204,10 @@ const fetchNewsAPI = async () => {
   // Try multiple queries to get more results
   const queries = [
     'prediction OR election',
-    'cryptocurrency OR bitcoin',
+    'cryptocurrency',
+    'bitcoin',
+    'ethereum',
+    'blockchain',
     'stock market OR economy',
     'technology OR AI',
     'sports OR climate'
@@ -231,8 +220,6 @@ const fetchNewsAPI = async () => {
       const response = await fetch(url);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ NewsAPI error for query "${query}": ${response.status} ${response.statusText}`);
         return [];
       }
       
@@ -245,18 +232,12 @@ const fetchNewsAPI = async () => {
         }));
       }
       
-      if (data.status === 'error') {
-        console.error(`❌ NewsAPI returned error for query "${query}":`, data.message);
-      }
-      
       return [];
     } catch (error) {
-      console.error(`❌ Error fetching NewsAPI for query "${query}":`, error.message);
       return [];
     }
   });
   
-  console.log(`📰 Fetching news from NewsAPI...`);
   const results = await Promise.all(fetchPromises);
   const allArticles = results.flat();
   
@@ -271,8 +252,6 @@ const fetchNewsAPI = async () => {
     }
   }
   
-  console.log(`✅ NewsAPI: Fetched ${allArticles.length} articles, ${uniqueArticles.length} unique`);
-  
   return uniqueArticles;
 };
 
@@ -283,6 +262,9 @@ const fetchNewsData = async () => {
     'prediction',
     'election',
     'cryptocurrency',
+    'bitcoin',
+    'ethereum',
+    'blockchain',
     'stock market',
     'economy',
     'technology',
@@ -309,12 +291,10 @@ const fetchNewsData = async () => {
       
       return [];
     } catch (error) {
-      console.error(`❌ Error fetching NewsData.io for query "${query}":`, error.message);
       return [];
     }
   });
   
-  console.log(`📰 Fetching news from NewsData.io...`);
   const results = await Promise.all(fetchPromises);
   const allArticles = results.flat();
   
@@ -350,7 +330,6 @@ const fetchNewsData = async () => {
 // Fetch news from GNews
 const fetchGNews = async () => {
   if (!GNEWS_API_KEY) {
-    console.log('⚠️ GNews API key not configured, skipping GNews');
     return [];
   }
   
@@ -358,15 +337,13 @@ const fetchGNews = async () => {
   // Using broader queries to get more diverse results with fewer API calls
   const queries = [
     'prediction OR election',
-    'cryptocurrency OR stock market',
+    'cryptocurrency OR bitcoin OR ethereum OR crypto OR blockchain OR stock market',
     'technology OR economy',
     'sports OR climate'
   ];
   
   // Fetch sequentially with delays to avoid rate limits
   const allArticles = [];
-  
-  console.log(`📰 Fetching news from GNews...`);
   
   for (const query of queries) {
     try {
@@ -381,10 +358,8 @@ const fetchGNews = async () => {
       
       if (!response.ok) {
         if (response.status === 429) {
-          console.error(`⚠️ GNews rate limit hit for query "${query}", skipping remaining queries`);
           break; // Stop if we hit rate limit
         }
-        console.error(`❌ GNews error for query "${query}": ${response.status} ${response.statusText}`);
         continue;
       }
       
@@ -394,7 +369,7 @@ const fetchGNews = async () => {
         allArticles.push(...data.articles);
       }
     } catch (error) {
-      console.error(`❌ Error fetching GNews for query "${query}":`, error.message);
+      // Continue to next query
     }
   }
   
@@ -430,8 +405,6 @@ const fetchGNews = async () => {
 app.get('/api/news', async (req, res) => {
   const { source = 'all' } = req.query; // 'all', 'newsapi', 'newsdata', or 'gnews'
   
-  console.log(`📰 News API request received (source: ${source})`);
-  
   try {
     // Check cache
     const cacheKey = `news-${source}`;
@@ -439,8 +412,7 @@ app.get('/api/news', async (req, res) => {
     if (newsCache.data && newsCache.timestamp && (now - newsCache.timestamp) < newsCache.CACHE_DURATION) {
       // Filter by source if needed
       if (source === 'all') {
-        console.log(`✅ Returning cached news (${Math.floor((now - newsCache.timestamp) / 1000)}s old)`);
-        return res.json(newsCache.data);
+      return res.json(newsCache.data);
       } else {
         const filtered = {
           ...newsCache.data,
@@ -454,33 +426,22 @@ app.get('/api/news', async (req, res) => {
     const fetchPromises = [];
     
     if (source === 'all' || source === 'newsapi') {
-      fetchPromises.push(fetchNewsAPI().catch(err => {
-        console.error('❌ Error fetching from NewsAPI:', err);
-        return [];
-      }));
+      fetchPromises.push(fetchNewsAPI().catch(() => []));
     }
     
     if (source === 'all' || source === 'newsdata') {
-      fetchPromises.push(fetchNewsData().catch(err => {
-        console.error('❌ Error fetching from NewsData.io:', err);
-        return [];
-      }));
+      fetchPromises.push(fetchNewsData().catch(() => []));
     }
     
     if (source === 'all' || source === 'gnews') {
-      fetchPromises.push(fetchGNews().catch(err => {
-        console.error('❌ Error fetching from GNews:', err);
-        return [];
-      }));
+      fetchPromises.push(fetchGNews().catch(() => []));
     }
     
     const results = await Promise.all(fetchPromises);
     let allArticles = results.flat();
     
     // Deduplicate articles
-    console.log(`📰 Fetched ${allArticles.length} articles before deduplication`);
     allArticles = deduplicateArticles(allArticles);
-    console.log(`✅ ${allArticles.length} unique articles after deduplication`);
     
     // Sort by published date (newest first)
     allArticles.sort((a, b) => {
@@ -503,27 +464,23 @@ app.get('/api/news', async (req, res) => {
       },
     };
     
-    // Cache the response
-    newsCache = {
+      // Cache the response
+      newsCache = {
       data: responseData,
-      timestamp: Date.now(),
-      CACHE_DURATION: 5 * 60 * 1000,
-    };
-    
+        timestamp: Date.now(),
+        CACHE_DURATION: 5 * 60 * 1000,
+      };
+      
     // Filter by source if needed
     if (source !== 'all') {
       responseData.articles = responseData.articles.filter(a => a.sourceApi === source);
       responseData.totalResults = responseData.articles.length;
     }
     
-    console.log(`✅ Fetched and cached ${responseData.articles.length} news articles`);
     res.json(responseData);
   } catch (error) {
-    console.error('❌ Error fetching news:', error);
-    
     // Return cached data if available, even if expired
     if (newsCache.data) {
-      console.log(`⚠️ Returning stale cached news due to error`);
       let cachedData = newsCache.data;
       
       if (source !== 'all') {
@@ -546,10 +503,6 @@ app.get('/api/news', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Polymarket proxy server running on http://localhost:${PORT}`);
-  console.log(`📡 Endpoints:`);
-  console.log(`   GET /api/predictions - Get ready-to-use predictions`);
-  console.log(`   GET /api/polymarket/markets - Legacy endpoint (raw markets)`);
-  console.log(`   GET /api/news?source=all|newsapi|newsdata|gnews - Get news articles (cached, deduplicated)`);
+  // Server started
 });
 

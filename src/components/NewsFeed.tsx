@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Newspaper, ExternalLink } from "lucide-react";
-import { useState, useEffect } from "react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState, useEffect, useMemo } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface NewsItem {
   id: string;
@@ -48,21 +48,33 @@ const formatTime = (publishedAt: string): string => {
   return published.toLocaleDateString();
 };
 
+const NEWS_CATEGORIES = [
+  'All',
+  'Politics',
+  'Crypto',
+  'Markets',
+  'Economics',
+  'Technology',
+  'Sports',
+  'Climate',
+  'News'
+] as const;
+
+type NewsCategory = typeof NEWS_CATEGORIES[number];
+
 export const NewsFeed = () => {
-  const [news, setNews] = useState<NewsItem[]>([]);
+  const [allNews, setAllNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [selectedSource, setSelectedSource] = useState<'all' | 'newsapi' | 'newsdata' | 'gnews'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('All');
 
   // Fetch news from server proxy (which caches and respects rate limits)
-  const fetchNews = async (source: 'all' | 'newsapi' | 'newsdata' | 'gnews' = selectedSource) => {
+  const fetchNews = async () => {
     try {
       setLoading(true);
       
-      console.log(`📰 Fetching news from server (source: ${source})...`);
-      
-      // Use server proxy to avoid CORS and respect rate limits
-      const response = await fetch(`http://localhost:3002/api/news?source=${source}`);
+      // Use server proxy to avoid CORS and respect rate limits - always fetch from all sources
+      const response = await fetch('http://localhost:3002/api/news?source=all');
       
       if (!response.ok) {
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
@@ -74,16 +86,18 @@ export const NewsFeed = () => {
         // Transform articles to NewsItem format
         const transformedArticles: NewsItem[] = data.articles
           .filter(article => article.title && article.title !== '[Removed]') // Filter out removed articles
-          .slice(0, 50) // Limit to 50 most recent articles
+          .slice(0, 100) // Limit to 100 most recent articles to ensure we have enough for all categories
           .map((article, index) => {
             // Determine category from title/description
             const content = `${article.title} ${article.description || ''}`.toLowerCase();
             let category = 'News';
             
-            if (content.includes('election') || content.includes('politic') || content.includes('president')) {
-              category = 'Politics';
-            } else if (content.includes('crypto') || content.includes('bitcoin') || content.includes('ethereum')) {
+            // Check crypto first (before other categories) to ensure crypto articles are properly categorized
+            const cryptoKeywords = ['crypto', 'bitcoin', 'ethereum', 'blockchain', 'btc', 'eth', 'xrp', 'solana', 'defi', 'nft', 'altcoin', 'zcash', 'cryptocurrency'];
+            if (cryptoKeywords.some(keyword => content.includes(keyword))) {
               category = 'Crypto';
+            } else if (content.includes('election') || content.includes('politic') || content.includes('president')) {
+              category = 'Politics';
             } else if (content.includes('stock') || content.includes('market') || content.includes('dow') || content.includes('s&p')) {
               category = 'Markets';
             } else if (content.includes('economy') || content.includes('fed') || content.includes('inflation')) {
@@ -116,85 +130,77 @@ export const NewsFeed = () => {
           return timeB - timeA;
         });
 
-        setNews(transformedArticles);
+        setAllNews(transformedArticles);
         setLastUpdate(new Date());
-        console.log(`✅ Loaded ${transformedArticles.length} news articles from ${source}`);
-      } else {
-        console.error('❌ News API returned error:', data);
       }
     } catch (error) {
-      console.error('❌ Error fetching news:', error);
       // Keep existing news on error
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial fetch and refetch when source changes
+  // Filter news by selected category
+  const news = useMemo(() => {
+    if (selectedCategory === 'All') {
+      return allNews;
+    }
+    return allNews.filter(item => item.category === selectedCategory);
+  }, [allNews, selectedCategory]);
+
+  // Initial fetch
   useEffect(() => {
-    fetchNews(selectedSource);
+    fetchNews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSource]);
+  }, []);
 
   // Update every 1 minute - server handles caching (5 min cache) so we can poll frequently
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchNews(selectedSource);
+      fetchNews();
     }, 60 * 1000); // 1 minute (server caches for 5 minutes)
 
     return () => clearInterval(interval);
-  }, [selectedSource]);
+  }, []);
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="border-b border-border bg-bg-elevated flex-shrink-0">
         <div className="h-10 px-4 flex items-center justify-between">
-          <span className="text-xs text-terminal-accent font-mono leading-none flex items-center gap-2">
-            <Newspaper className="w-3 h-3" />
-            &gt; NEWS FEED
-          </span>
-          <div className="flex items-center gap-2">
-            <motion.div
-              className="w-2 h-2 rounded-full bg-trade-yes"
-              animate={{
-                scale: [1, 1.3, 1],
-                opacity: [1, 0.7, 1],
-              }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-            <span className="text-[10px] text-muted-foreground font-mono">LIVE</span>
+        <span className="text-xs text-terminal-accent font-mono leading-none flex items-center gap-2">
+          <Newspaper className="w-3 h-3" />
+          &gt; NEWS FEED
+        </span>
+        <div className="flex items-center gap-2">
+          <motion.div
+            className="w-2 h-2 rounded-full bg-trade-yes"
+            animate={{
+              scale: [1, 1.3, 1],
+              opacity: [1, 0.7, 1],
+            }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+          <span className="text-[10px] text-muted-foreground font-mono">LIVE</span>
           </div>
         </div>
-        {/* Source Selector Tabs */}
+        {/* Category Selector Dropdown */}
         <div className="px-4 pb-2">
-          <Tabs value={selectedSource} onValueChange={(value) => setSelectedSource(value as 'all' | 'newsapi' | 'newsdata' | 'gnews')}>
-            <TabsList className="h-7 bg-muted/50">
-              <TabsTrigger 
-                value="all" 
-                className="text-[10px] px-2 py-1 h-6 data-[state=active]:bg-terminal-accent/20 data-[state=active]:text-terminal-accent"
-              >
-                All Sources
-              </TabsTrigger>
-              <TabsTrigger 
-                value="newsapi" 
-                className="text-[10px] px-2 py-1 h-6 data-[state=active]:bg-terminal-accent/20 data-[state=active]:text-terminal-accent"
-              >
-                NewsAPI
-              </TabsTrigger>
-              <TabsTrigger 
-                value="newsdata" 
-                className="text-[10px] px-2 py-1 h-6 data-[state=active]:bg-terminal-accent/20 data-[state=active]:text-terminal-accent"
-              >
-                NewsData.io
-              </TabsTrigger>
-              <TabsTrigger 
-                value="gnews" 
-                className="text-[10px] px-2 py-1 h-6 data-[state=active]:bg-terminal-accent/20 data-[state=active]:text-terminal-accent"
-              >
-                GNews
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as NewsCategory)}>
+            <SelectTrigger className="h-7 text-[10px] font-mono border-border bg-muted/50 hover:bg-muted">
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              {NEWS_CATEGORIES.map((category) => (
+                <SelectItem 
+                  key={category} 
+                  value={category}
+                  className="text-[10px] font-mono"
+                >
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

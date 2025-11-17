@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { PredictionNodeData } from "./PredictionNode";
 import { PredictionNode } from "./PredictionNode";
 import { layoutRadialBubbleCloud } from "@/lib/layoutRadialBubbleCloud";
@@ -51,12 +51,9 @@ export const PredictionBubbleField: React.FC<Props> = ({
       // Navbar is h-11 (44px) - account for it in measurements
       const navbarHeight = 44;
       
-      console.log(`📏 Measuring container: parent=${width}x${height}, navbar=${navbarHeight}px, usable=${width}x${height}`);
-      
       // Use parent's full dimensions - allow ANY size (even small)
       if (width > 0 && height > 0) {
         if (width !== sizeRef.width || height !== sizeRef.height) {
-          console.log(`✅ Container size updated: ${sizeRef.width}x${sizeRef.height} → ${width}x${height}`);
           sizeRef.width = width;
           sizeRef.height = height;
           setSize({ width, height });
@@ -136,14 +133,11 @@ export const PredictionBubbleField: React.FC<Props> = ({
     // Don't calculate layout if size is not ready (prevents glitch on refresh)
     // Allow ANY size - no minimum requirement
     if (!isSizeReady || size.width <= 0 || size.height <= 0 || markets.length === 0) {
-      console.log(`⚠️ Bubble layout skipped: isSizeReady=${isSizeReady}, size=${size.width}x${size.height}, markets=${markets.length}`);
       return [];
     }
     
     // Show ALL markets - no limit
     const maxVisible = markets.length;
-    console.log(`🎯 Creating bubbles for ${markets.length} markets (maxVisible: ${maxVisible})`);
-    console.log(`📐 Container size: ${size.width}x${size.height} - USING FULL SPACE`);
     
     try {
       const bubbles = layoutRadialBubbleCloud(
@@ -152,16 +146,17 @@ export const PredictionBubbleField: React.FC<Props> = ({
         size.height,
         maxVisible // Show ALL markets
       );
-      console.log(`✅ Bubble layout created ${bubbles.length} bubbles using FULL space ${size.width}x${size.height}`);
       return bubbles;
     } catch (error) {
-      console.error('❌ Error calculating bubble layout:', error);
       return [];
     }
   }, [markets, size.width, size.height, isSizeReady]);
 
   // Merge initial positions with dragged positions
+  // Use useMemo with proper dependencies to prevent unnecessary recalculations
   const bubbles = useMemo(() => {
+    if (initialBubbles.length === 0) return [];
+    
     const result = initialBubbles.map(bubble => {
       const draggedPos = bubblePositions[bubble.id];
       if (draggedPos) {
@@ -172,6 +167,80 @@ export const PredictionBubbleField: React.FC<Props> = ({
     
     return result;
   }, [initialBubbles, bubblePositions]);
+  
+  // Viewport-based virtualization: Only render bubbles visible in viewport + buffer
+  const [viewport, setViewport] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
+  const viewportBuffer = 200; // Render bubbles 200px outside viewport
+  
+  const visibleBubbles = useMemo(() => {
+    if (bubbles.length === 0) return [];
+    
+    // For very large numbers, use viewport culling
+    if (bubbles.length > 500) {
+      return bubbles.filter(bubble => {
+        // Convert bubble position (relative to container) to viewport coordinates
+        const containerRect = containerRef.current?.getBoundingClientRect();
+        if (!containerRect) return true; // If container not ready, show all
+        
+        const bubbleTop = containerRect.top + bubble.y - bubble.radius;
+        const bubbleBottom = containerRect.top + bubble.y + bubble.radius;
+        const bubbleLeft = containerRect.left + bubble.x - bubble.radius;
+        const bubbleRight = containerRect.left + bubble.x + bubble.radius;
+        
+        return (
+          bubbleBottom >= viewport.top - viewportBuffer &&
+          bubbleTop <= viewport.bottom + viewportBuffer &&
+          bubbleRight >= viewport.left - viewportBuffer &&
+          bubbleLeft <= viewport.right + viewportBuffer
+        );
+      });
+    }
+    
+    // For smaller numbers, render all
+    return bubbles;
+  }, [bubbles, viewport, viewportBuffer]);
+  
+  // Update viewport on scroll/resize (throttled)
+  const updateViewport = useCallback(() => {
+    if (!containerRef.current) return;
+    
+    // Get container's position relative to viewport
+    const rect = containerRef.current.getBoundingClientRect();
+    setViewport({
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+    });
+  }, []);
+  
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    updateViewport();
+    
+    const handleScroll = () => {
+      requestAnimationFrame(updateViewport);
+    };
+    
+    const handleResize = () => {
+      requestAnimationFrame(updateViewport);
+    };
+    
+    // Use passive listeners for better performance
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
+    
+    // Also listen to container scroll if it's scrollable
+    const container = containerRef.current;
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [updateViewport]);
   
   // Mark as rendered once we have bubbles and size is ready
   useEffect(() => {
@@ -397,12 +466,17 @@ export const PredictionBubbleField: React.FC<Props> = ({
         bottom: 0,
         minWidth: '100vw',
         minHeight: '100vh',
+        // Performance optimizations
+        contain: 'layout style paint',
+        willChange: 'scroll-position',
+        // Use GPU acceleration
+        transform: 'translateZ(0)',
       }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {isSizeReady && bubbles.length > 0 && bubbles.map((bubble) => {
+      {isSizeReady && visibleBubbles.length > 0 && visibleBubbles.map((bubble) => {
         const isSelected =
           selectedNodeId === bubble.id ||
           (selectedAgent &&
@@ -423,12 +497,13 @@ export const PredictionBubbleField: React.FC<Props> = ({
               top: bubble.y - bubble.radius,
               width: bubble.radius * 2,
               height: bubble.radius * 2,
-              // Floating animation - smooth orbit like banterbubbles
-              animationName: isDragging ? 'none' : 'bubble-float',
-              animationDuration: isDragging ? '0s' : `${20 + (bubble.index % 10) * 3}s`,
+              // Floating animation - smooth natural float (like bubbles in water)
+              // Enable for all bubbles for more bubbly effect
+              animationName: isDragging ? 'none' : 'bubble-float-smooth',
+              animationDuration: isDragging ? '0s' : `${20 + (bubble.index % 20) * 3}s`, // Slower, more natural
               animationTimingFunction: isDragging ? 'ease' : 'ease-in-out',
               animationIterationCount: isDragging ? 0 : 'infinite',
-              animationDelay: isDragging ? '0s' : `${(bubble.index % 20) * 0.3}s`,
+              animationDelay: isDragging ? '0s' : `${(bubble.index % 30) * 0.15}s`, // Staggered delays for natural effect
               cursor: isDragging ? 'grabbing' : 'grab',
               zIndex: isDragging ? 1000 : isHighlighted ? 100 : 1,
               transition: isDragging && bubble.id === draggedBubbleId
@@ -441,9 +516,25 @@ export const PredictionBubbleField: React.FC<Props> = ({
               willChange: isDragging ? 'transform' : 'auto',
               transform: 'translateZ(0)',
               opacity: hasRendered ? opacity : 0,
+              // CSS containment for better rendering performance
+              contain: 'layout style paint',
+              // Use GPU acceleration
+              backfaceVisibility: 'hidden',
+              perspective: 1000,
+              // Remove outline on focus/click
+              outline: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              MozUserSelect: 'none',
+              msUserSelect: 'none',
             }}
-            onMouseDown={(e) => handleMouseDown(e, bubble.id, bubble.x, bubble.y)}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent text selection
+              handleMouseDown(e, bubble.id, bubble.x, bubble.y);
+            }}
             onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               if (!isDragging) {
                 onBubbleClick?.(bubble.data);
               }
@@ -454,6 +545,7 @@ export const PredictionBubbleField: React.FC<Props> = ({
                 setHoveredBubbleId(null);
               }
             }}
+            tabIndex={-1} // Prevent keyboard focus
           >
             <PredictionNode
               data={bubble.data}

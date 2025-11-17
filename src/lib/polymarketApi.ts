@@ -159,8 +159,6 @@ export const fetchPolymarketMarkets = async (
   active: boolean = false, // Default to false to get ALL markets
   offset: number = 0 // Add offset for pagination
 ): Promise<PolymarketMarketsResponse> => {
-  console.log(`🔍 Fetching Polymarket markets via proxy (limit: ${limit}, offset: ${offset})...`);
-  
   try {
     // Check if server is running first
     const isServerRunning = await checkServerHealth();
@@ -197,25 +195,16 @@ export const fetchPolymarketMarkets = async (
     }
     
     if (data.markets && Array.isArray(data.markets)) {
-      console.log(`✅ Found ${data.markets.length} markets from Polymarket API (offset: ${offset})`);
       return { markets: data.markets, count: data.markets.length };
     }
     
     // If markets is empty array, that's valid - return it
     if (Array.isArray(data.markets) && data.markets.length === 0) {
-      console.log(`⚠️ No markets returned from API (offset: ${offset})`);
       return { markets: [], count: 0 };
     }
     
     throw new Error(`Invalid response format from proxy: ${JSON.stringify(data).substring(0, 200)}`);
   } catch (error) {
-    console.error('❌ Error fetching via proxy:', error);
-    if (error instanceof Error && error.message.includes('Proxy server is not running')) {
-      console.error('❌ SERVER NOT RUNNING: Start the proxy server with: npm run server');
-      console.error('❌ Or run both frontend and backend together: npm run dev:all');
-    } else {
-      console.error('❌ Make sure proxy server is running on http://localhost:3002');
-    }
     // Throw error instead of returning empty - let caller handle it
     throw error;
   }
@@ -239,8 +228,6 @@ export const fetchFeaturedMarkets = async (): Promise<PolymarketMarket[]> => {
     const data = await response.json();
     return Array.isArray(data.markets) ? data.markets : [];
   } catch (error) {
-    console.error('❌ Error fetching featured markets:', error);
-    console.error('❌ Make sure proxy server is running on http://localhost:3002');
     throw error;
   }
 };
@@ -249,7 +236,6 @@ export const fetchFeaturedMarkets = async (): Promise<PolymarketMarket[]> => {
 export const fetchMarketsByCategory = async (category: string): Promise<PolymarketMarket[]> => {
   try {
     // Request MORE markets for category searches - fetch with pagination to get ALL markets
-    console.log(`📡 Fetching markets for category: ${category} with pagination...`);
     let allMarkets: any[] = [];
     const limitPerPage = 1000;
     const maxPages = 20; // Fetch up to 20,000 markets for category
@@ -276,12 +262,10 @@ export const fetchMarketsByCategory = async (category: string): Promise<Polymark
       const pageMarkets = Array.isArray(data.markets) ? data.markets : [];
       
       if (pageMarkets.length === 0) {
-        console.log(`📄 No more markets at page ${page + 1} for category ${category}`);
         break;
       }
       
       allMarkets = allMarkets.concat(pageMarkets);
-      console.log(`📄 Page ${page + 1} (offset: ${offset}): Fetched ${pageMarkets.length} markets for ${category} (total: ${allMarkets.length})`);
       
       // If we got fewer than requested, we've reached the end
       if (pageMarkets.length < limitPerPage) {
@@ -292,11 +276,8 @@ export const fetchMarketsByCategory = async (category: string): Promise<Polymark
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     
-    console.log(`✅ Fetched ${allMarkets.length} total markets for category: ${category}`);
     return allMarkets;
   } catch (error) {
-    console.error('❌ Error fetching markets by category:', error);
-    console.error('❌ Make sure proxy server is running on http://localhost:3002');
     throw error;
   }
 };
@@ -479,25 +460,6 @@ export const transformPolymarketToPrediction = (
       priceSource = 'lastPrice';
     }
     
-    // Log price extraction for debugging (first 5 markets)
-    const shouldLogPrice = Math.random() < 0.05; // Log 5% of markets
-    if (shouldLogPrice) {
-      console.log(`💰 Price extraction for "${question.substring(0, 40)}":`, {
-        source: priceSource,
-        yesPrice,
-        noPrice,
-        probability: Math.round((yesPrice >= noPrice ? yesPrice : noPrice) * 100),
-        hasTokens: !!actualMarket.tokens,
-        tokenCount: actualMarket.tokens?.length || 0,
-        token0: actualMarket.tokens?.[0] ? {
-          keys: Object.keys(actualMarket.tokens[0]),
-          price: actualMarket.tokens[0].price,
-          lastPrice: actualMarket.tokens[0].lastPrice,
-          currentPrice: actualMarket.tokens[0].currentPrice,
-        } : null,
-      });
-    }
-    
     // Ensure prices are valid
     if (isNaN(yesPrice) || yesPrice < 0) yesPrice = 0.5;
     if (isNaN(noPrice) || noPrice < 0) noPrice = 0.5;
@@ -553,15 +515,6 @@ export const transformPolymarketToPrediction = (
     
     // Log for debugging (only first few to avoid spam)
     if (!marketSlug) {
-      const hasSlug = 'market_slug' in actualMarket || 'slug' in actualMarket;
-      if (!hasSlug) {
-        console.log('⚠️ No market_slug found in market:', {
-          keys: Object.keys(actualMarket).slice(0, 10),
-          hasMarket: !!actualMarket.market,
-          hasEvent: !!actualMarket.event,
-          question: (actualMarket.question || actualMarket.title || '').substring(0, 50)
-        });
-      }
     }
     
     // Get condition_id for alternative URL construction
@@ -587,7 +540,6 @@ export const transformPolymarketToPrediction = (
       conditionId: conditionId ? String(conditionId) : undefined, // Store condition_id as fallback
     };
   } catch (error) {
-    console.error('Error transforming Polymarket market:', error, market);
     return null;
   }
 };

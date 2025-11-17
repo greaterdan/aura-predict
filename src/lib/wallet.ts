@@ -69,7 +69,6 @@ export function getStoredWallet(userId: string): WalletData | null {
     const data = JSON.parse(stored);
     return restoreWallet(data.privateKey);
   } catch (error) {
-    console.error('Error restoring wallet:', error);
     return null;
   }
 }

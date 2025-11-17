@@ -41,9 +41,7 @@ export const LoginButton = ({
       const address = response.publicKey.toString();
       
       onLogin?.('phantom', { address });
-      console.log('Connected to Phantom:', address);
     } catch (error: any) {
-      console.error('Phantom connection error:', error);
       if (error.code === 4001) {
         alert('Connection rejected by user');
       } else {
@@ -66,14 +64,11 @@ export const LoginButton = ({
       if (response.ok) {
         const data = await response.json();
         onLogin?.('gmail', { email: data.email });
-        console.log('Gmail login successful');
       } else {
         // For now, simulate Gmail login
         onLogin?.('gmail', { email: 'user@gmail.com' });
-        console.log('Gmail login (simulated)');
       }
     } catch (error) {
-      console.error('Gmail login error:', error);
       // For demo purposes, still call onLogin
       onLogin?.('gmail', { email: 'user@gmail.com' });
     } finally {

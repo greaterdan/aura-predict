@@ -5,15 +5,19 @@ import { PredictionBubbleField } from "@/components/PredictionBubbleField";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { SystemStatusBar } from "@/components/SystemStatusBar";
 import { ActivePositions } from "@/components/ActivePositions";
-import { TradesPanel } from "@/components/TradesPanel";
+import { MarketDetailsModal } from "@/components/MarketDetailsModal";
 import { AISummaryPanel } from "@/components/AISummaryPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { AgentBuilder } from "@/components/AgentBuilder";
 import { getOrCreateWallet } from "@/lib/wallet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { ChevronDown, Search, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ChevronDown, Search, ExternalLink, Filter, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // All market fetching is now done server-side via /api/predictions
 
 interface Agent {
@@ -41,13 +45,29 @@ const Index = () => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [agents, setAgents] = useState(mockAgents);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [tradesPanelOpen, setTradesPanelOpen] = useState(false);
+  const [marketModalOpen, setMarketModalOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionNodeData | null>(null);
   // Removed zoom/pan - bubbles now fill full screen and can only be dragged individually
   const [selectedCategory, setSelectedCategory] = useState<string>("All Markets");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [predictions, setPredictions] = useState<PredictionNodeData[]>([]);
   const [loadingMarkets, setLoadingMarkets] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [bubbleLimit, setBubbleLimit] = useState<number>(150);
+  
+  // Filter state
+  const [filters, setFilters] = useState({
+    minVolume: '',
+    maxVolume: '',
+    minLiquidity: '',
+    maxLiquidity: '',
+    minPrice: '',
+    maxPrice: '',
+    minProbability: '',
+    maxProbability: '',
+    sortBy: 'volume' as 'volume' | 'liquidity' | 'price' | 'probability' | 'none',
+    sortOrder: 'desc' as 'asc' | 'desc',
+  });
   const [showAgentBuilder, setShowAgentBuilder] = useState(false);
   const [custodialWallet, setCustodialWallet] = useState<{ publicKey: string; privateKey: string } | null>(null);
   // Panel visibility state - both open by default
@@ -104,7 +124,6 @@ const Index = () => {
   // Fetch predictions from server (all processing is server-side)
   useEffect(() => {
     const loadPredictions = async () => {
-      console.log('🚀 Loading predictions for category:', selectedCategory);
       setLoadingMarkets(true);
       try {
         // Call server endpoint - server handles ALL fetching, filtering, and transformation
@@ -124,20 +143,14 @@ const Index = () => {
         const data = await response.json();
         
         if (data.predictions && Array.isArray(data.predictions)) {
-          console.log(`✅ Loaded ${data.predictions.length} predictions from server`);
-          console.log(`📊 Server stats: ${data.totalFetched} fetched, ${data.totalTransformed} transformed`);
           setPredictions(data.predictions);
         } else {
-          console.error('❌ Invalid response format from server');
           setPredictions([]);
         }
       } catch (error) {
-        console.error('❌ Error loading predictions:', error);
-        console.error('❌ Make sure server is running: npm run server');
         setPredictions([]);
       } finally {
         setLoadingMarkets(false);
-        console.log('✅ Prediction loading complete');
       }
     };
 
@@ -182,9 +195,9 @@ const Index = () => {
     }
   };
 
-  const handleShowTrades = (prediction: PredictionNodeData) => {
+  const handleBubbleClick = (prediction: PredictionNodeData) => {
     setSelectedPrediction(prediction);
-    setTradesPanelOpen(true);
+    setMarketModalOpen(true);
   };
 
   // Pan/zoom handlers removed - bubbles now fill full screen and can only be dragged individually
@@ -205,27 +218,132 @@ const Index = () => {
     "Elections"
   ];
 
-  // Filter predictions by search query only (category filtering is done server-side)
+  // Filter predictions by search query and filters
   const filteredPredictions = useMemo(() => {
-    if (searchQuery.trim() === "") {
-      return predictions; // No search query, return all
+    let filtered = predictions;
+    
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(prediction => 
+        prediction.question.toLowerCase().includes(query) ||
+        prediction.category?.toLowerCase().includes(query) ||
+        prediction.agentName?.toLowerCase().includes(query)
+      );
     }
     
-    const filtered = predictions.filter(p => {
-      return p.question.toLowerCase().includes(searchQuery.toLowerCase().trim());
-    });
+    // Apply volume filters
+    if (filters.minVolume) {
+      const minVol = parseFloat(filters.minVolume);
+      if (!isNaN(minVol)) {
+        filtered = filtered.filter(p => {
+          const vol = typeof p.volume === 'string' ? parseFloat(p.volume) : (p.volume || 0);
+          return vol >= minVol;
+        });
+      }
+    }
+    if (filters.maxVolume) {
+      const maxVol = parseFloat(filters.maxVolume);
+      if (!isNaN(maxVol)) {
+        filtered = filtered.filter(p => {
+          const vol = typeof p.volume === 'string' ? parseFloat(p.volume) : (p.volume || 0);
+          return vol <= maxVol;
+        });
+      }
+    }
     
-    console.log(`🔍 Search filter: ${predictions.length} total → ${filtered.length} after search: "${searchQuery}"`);
+    // Apply liquidity filters
+    if (filters.minLiquidity) {
+      const minLiq = parseFloat(filters.minLiquidity);
+      if (!isNaN(minLiq)) {
+        filtered = filtered.filter(p => {
+          const liq = typeof p.liquidity === 'string' ? parseFloat(p.liquidity) : (p.liquidity || 0);
+          return liq >= minLiq;
+        });
+      }
+    }
+    if (filters.maxLiquidity) {
+      const maxLiq = parseFloat(filters.maxLiquidity);
+      if (!isNaN(maxLiq)) {
+        filtered = filtered.filter(p => {
+          const liq = typeof p.liquidity === 'string' ? parseFloat(p.liquidity) : (p.liquidity || 0);
+          return liq <= maxLiq;
+        });
+      }
+    }
+    
+    // Apply price filters
+    if (filters.minPrice) {
+      const minPrice = parseFloat(filters.minPrice);
+      if (!isNaN(minPrice)) {
+        filtered = filtered.filter(p => (p.price || 0) >= minPrice);
+      }
+    }
+    if (filters.maxPrice) {
+      const maxPrice = parseFloat(filters.maxPrice);
+      if (!isNaN(maxPrice)) {
+        filtered = filtered.filter(p => (p.price || 0) <= maxPrice);
+      }
+    }
+    
+    // Apply probability filters
+    if (filters.minProbability) {
+      const minProb = parseFloat(filters.minProbability);
+      if (!isNaN(minProb)) {
+        filtered = filtered.filter(p => (p.probability || 0) >= minProb);
+      }
+    }
+    if (filters.maxProbability) {
+      const maxProb = parseFloat(filters.maxProbability);
+      if (!isNaN(maxProb)) {
+        filtered = filtered.filter(p => (p.probability || 0) <= maxProb);
+      }
+    }
+    
+    // Apply sorting
+    if (filters.sortBy !== 'none') {
+      filtered = [...filtered].sort((a, b) => {
+        let aVal = 0;
+        let bVal = 0;
+        
+        switch (filters.sortBy) {
+          case 'volume':
+            aVal = typeof a.volume === 'string' ? parseFloat(a.volume) : (a.volume || 0);
+            bVal = typeof b.volume === 'string' ? parseFloat(b.volume) : (b.volume || 0);
+            break;
+          case 'liquidity':
+            aVal = typeof a.liquidity === 'string' ? parseFloat(a.liquidity) : (a.liquidity || 0);
+            bVal = typeof b.liquidity === 'string' ? parseFloat(b.liquidity) : (b.liquidity || 0);
+            break;
+          case 'price':
+            aVal = a.price || 0;
+            bVal = b.price || 0;
+            break;
+          case 'probability':
+            aVal = a.probability || 0;
+            bVal = b.probability || 0;
+            break;
+        }
+        
+        if (filters.sortOrder === 'asc') {
+          return aVal - bVal;
+        } else {
+          return bVal - aVal;
+        }
+      });
+    }
+    
     return filtered;
-  }, [predictions, searchQuery]);
+  }, [predictions, searchQuery, filters]);
 
-  // For "All Markets" - show ALL predictions, no limit
-  // For other categories - show ALL too, no limit
+  // Apply bubble limit to filtered predictions
   const limitedPredictions = useMemo(() => {
-    // Show ALL filtered predictions - no limit
-    console.log(`🎯 Limited predictions: ${filteredPredictions.length} (no limit applied)`);
+    // Apply the selected bubble limit (0 means show all)
+    if (bubbleLimit > 0 && bubbleLimit < filteredPredictions.length) {
+      return filteredPredictions.slice(0, bubbleLimit);
+    }
     return filteredPredictions;
-  }, [filteredPredictions]);
+  }, [filteredPredictions, bubbleLimit]);
 
 
   // Get custodial wallet from localStorage when logged in
@@ -326,36 +444,70 @@ const Index = () => {
   };
 
   const handleToggleSummary = () => {
-    const newState = !isSummaryOpen;
-    setIsSummaryOpen(newState);
-    if (newState) {
-      // Opening Summary - always restore to default size (30%)
-      // Also switch from News Feed to Summary
-      setShowNewsFeed(false);
-      const defaultSize = 30;
-      setRightPanelSize(defaultSize);
-      setSavedRightPanelSize(defaultSize);
-      rightPanelRef.current.size = defaultSize;
-      // Update localStorage immediately to override any saved values
-      localStorage.setItem('savedRightPanelSize', '30');
-      // Clear react-resizable-panels localStorage to prevent interference
-      localStorage.removeItem('react-resizable-panels:panel-layout');
-      // Immediately update middle panel size
-      const newMiddle = isPerformanceOpen 
-        ? 100 - leftPanelSize - defaultSize
-        : 100 - defaultSize;
-      setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-    } else {
-      // Closing Summary - collapse to 0 and also close News Feed
-      setShowNewsFeed(false);
+    // If Summary is already showing, close the panel
+    if (isSummaryOpen && !showNewsFeed && !showAgentBuilder) {
+      setIsSummaryOpen(false);
       setRightPanelSize(0);
       rightPanelRef.current.size = 0;
-      // Immediately expand middle panel to full space minus performance
       const newMiddle = isPerformanceOpen 
         ? 100 - leftPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      return;
     }
+    
+    // Opening Summary - switch to Summary view
+    setShowNewsFeed(false);
+    setShowAgentBuilder(false);
+    if (!isSummaryOpen) {
+      setIsSummaryOpen(true);
+    }
+    const defaultSize = 30;
+    setRightPanelSize(defaultSize);
+    setSavedRightPanelSize(defaultSize);
+    rightPanelRef.current.size = defaultSize;
+    localStorage.setItem('savedRightPanelSize', '30');
+    localStorage.removeItem('react-resizable-panels:panel-layout');
+    const newMiddle = isPerformanceOpen 
+      ? 100 - leftPanelSize - defaultSize
+      : 100 - defaultSize;
+    setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+  };
+
+  const handleToggleAgentBuilder = () => {
+    // If Agent Builder is already showing, close the panel
+    if (showAgentBuilder && isSummaryOpen && !showNewsFeed) {
+      setShowAgentBuilder(false);
+      setIsSummaryOpen(false);
+      setRightPanelSize(0);
+      if (rightPanelRef.current) {
+        rightPanelRef.current.size = 0;
+      }
+      const newMiddle = isPerformanceOpen 
+        ? 100 - leftPanelSize
+        : 100;
+      setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      return;
+    }
+    
+    // Opening Agent Builder - switch to Agent Builder view
+    setShowNewsFeed(false);
+    setShowAgentBuilder(true);
+    if (!isSummaryOpen) {
+      setIsSummaryOpen(true);
+    }
+    const defaultSize = 30;
+    setRightPanelSize(defaultSize);
+    setSavedRightPanelSize(defaultSize);
+    if (rightPanelRef.current) {
+      rightPanelRef.current.size = defaultSize;
+    }
+    localStorage.setItem('savedRightPanelSize', '30');
+    localStorage.removeItem('react-resizable-panels:panel-layout');
+    const newMiddle = isPerformanceOpen 
+      ? 100 - leftPanelSize - defaultSize
+      : 100 - defaultSize;
+    setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
   };
 
   const handleToggleNewsFeed = () => {
@@ -363,6 +515,7 @@ const Index = () => {
     if (showNewsFeed && isSummaryOpen) {
       setIsSummaryOpen(false);
       setShowNewsFeed(false);
+      setShowAgentBuilder(false);
       setRightPanelSize(0);
       rightPanelRef.current.size = 0;
       const newMiddle = isPerformanceOpen 
@@ -375,6 +528,7 @@ const Index = () => {
     // Opening News Feed - if panel is closed, open it
     if (!isSummaryOpen) {
       setIsSummaryOpen(true);
+      setShowAgentBuilder(false);
       const defaultSize = 30;
       setRightPanelSize(defaultSize);
       setSavedRightPanelSize(defaultSize);
@@ -395,13 +549,14 @@ const Index = () => {
     <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
       {/* Top Status Bar */}
       <SystemStatusBar 
-        onToggleAgentBuilder={() => setShowAgentBuilder(!showAgentBuilder)}
+        onToggleAgentBuilder={handleToggleAgentBuilder}
         onTogglePerformance={handleTogglePerformance}
         onToggleSummary={handleToggleSummary}
         onToggleNewsFeed={handleToggleNewsFeed}
         isPerformanceOpen={isPerformanceOpen}
         isSummaryOpen={isSummaryOpen}
         showNewsFeed={showNewsFeed}
+        showAgentBuilder={showAgentBuilder}
       />
 
       {/* Main Content Area */}
@@ -546,6 +701,219 @@ const Index = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 
+                {/* Filter Button */}
+                <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex items-center gap-2 px-3 py-1 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors border border-border bg-background rounded-full h-8"
+                    >
+                      <Filter className="h-3 w-3" />
+                      Filters
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-background border-border">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-bold">Market Filters</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-6 py-4">
+                      {/* Volume Filters */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Volume</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Min Volume ($)</Label>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              value={filters.minVolume}
+                              onChange={(e) => setFilters({...filters, minVolume: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Max Volume ($)</Label>
+                            <Input
+                              type="number"
+                              placeholder="No limit"
+                              value={filters.maxVolume}
+                              onChange={(e) => setFilters({...filters, maxVolume: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Liquidity Filters */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Liquidity</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Min Liquidity ($)</Label>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              value={filters.minLiquidity}
+                              onChange={(e) => setFilters({...filters, minLiquidity: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Max Liquidity ($)</Label>
+                            <Input
+                              type="number"
+                              placeholder="No limit"
+                              value={filters.maxLiquidity}
+                              onChange={(e) => setFilters({...filters, maxLiquidity: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Price Filters */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Price</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Min Price ($)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="1"
+                              placeholder="0.00"
+                              value={filters.minPrice}
+                              onChange={(e) => setFilters({...filters, minPrice: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Max Price ($)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="1"
+                              placeholder="1.00"
+                              value={filters.maxPrice}
+                              onChange={(e) => setFilters({...filters, maxPrice: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Probability Filters */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Probability</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Min Probability (%)</Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              min="0"
+                              max="100"
+                              placeholder="0"
+                              value={filters.minProbability}
+                              onChange={(e) => setFilters({...filters, minProbability: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Max Probability (%)</Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              min="0"
+                              max="100"
+                              placeholder="100"
+                              value={filters.maxProbability}
+                              onChange={(e) => setFilters({...filters, maxProbability: e.target.value})}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Sort Options */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Sort By</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Sort Field</Label>
+                            <Select
+                              value={filters.sortBy}
+                              onValueChange={(value: any) => setFilters({...filters, sortBy: value})}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                <SelectItem value="volume">Volume</SelectItem>
+                                <SelectItem value="liquidity">Liquidity</SelectItem>
+                                <SelectItem value="price">Price</SelectItem>
+                                <SelectItem value="probability">Probability</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Order</Label>
+                            <Select
+                              value={filters.sortOrder}
+                              onValueChange={(value: any) => setFilters({...filters, sortOrder: value})}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="desc">Descending</SelectItem>
+                                <SelectItem value="asc">Ascending</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex items-center justify-between pt-4 border-t border-border">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setFilters({
+                              minVolume: '',
+                              maxVolume: '',
+                              minLiquidity: '',
+                              maxLiquidity: '',
+                              minPrice: '',
+                              maxPrice: '',
+                              minProbability: '',
+                              maxProbability: '',
+                              sortBy: 'none',
+                              sortOrder: 'desc',
+                            });
+                          }}
+                          className="text-xs"
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Clear All
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setFilterDialogOpen(false)}
+                          className="text-xs"
+                        >
+                          Apply Filters
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                
                 {/* Search Bar */}
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -557,110 +925,76 @@ const Index = () => {
                     className="h-8 pl-9 pr-3 text-xs bg-background border-border focus:border-terminal-accent transition-colors rounded-full"
                   />
                 </div>
+                
+                {/* Bubble Limit Slider */}
+                <div className="flex items-center gap-2 px-3 py-1 h-8 bg-background border border-border rounded-full min-w-[180px]">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap min-w-[35px]">
+                    {bubbleLimit === 0 ? 'All' : `${bubbleLimit}`}
+                  </span>
+                  <div className="flex-1 relative">
+                    <input
+                      type="range"
+                      min="50"
+                      max="1000"
+                      step="50"
+                      value={bubbleLimit === 0 ? 1000 : bubbleLimit}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        setBubbleLimit(value === 1000 ? 0 : value);
+                      }}
+                      className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, hsl(var(--terminal-accent)) 0%, hsl(var(--terminal-accent)) ${((bubbleLimit === 0 ? 1000 : bubbleLimit) - 50) / (1000 - 50) * 100}%, hsl(var(--muted)) ${((bubbleLimit === 0 ? 1000 : bubbleLimit) - 50) / (1000 - 50) * 100}%, hsl(var(--muted)) 100%)`
+                      }}
+                    />
+                    <style>{`
+                      input[type="range"]::-webkit-slider-thumb {
+                        appearance: none;
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        background: hsl(var(--terminal-accent));
+                        cursor: pointer;
+                        border: 2px solid hsl(var(--background));
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+                      }
+                      input[type="range"]::-moz-range-thumb {
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        background: hsl(var(--terminal-accent));
+                        cursor: pointer;
+                        border: 2px solid hsl(var(--background));
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+                      }
+                      input[type="range"]:hover::-webkit-slider-thumb {
+                        transform: scale(1.1);
+                        transition: transform 0.2s;
+                      }
+                      input[type="range"]:hover::-moz-range-thumb {
+                        transform: scale(1.1);
+                        transition: transform 0.2s;
+                      }
+                    `}</style>
+                  </div>
+                  <button
+                    onClick={() => setBubbleLimit(bubbleLimit === 0 ? 150 : 0)}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/50 whitespace-nowrap"
+                  >
+                    {bubbleLimit === 0 ? 'Limit' : 'All'}
+                  </button>
+                </div>
               </div>
               <span className="text-xs text-muted-foreground font-mono ml-3">
                 {filteredPredictions.length} {filteredPredictions.length === 1 ? 'Market' : 'Markets'}
               </span>
             </div>
 
-            {/* Selected Prediction Details Panel */}
-            {selectedPrediction && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.15 }}
-                className="border-t border-border bg-bg-elevated py-2 px-4 overflow-hidden"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className={`text-[11px] px-2 py-0.5 rounded font-mono uppercase font-bold whitespace-nowrap ${
-                      selectedPrediction.position === "YES" 
-                        ? 'bg-trade-yes/25 text-trade-yes border border-trade-yes/60' 
-                        : 'bg-trade-no/25 text-trade-no border border-trade-no/60'
-                    }`}>
-                      {selectedPrediction.position}
-                    </span>
-                    <span className="text-[12px] font-mono font-bold text-foreground whitespace-nowrap" style={{ fontWeight: 700 }}>
-                      {selectedPrediction.probability}%
-                    </span>
-                    <span className="text-[11px] text-foreground font-medium truncate flex-1" style={{ fontWeight: 500 }}>
-                      {selectedPrediction.question}
-                    </span>
-                    <div className="flex items-center gap-3 text-[10px] whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <img
-                          src={((): string => {
-                            const agentUpper = selectedPrediction.agentName.toUpperCase();
-                            if (agentUpper.includes("GROK")) return "/grok.png";
-                            if (agentUpper.includes("GEMINI")) return "/GEMENI.png";
-                            if (agentUpper.includes("DEEPSEEK")) return "/Deepseek-logo-icon.svg";
-                            if (agentUpper.includes("CLAUDE")) return "/Claude_AI_symbol.svg";
-                            if (agentUpper.includes("GPT") || agentUpper.includes("OPENAI")) return "/GPT.png";
-                            if (agentUpper.includes("QWEN")) return "/Qwen_logo.svg";
-                            return "/placeholder.svg";
-                          })()}
-                          alt={selectedPrediction.agentName}
-                          className="w-4 h-4 object-contain flex-shrink-0 rounded-full"
-                          style={{ borderRadius: '50%' }}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/placeholder.svg";
-                          }}
-                        />
-                        <span className="font-mono text-foreground font-medium" style={{ fontWeight: 500 }}>{selectedPrediction.agentName}</span>
-                      </div>
-                      <span className="font-mono text-foreground font-medium" style={{ fontWeight: 500 }}>${selectedPrediction.price.toFixed(2)}</span>
-                      <span className={`font-mono font-semibold ${selectedPrediction.change >= 0 ? 'text-trade-yes' : 'text-trade-no'}`} style={{ fontWeight: 600 }}>
-                        {selectedPrediction.change >= 0 ? '+' : ''}{selectedPrediction.change.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* Polymarket Link Button - Always visible */}
-                    <a
-                      href={
-                        selectedPrediction.marketSlug
-                          ? `https://polymarket.com/event/${selectedPrediction.marketSlug}`
-                          : selectedPrediction.conditionId
-                          ? `https://polymarket.com/condition/${selectedPrediction.conditionId}`
-                          : `https://polymarket.com/search?q=${encodeURIComponent(selectedPrediction.question)}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center p-2 text-foreground hover:text-terminal-accent hover:bg-muted/80 rounded transition-all border border-border hover:border-terminal-accent/50"
-                      title={`Open on Polymarket${selectedPrediction.marketSlug ? `: ${selectedPrediction.marketSlug}` : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('🔗 Opening Polymarket link:', {
-                          marketSlug: selectedPrediction.marketSlug,
-                          conditionId: selectedPrediction.conditionId,
-                          question: selectedPrediction.question,
-                          url: selectedPrediction.marketSlug
-                            ? `https://polymarket.com/event/${selectedPrediction.marketSlug}`
-                            : selectedPrediction.conditionId
-                            ? `https://polymarket.com/condition/${selectedPrediction.conditionId}`
-                            : `https://polymarket.com/search?q=${encodeURIComponent(selectedPrediction.question)}`
-                        });
-                      }}
-                    >
-                      <ExternalLink className="h-4 w-4" strokeWidth={2} />
-                    </a>
-                    <button
-                      onClick={() => handleShowTrades(selectedPrediction)}
-                      className="px-3 py-1.5 text-[11px] font-semibold bg-terminal-accent text-black rounded hover:bg-terminal-accent/90 transition-colors whitespace-nowrap"
-                      style={{ fontWeight: 600 }}
-                    >
-                      See Trades
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </div>
 
           {/* Prediction Map Container - FULL SPACE - NO OVERFLOW RESTRICTIONS */}
           <div 
-            className={`flex-1 relative ${tradesPanelOpen ? 'pointer-events-none opacity-50' : ''}`}
+            className="flex-1 relative"
             style={{ 
               width: '100%',
               height: '100%',
@@ -683,30 +1017,12 @@ const Index = () => {
             {/* Prediction Bubble Field - FULL SPACE - NO ZOOM/PAN */}
               <PredictionBubbleField
                 markets={limitedPredictions}
-                onBubbleClick={(market) => handleNodeClick(market.id)}
+                onBubbleClick={(market) => handleBubbleClick(market)}
                 selectedNodeId={selectedNode}
                 selectedAgent={selectedAgent}
                 agents={mockAgents}
               />
           </div>
-
-          {/* Trades Panel - Slide up from bottom, half screen */}
-          {tradesPanelOpen && selectedPrediction && (
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 h-1/2 z-50 bg-bg-elevated border-t border-border flex flex-col"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            >
-              <TradesPanel
-                isOpen={tradesPanelOpen}
-                onClose={() => setTradesPanelOpen(false)}
-                predictionTitle={selectedPrediction.question}
-                trades={[]}
-              />
-            </motion.div>
-          )}
           </ResizablePanel>
 
           {/* Only show handle when Summary panel is open */}
@@ -754,15 +1070,25 @@ const Index = () => {
             className={`${isSummaryOpen ? 'border-l border-border' : ''} overflow-hidden relative`}
           >
             {isSummaryOpen && rightPanelSize >= 10 && (
-              showAgentBuilder && custodialWallet ? (
-                <AgentBuilder
-                  walletAddress={custodialWallet.publicKey}
-                  privateKey={custodialWallet.privateKey}
-                  onDeploy={() => {
-                    // Refresh or show success message
-                    setShowAgentBuilder(false);
-                  }}
-                />
+              showAgentBuilder ? (
+                custodialWallet ? (
+                  <AgentBuilder
+                    walletAddress={custodialWallet.publicKey}
+                    privateKey={custodialWallet.privateKey}
+                    onDeploy={() => {
+                      // Refresh or show success message
+                      setShowAgentBuilder(false);
+                    }}
+                  />
+                ) : (
+                  <AgentBuilder
+                    walletAddress=""
+                    privateKey=""
+                    onDeploy={() => {
+                      setShowAgentBuilder(false);
+                    }}
+                  />
+                )
               ) : showNewsFeed ? (
                 <NewsFeed />
               ) : (
@@ -780,6 +1106,17 @@ const Index = () => {
         onAgentClick={handleAgentClick}
       />
 
+      {/* Market Details Modal */}
+      {selectedPrediction && (
+        <MarketDetailsModal
+          isOpen={marketModalOpen}
+          onClose={() => {
+            setMarketModalOpen(false);
+            setSelectedPrediction(null);
+          }}
+          market={selectedPrediction}
+        />
+      )}
     </div>
   );
 };

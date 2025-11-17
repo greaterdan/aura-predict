@@ -13,11 +13,13 @@ interface SystemStatusBarProps {
   isPerformanceOpen?: boolean;
   isSummaryOpen?: boolean;
   showNewsFeed?: boolean;
+  showAgentBuilder?: boolean;
 }
 
 export const SystemStatusBar = ({ 
   onToggleAgentBuilder, 
-  onTogglePerformance, 
+  onTogglePerformance,
+  showAgentBuilder, 
   onToggleSummary,
   onToggleNewsFeed,
   isPerformanceOpen = true,
@@ -149,7 +151,7 @@ export const SystemStatusBar = ({
             size="sm"
             onClick={onToggleSummary}
             className={`h-7 w-7 p-0 border-border rounded-full transition-colors ${
-            isSummaryOpen && !showNewsFeed
+            isSummaryOpen && !showNewsFeed && !showAgentBuilder
                 ? 'bg-terminal-accent/20 border-terminal-accent/50 text-terminal-accent hover:bg-terminal-accent/30' 
                 : 'bg-background hover:bg-bg-elevated text-foreground hover:text-foreground'
             }`}
@@ -176,7 +178,11 @@ export const SystemStatusBar = ({
             variant="outline"
             size="sm"
             onClick={onToggleAgentBuilder}
-              className="h-7 w-7 p-0 border-border bg-background hover:bg-bg-elevated text-foreground hover:text-foreground rounded-full"
+              className={`h-7 w-7 p-0 border-border rounded-full transition-colors ${
+                showAgentBuilder && isSummaryOpen && !showNewsFeed
+                  ? 'border-terminal-accent bg-terminal-accent/20 text-terminal-accent hover:bg-terminal-accent/30'
+                  : 'bg-background hover:bg-bg-elevated text-foreground hover:text-foreground'
+              }`}
               title="Build Agent"
           >
               <Bot className="w-3.5 h-3.5" />
