@@ -226,10 +226,46 @@ const createLineEndpoints = (selectedAgent: string | null) => (props: any) => {
   );
 };
 
-export const PerformanceChart = () => {
+interface PerformanceChartProps {
+  predictions?: Array<{ id: string; agentName?: string }>;
+  selectedMarketId?: string | null;
+}
+
+export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: PerformanceChartProps = {}) => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"chart" | "technical">("chart");
   const [zoomLevel, setZoomLevel] = useState(1); // 1 = normal, >1 = zoomed in, <1 = zoomed out
+
+  // Filter agents to only show those trading the selected market
+  const filteredAgents = useMemo(() => {
+    if (!selectedMarketId || !predictions || predictions.length === 0) {
+      // If no market selected, show all agents
+      return agents;
+    }
+
+    // Find the selected market
+    const selectedMarket = predictions.find(p => p.id === selectedMarketId);
+    if (!selectedMarket || !selectedMarket.agentName) {
+      // If market not found or has no agent, show all agents
+      return agents;
+    }
+
+    // Only show agents that are trading this specific market
+    const tradingAgentName = selectedMarket.agentName.toUpperCase();
+    return agents.filter(agent => {
+      // Match agent names (case-insensitive)
+      // Agent names in predictions are like "GROK 4", "QWEN 2.5", "DEEPSEEK V3", etc.
+      const agentNameUpper = agent.name.toUpperCase();
+      const agentIdUpper = agent.id.toUpperCase();
+      const shortNameUpper = agent.shortName?.toUpperCase() || '';
+      
+      // Check if trading agent name contains agent identifier
+      return tradingAgentName.includes(agentIdUpper) ||
+             tradingAgentName.includes(shortNameUpper) ||
+             tradingAgentName.includes(agentNameUpper.split(' ')[0]) || // Match first word (e.g., "GROK" from "GROK 4")
+             agentNameUpper.includes(tradingAgentName.split(' ')[0]); // Match first word of trading agent
+    });
+  }, [selectedMarketId, predictions]);
 
   // Calculate base Y-axis domain for proper scaling
   const { baseMinValue, baseMaxValue } = useMemo(() => {
@@ -335,18 +371,18 @@ export const PerformanceChart = () => {
               <span className="truncate max-w-[60px] sm:max-w-none">{selectedAgent || "All"}</span>
               <ChevronDown className="h-2.5 sm:h-3 w-2.5 sm:w-3 opacity-50 flex-shrink-0" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40 bg-background border-border rounded-xl">
+            <DropdownMenuContent align="end" className="w-48 bg-background border-border rounded-xl">
               <DropdownMenuItem
                 onClick={() => setSelectedAgent(null)}
-                className={`cursor-pointer ${!selectedAgent ? 'bg-muted text-primary font-medium' : ''}`}
+                className={`cursor-pointer text-sm ${!selectedAgent ? 'bg-muted text-primary font-medium' : ''}`}
               >
                 All Agents
               </DropdownMenuItem>
-              {agents.map((agent) => (
+              {filteredAgents.map((agent) => (
                 <DropdownMenuItem
                   key={agent.id}
                   onClick={() => setSelectedAgent(agent.id === selectedAgent ? null : agent.id)}
-                  className={`cursor-pointer ${selectedAgent === agent.id ? 'bg-muted text-primary font-medium' : ''}`}
+                  className={`cursor-pointer text-sm ${selectedAgent === agent.id ? 'bg-muted text-primary font-medium' : ''}`}
                 >
                   {agent.name}
                 </DropdownMenuItem>

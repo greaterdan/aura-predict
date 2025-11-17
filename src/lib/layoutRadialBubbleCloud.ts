@@ -26,18 +26,22 @@ export function layoutRadialBubbleCloud<T>(
       return [];
     }
 
+  // Navbar is h-11 (44px) - bubbles must stay below it
+  const navbarHeight = 44;
+  const startY = navbarHeight; // Start below navbar
+
   const visible = items.slice(0, maxVisible);
   const n = visible.length;
 
-  // USE FULL SPACE - MINIMAL PADDING ONLY FOR BUBBLE RADIUS AT EDGES
+  // USE FULL SPACE - ABSOLUTE MINIMAL PADDING - BUBBLES GO TO EDGES
   // Don't estimate - calculate properly from actual bubble sizes
   // We'll recalculate after we know bubble sizes, but use a conservative estimate first
-  const tempMaxRadius = 75; // Conservative max radius estimate
-  const tempMinPadding = tempMaxRadius + 10; // Minimal padding for bubble radius + tiny gap
+  const tempMaxRadius = 70; // Conservative max radius estimate
+  const tempMinPadding = 0; // NO padding - bubbles go to absolute edges
   
-  // Use FULL width and height - only minimal padding for bubble radius at edges
-  const usableWidth = width - tempMinPadding * 2;
-  const usableHeight = height - tempMinPadding * 2;
+  // Use FULL width and height - NO padding - bubbles fill edge to edge
+  const usableWidth = width;
+  const usableHeight = height;
   
   // NO CENTER CALCULATION - we spread across FULL space, not centered
   
@@ -52,9 +56,9 @@ export function layoutRadialBubbleCloud<T>(
   const spacePerBubble = (usableWidth * usableHeight) / n;
   const radiusFromSpace = Math.sqrt(spacePerBubble / Math.PI) * 0.4; // Use 40% of available space per bubble
   
-  // Size constraints - make smaller if we have many items to prevent stacking
-  const minRadius = n > 100 ? 40 : n > 50 ? 45 : 50; // Smaller base sizes
-  const maxRadius = n > 100 ? 55 : n > 50 ? 65 : 75; // Smaller max sizes
+  // Size constraints - make smaller to fit more bubbles densely packed
+  const minRadius = n > 100 ? 35 : n > 50 ? 40 : 45; // Smaller base sizes for denser packing
+  const maxRadius = n > 100 ? 50 : n > 50 ? 60 : 70; // Smaller max sizes
   const baseRadius = Math.max(minRadius, Math.min(maxRadius, Math.min(radiusFromSpace, estimatedRadius)));
   
   // Calculate bubble sizes based on price (higher price = bigger bubble)
@@ -62,22 +66,22 @@ export function layoutRadialBubbleCloud<T>(
   const minPriceRadius = baseRadius * 0.8; // 80% of base for low prices
   const maxPriceRadius = baseRadius * 1.3; // 130% of base for high prices
   
-  // STRICT: Bubbles must have a visible gap - they should barely touch corners
+  // Bubbles should be close together - minimal gap just for visual separation
   // CRITICAL: Account for visual effects that extend beyond bubble radius:
   // - 2px border (border-2)
   // - Box shadow blur (~8px extension)
-  // - Border glow effect (~15-20px visible extension)
-  const visualExtension = 20; // Account for borders, shadows, and glows extending beyond radius
-  const minGap = 20; // INCREASED visible gap between bubbles - they should barely touch with space
-  const effectiveMinGap = minGap + (visualExtension * 2); // Add visual extension to both sides
+  // - Border glow effect (~10-15px visible extension)
+  const visualExtension = 10; // Reduced - account for borders, shadows, and glows extending beyond radius
+  const minGap = 5; // MINIMAL gap between bubbles - they should be close together like banter bubbles
+  const effectiveMinGap = minGap + visualExtension; // Minimal gap with visual extension
   
-  // Recalculate minimal padding now that we know the actual max radius
+  // Use ACTUAL max radius for bounds checking only - NO padding, bubbles go to edges
   const actualMaxRadius = maxPriceRadius;
-  const actualMinimalPadding = actualMaxRadius + effectiveMinGap;
+  const actualMinimalPadding = 0; // NO padding - use full space
   
-  // CRITICAL: Recalculate usable space with actual padding
-  const actualUsableWidth = width - actualMinimalPadding * 2;
-  const actualUsableHeight = height - actualMinimalPadding * 2;
+  // CRITICAL: Use FULL width and height - bubbles go edge to edge
+  const actualUsableWidth = width;
+  const actualUsableHeight = height;
   
   const horizontalSpacing = 2 * maxPriceRadius + effectiveMinGap;
   const verticalSpacing = Math.sqrt(3) * (maxPriceRadius + effectiveMinGap * 0.5);
@@ -89,16 +93,13 @@ export function layoutRadialBubbleCloud<T>(
 
   const positions: { x: number; y: number }[] = [];
 
-  // Start from MINIMAL edge padding - use FULL space! Spread from edges to edges
-  const startY = actualMinimalPadding;
-  const startX = actualMinimalPadding;
-  
-  // Calculate end positions - go to FULL width/height
-  const endX = width - actualMinimalPadding;
-  const endY = height - actualMinimalPadding;
-
   // Generate positions across the ENTIRE available space - edge to edge
-  // Fill from top-left to bottom-right across FULL width and height
+  // Fill from below navbar to absolute bottom - NO PADDING on sides
+  // startY is already set to navbarHeight above
+  const startX = 0; // Start at absolute left
+  const endX = width; // End at absolute right
+  const endY = height; // End at absolute bottom
+  
   for (let row = 0; row < rows; row++) {
     const y = startY + (row / Math.max(1, rows - 1)) * (endY - startY); // Distribute across FULL height
     const rowOffset = row % 2 === 0 ? 0 : horizontalSpacing / 2;
@@ -106,9 +107,8 @@ export function layoutRadialBubbleCloud<T>(
     for (let col = 0; col < cols; col++) {
       const x = startX + (col / Math.max(1, cols - 1)) * (endX - startX) + rowOffset; // Distribute across FULL width
 
-      // Use FULL width and height - spread from edge to edge
-      if (x >= actualMinimalPadding && x <= endX &&
-          y >= actualMinimalPadding && y <= endY) {
+      // Use FULL width and height - spread from absolute edge to absolute edge
+      if (x >= 0 && x <= width && y >= 0 && y <= height) {
         positions.push({ x, y });
       }
     }
@@ -165,9 +165,10 @@ export function layoutRadialBubbleCloud<T>(
   const findNonCollidingPosition = (radius: number, preferredX: number, preferredY: number): { x: number; y: number } | null => {
     // First try the preferred position
     if (!hasCollision(preferredX, preferredY, radius)) {
-      // Clamp to bounds - use FULL space but account for bubble radius
-      const x = Math.max(radius + effectiveMinGap, Math.min(width - radius - effectiveMinGap, preferredX));
-      const y = Math.max(radius + effectiveMinGap, Math.min(height - radius - effectiveMinGap, preferredY));
+      // Clamp to bounds - allow bubbles to go closer to edges (just radius minimum)
+      // Y must be at least navbarHeight + radius to stay below navbar
+      const x = Math.max(radius, Math.min(width - radius, preferredX));
+      const y = Math.max(navbarHeight + radius, Math.min(height - radius, preferredY));
       if (!hasCollision(x, y, radius)) {
         return { x, y };
       }
@@ -187,9 +188,10 @@ export function layoutRadialBubbleCloud<T>(
         const x = preferredX + Math.cos(angle) * spiralRadius;
         const y = preferredY + Math.sin(angle) * spiralRadius;
         
-        // Clamp to bounds - use FULL space but account for bubble radius and gap
-        const clampedX = Math.max(radius + effectiveMinGap, Math.min(width - radius - effectiveMinGap, x));
-        const clampedY = Math.max(radius + effectiveMinGap, Math.min(height - radius - effectiveMinGap, y));
+        // Clamp to bounds - allow bubbles closer to edges (just radius minimum)
+        // Y must be at least navbarHeight + radius to stay below navbar
+        const clampedX = Math.max(radius, Math.min(width - radius, x));
+        const clampedY = Math.max(navbarHeight + radius, Math.min(height - radius, y));
         
         if (!hasCollision(clampedX, clampedY, radius)) {
           return { x: clampedX, y: clampedY };
@@ -199,14 +201,14 @@ export function layoutRadialBubbleCloud<T>(
       spiralRadius += stepSize;
     }
 
-    // If spiral search fails, try grid positions - use FULL space
+    // If spiral search fails, try grid positions - use FULL space edge to edge
     for (let row = 0; row < rows * 2; row++) {
       for (let col = 0; col < cols * 2; col++) {
-        const x = actualMinimalPadding + col * (horizontalSpacing * 0.5) + ((row % 2) * horizontalSpacing * 0.25);
-        const y = actualMinimalPadding + row * (verticalSpacing * 0.5);
+        const x = col * (horizontalSpacing * 0.5) + ((row % 2) * horizontalSpacing * 0.25);
+        const y = row * (verticalSpacing * 0.5);
         
-        const clampedX = Math.max(radius + effectiveMinGap, Math.min(width - radius - effectiveMinGap, x));
-        const clampedY = Math.max(radius + effectiveMinGap, Math.min(height - radius - effectiveMinGap, y));
+        const clampedX = Math.max(radius, Math.min(width - radius, x));
+        const clampedY = Math.max(navbarHeight + radius, Math.min(height - radius, y)); // Y must be at least navbarHeight + radius
         
         if (!hasCollision(clampedX, clampedY, radius)) {
           return { x: clampedX, y: clampedY };
@@ -230,15 +232,16 @@ export function layoutRadialBubbleCloud<T>(
       preferredX = positions[i].x;
       preferredY = positions[i].y;
     } else {
-      // Generate position for items beyond available positions - use FULL space
+      // Generate position for items beyond available positions - use FULL space edge to edge
       const extraRow = Math.floor((i - positions.length) / cols);
       const extraCol = (i - positions.length) % cols;
-      preferredX = actualMinimalPadding + extraCol * horizontalSpacing + (extraRow % 2 === 0 ? 0 : horizontalSpacing / 2);
-      preferredY = actualMinimalPadding + (rows + extraRow) * verticalSpacing;
+      preferredX = extraCol * horizontalSpacing + (extraRow % 2 === 0 ? 0 : horizontalSpacing / 2);
+      preferredY = (rows + extraRow) * verticalSpacing;
       
-      // Make sure we don't go beyond full space bounds
-      preferredX = Math.min(preferredX, width - actualMinimalPadding);
-      preferredY = Math.min(preferredY, height - actualMinimalPadding);
+      // Make sure we don't go beyond full space bounds (just radius minimum)
+      // Y must be at least navbarHeight + radius to stay below navbar
+      preferredX = Math.max(radius, Math.min(preferredX, width - radius));
+      preferredY = Math.max(navbarHeight + radius, Math.min(preferredY, height - radius));
     }
 
     // Find a non-colliding position
@@ -292,11 +295,12 @@ export function layoutRadialBubbleCloud<T>(
         }
       }
       
-      // Also apply boundary forces
-      const padding = bubble.radius + effectiveMinGap;
+      // Also apply boundary forces - allow bubbles closer to edges
+      const padding = bubble.radius; // Just radius, no extra gap
+      const minY = navbarHeight + bubble.radius; // Minimum Y to stay below navbar
       if (bubble.x < padding) fx += (padding - bubble.x) * 0.5;
       if (bubble.x > width - padding) fx -= (bubble.x - (width - padding)) * 0.5;
-      if (bubble.y < padding) fy += (padding - bubble.y) * 0.5;
+      if (bubble.y < minY) fy += (minY - bubble.y) * 0.5; // Push below navbar
       if (bubble.y > height - padding) fy -= (bubble.y - (height - padding)) * 0.5;
       
       // Apply forces
@@ -304,9 +308,10 @@ export function layoutRadialBubbleCloud<T>(
         bubble.x += fx;
         bubble.y += fy;
         
-        // Clamp to bounds
-        bubble.x = Math.max(bubble.radius + effectiveMinGap, Math.min(width - bubble.radius - effectiveMinGap, bubble.x));
-        bubble.y = Math.max(bubble.radius + effectiveMinGap, Math.min(height - bubble.radius - effectiveMinGap, bubble.y));
+        // Clamp to bounds - allow bubbles closer to edges
+        // Y must be at least navbarHeight + radius to stay below navbar
+        bubble.x = Math.max(bubble.radius, Math.min(width - bubble.radius, bubble.x));
+        bubble.y = Math.max(minY, Math.min(height - bubble.radius, bubble.y));
         totalMoved++;
       }
     }
@@ -352,11 +357,12 @@ export function layoutRadialBubbleCloud<T>(
           b.x -= pushX;
           b.y -= pushY;
           
-          // Clamp both strictly
-          a.x = Math.max(a.radius + effectiveMinGap, Math.min(width - a.radius - effectiveMinGap, a.x));
-          a.y = Math.max(a.radius + effectiveMinGap, Math.min(height - a.radius - effectiveMinGap, a.y));
-          b.x = Math.max(b.radius + effectiveMinGap, Math.min(width - b.radius - effectiveMinGap, b.x));
-          b.y = Math.max(b.radius + effectiveMinGap, Math.min(height - b.radius - effectiveMinGap, b.y));
+          // Clamp both strictly - allow closer to edges
+          // Y must be at least navbarHeight + radius to stay below navbar
+          a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
+          a.y = Math.max(navbarHeight + a.radius, Math.min(height - a.radius, a.y));
+          b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
+          b.y = Math.max(navbarHeight + b.radius, Math.min(height - b.radius, b.y));
           
           // Verify they're actually separated now
           const newDx = a.x - b.x;
@@ -370,9 +376,10 @@ export function layoutRadialBubbleCloud<T>(
             a.x = b.x + Math.cos(extremeAngle) * (b.radius + a.radius + effectiveMinGap);
             a.y = b.y + Math.sin(extremeAngle) * (b.radius + a.radius + effectiveMinGap);
             
-            // Clamp again
-            a.x = Math.max(a.radius + effectiveMinGap, Math.min(width - a.radius - effectiveMinGap, a.x));
-            a.y = Math.max(a.radius + effectiveMinGap, Math.min(height - a.radius - effectiveMinGap, a.y));
+            // Clamp again - allow closer to edges
+            // Y must be at least navbarHeight + radius to stay below navbar
+            a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
+            a.y = Math.max(navbarHeight + a.radius, Math.min(height - a.radius, a.y));
           }
         }
       }

@@ -43,10 +43,7 @@ const Index = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [tradesPanelOpen, setTradesPanelOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionNodeData | null>(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  // Removed zoom/pan - bubbles now fill full screen and can only be dragged individually
   const [selectedCategory, setSelectedCategory] = useState<string>("All Markets");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [predictions, setPredictions] = useState<PredictionNodeData[]>([]);
@@ -190,77 +187,7 @@ const Index = () => {
     setTradesPanelOpen(true);
   };
 
-  // Handle mouse wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY * -0.001;
-    setZoomLevel(prev => Math.max(0.5, Math.min(2, prev + delta)));
-  };
-
-  // Handle pan start
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Don't start dragging if clicking on interactive elements or resizing panels
-    if (e.button === 0 && !isResizingRef.current) {
-      // Check if clicking on a button, link, or input
-      const target = e.target as HTMLElement;
-      if (target.closest('button, a, input, select, textarea')) {
-        return;
-      }
-      setIsDragging(true);
-      setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
-      e.preventDefault();
-    }
-  };
-
-  // Global mouse move handler for smooth dragging
-  useEffect(() => {
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
-        setPanPosition({
-          x: e.clientX - dragStart.x,
-          y: e.clientY - dragStart.y,
-        });
-      }
-    };
-
-    const handleGlobalMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleGlobalMouseMove);
-      document.addEventListener('mouseup', handleGlobalMouseUp);
-      document.body.style.cursor = 'grabbing';
-      document.body.style.userSelect = 'none';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove);
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-  }, [isDragging, dragStart]);
-
-  // Handle pan move (local handler for immediate feedback)
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      setPanPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
-    }
-  };
-
-  // Handle pan end
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  // Handle mouse leave
-  const handleMouseLeave = () => {
-    // Don't stop dragging on mouse leave - use global handlers instead
-  };
+  // Pan/zoom handlers removed - bubbles now fill full screen and can only be dragged individually
 
   const marketCategories = [
     "All Markets",
@@ -523,7 +450,12 @@ const Index = () => {
             collapsedSize={0}
             className={`${isPerformanceOpen ? 'border-r border-border' : ''} overflow-hidden relative`}
           >
-            {isPerformanceOpen && leftPanelSize >= 10 && <PerformanceChart />}
+            {isPerformanceOpen && leftPanelSize >= 10 && (
+              <PerformanceChart 
+                predictions={predictions}
+                selectedMarketId={selectedNode}
+              />
+            )}
           </ResizablePanel>
 
           {/* Only show handle when Performance panel is open */}
@@ -586,7 +518,7 @@ const Index = () => {
             minSize={20} 
             maxSize={100}
             className={`relative ${isSummaryOpen ? 'border-r border-border' : ''} flex flex-col bg-background`}
-            style={{ position: 'relative', overflow: 'hidden', zIndex: zoomLevel > 1 ? 10 : 1, padding: 0, margin: 0, width: '100%' }}
+            style={{ position: 'relative', overflow: 'hidden', zIndex: 1, padding: 0, margin: 0, width: '100%' }}
           >
           {/* Market Category Dropdown - EDGE TO EDGE - NO MARGINS OR PADDING ON CONTAINER */}
           <div className="border-b border-border flex flex-col bg-bg-elevated" style={{ width: '100%', margin: 0, padding: 0, marginLeft: 0, marginRight: 0 }}>
@@ -726,20 +658,14 @@ const Index = () => {
             )}
           </div>
 
-          {/* Prediction Map Container - FULL SPACE */}
+          {/* Prediction Map Container - FULL SPACE - NO OVERFLOW RESTRICTIONS */}
           <div 
             className={`flex-1 relative ${tradesPanelOpen ? 'pointer-events-none opacity-50' : ''}`}
-            onWheel={handleWheel}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
             style={{ 
-              cursor: isDragging ? 'grabbing' : 'grab',
-              overflow: 'hidden',
               width: '100%',
               height: '100%',
               position: 'relative',
+              overflow: 'visible',
             }}
           >
             {/* Subtle grid background */}
@@ -754,27 +680,14 @@ const Index = () => {
               }}
             />
 
-            {/* Prediction Bubble Field with Zoom/Pan - FULL SPACE */}
-            <div 
-              className="absolute inset-0"
-              style={{ 
-                transform: `scale(${zoomLevel}) translate(${panPosition.x / zoomLevel}px, ${panPosition.y / zoomLevel}px)`,
-                pointerEvents: isDragging ? 'none' : 'auto',
-                width: '100%',
-                height: '100%',
-                overflow: 'visible',
-                willChange: 'transform',
-                transformOrigin: 'center center',
-              }}
-            >
-              <PredictionBubbleField
-                markets={limitedPredictions}
-                onBubbleClick={(market) => handleNodeClick(market.id)}
-                selectedNodeId={selectedNode}
-                selectedAgent={selectedAgent}
-                agents={mockAgents}
-              />
-            </div>
+            {/* Prediction Bubble Field - FULL SPACE - NO ZOOM/PAN */}
+            <PredictionBubbleField
+              markets={limitedPredictions}
+              onBubbleClick={(market) => handleNodeClick(market.id)}
+              selectedNodeId={selectedNode}
+              selectedAgent={selectedAgent}
+              agents={mockAgents}
+            />
           </div>
 
           {/* Trades Panel - Slide up from bottom, half screen */}

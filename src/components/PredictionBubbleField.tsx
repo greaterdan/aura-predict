@@ -39,23 +39,29 @@ export const PredictionBubbleField: React.FC<Props> = ({
     
     function measure() {
       if (!containerRef.current || !mounted) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const width = Math.floor(rect.width);
-      const height = Math.floor(rect.height);
       
-      // Only update if we have valid dimensions (at least 200px to avoid tiny initial sizes)
-      // Use exact pixel values and always update if different to catch panel resizes
-      if (width >= 200 && height >= 200) {
+      // Get the parent container's full dimensions (the dashboard area)
+      const parent = containerRef.current.parentElement;
+      if (!parent) return;
+      
+      const parentRect = parent.getBoundingClientRect();
+      const width = Math.floor(parentRect.width);
+      const height = Math.floor(parentRect.height);
+      
+      // Navbar is h-11 (44px) - account for it in measurements
+      const navbarHeight = 44;
+      
+      console.log(`📏 Measuring container: parent=${width}x${height}, navbar=${navbarHeight}px, usable=${width}x${height}`);
+      
+      // Use parent's full dimensions - allow ANY size (even small)
+      if (width > 0 && height > 0) {
         if (width !== sizeRef.width || height !== sizeRef.height) {
-          console.log(`📏 Container resized: ${sizeRef.width}x${sizeRef.height} → ${width}x${height}`);
+          console.log(`✅ Container size updated: ${sizeRef.width}x${sizeRef.height} → ${width}x${height}`);
           sizeRef.width = width;
           sizeRef.height = height;
           setSize({ width, height });
           setIsSizeReady(true);
         }
-      } else if (width < 200 || height < 200) {
-        // Reset if size becomes too small
-        setIsSizeReady(false);
       }
     }
     
@@ -128,8 +134,8 @@ export const PredictionBubbleField: React.FC<Props> = ({
 
   const initialBubbles = useMemo(() => {
     // Don't calculate layout if size is not ready (prevents glitch on refresh)
-    // Require minimum valid dimensions to avoid calculating with tiny sizes
-    if (!isSizeReady || size.width < 200 || size.height < 200 || markets.length === 0) {
+    // Allow ANY size - no minimum requirement
+    if (!isSizeReady || size.width <= 0 || size.height <= 0 || markets.length === 0) {
       console.log(`⚠️ Bubble layout skipped: isSizeReady=${isSizeReady}, size=${size.width}x${size.height}, markets=${markets.length}`);
       return [];
     }
@@ -211,9 +217,9 @@ export const PredictionBubbleField: React.FC<Props> = ({
     let finalX = newX;
     let finalY = newY;
     // CRITICAL: Account for visual extensions (borders, shadows, glows) - same as layout
-    const visualExtension = 20; // Account for borders, shadows, and glows extending beyond radius
-    const minGap = 15; // Visible gap between bubbles
-    const effectiveMinGap = minGap + (visualExtension * 2); // Add visual extension to both sides
+    const visualExtension = 10; // Reduced - account for borders, shadows, and glows extending beyond radius
+    const minGap = 5; // MINIMAL gap between bubbles - close together like banter bubbles
+    const effectiveMinGap = minGap + visualExtension; // Minimal gap with visual extension
     
     // COLLISION PREVENTION: Iteratively resolve all collisions
     // Use multiple passes to ensure NO overlaps
@@ -244,9 +250,11 @@ export const PredictionBubbleField: React.FC<Props> = ({
       if (!hasCollision) break;
     }
     
-    // Clamp final position to container bounds
-    const clampedX = Math.max(draggedBubble.radius + effectiveMinGap, Math.min(size.width - draggedBubble.radius - effectiveMinGap, finalX));
-    const clampedY = Math.max(draggedBubble.radius + effectiveMinGap, Math.min(size.height - draggedBubble.radius - effectiveMinGap, finalY));
+    // Clamp final position to container bounds - allow bubbles closer to edges
+    // Y must be at least navbarHeight + radius to stay below navbar
+    const navbarHeight = 44; // Navbar is h-11 (44px)
+    const clampedX = Math.max(draggedBubble.radius, Math.min(size.width - draggedBubble.radius, finalX));
+    const clampedY = Math.max(navbarHeight + draggedBubble.radius, Math.min(size.height - draggedBubble.radius, finalY));
     
     // COLLISION DETECTION: Push other bubbles away to prevent ANY overlap
     const pushedBubbles: Record<string, { x: number; y: number }> = {};
@@ -295,8 +303,10 @@ export const PredictionBubbleField: React.FC<Props> = ({
             }
           }
           
-          const clampedPushX = Math.max(otherBubble.radius + effectiveMinGap, Math.min(size.width - otherBubble.radius - effectiveMinGap, targetX));
-          const clampedPushY = Math.max(otherBubble.radius + effectiveMinGap, Math.min(size.height - otherBubble.radius - effectiveMinGap, targetY));
+          // Y must be at least navbarHeight + radius to stay below navbar
+          const navbarHeight = 44;
+          const clampedPushX = Math.max(otherBubble.radius, Math.min(size.width - otherBubble.radius, targetX));
+          const clampedPushY = Math.max(navbarHeight + otherBubble.radius, Math.min(size.height - otherBubble.radius, targetY));
           
           if (clampedPushX !== currentPos.x || clampedPushY !== currentPos.y) {
             pushedBubbles[otherBubble.id] = { x: clampedPushX, y: clampedPushY };
@@ -324,9 +334,11 @@ export const PredictionBubbleField: React.FC<Props> = ({
         pos.x = clampedX - Math.cos(angle) * requiredDistance;
         pos.y = clampedY - Math.sin(angle) * requiredDistance;
         
-        // Clamp again
-        pos.x = Math.max(bubble.radius + effectiveMinGap, Math.min(size.width - bubble.radius - effectiveMinGap, pos.x));
-        pos.y = Math.max(bubble.radius + effectiveMinGap, Math.min(size.height - bubble.radius - effectiveMinGap, pos.y));
+        // Clamp again - allow closer to edges
+        // Y must be at least navbarHeight + radius to stay below navbar
+        const navbarHeight = 44;
+        pos.x = Math.max(bubble.radius, Math.min(size.width - bubble.radius, pos.x));
+        pos.y = Math.max(navbarHeight + bubble.radius, Math.min(size.height - bubble.radius, pos.y));
       }
       
       // Check against other pushed bubbles
@@ -373,18 +385,18 @@ export const PredictionBubbleField: React.FC<Props> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full"
+      className="absolute inset-0"
       style={{ 
         width: '100%', 
         height: '100%',
         overflow: 'visible',
-        minWidth: '100%',
-        minHeight: '100%',
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
+        minWidth: '100vw',
+        minHeight: '100vh',
       }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
