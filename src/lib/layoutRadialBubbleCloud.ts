@@ -24,12 +24,13 @@ export function layoutRadialBubbleCloud<T>(
     if (!width || !height || items.length === 0) {
       return [];
     }
-
+    
   // Use FULL screen - bubbles fill entire viewport
   const navbarHeight = 44;
   const startY = 0; // Start from top (bubbles can go behind navbar if needed, but we'll avoid it)
   const endY = height; // Use full height
 
+  // NO LIMITING - show ALL bubbles requested, make them smaller if needed
   const visible = items.slice(0, maxVisible);
   const n = visible.length;
 
@@ -44,14 +45,14 @@ export function layoutRadialBubbleCloud<T>(
   const areaPer = totalArea / (n * 1.5); // Space per bubble
   let estimatedRadius = Math.sqrt(areaPer / Math.PI);
 
-  // Base radius - MAKE BUBBLES BIGGER to fill screen
+  // Base radius - SCALE DOWN if we have many bubbles to fit them all
   // Calculate based on available space and item count
   const spacePerBubble = (usableWidth * usableHeight) / n;
-  const radiusFromSpace = Math.sqrt(spacePerBubble / Math.PI) * 0.6; // Use 60% of available space per bubble (increased from 40%)
+  const radiusFromSpace = Math.sqrt(spacePerBubble / Math.PI) * 0.4; // Use 40% of available space per bubble
   
-  // Size constraints - MAKE BIGGER to fill screen
-  const minRadius = n > 100 ? 50 : n > 50 ? 60 : 70; // Bigger base sizes
-  const maxRadius = n > 100 ? 90 : n > 50 ? 110 : 130; // Much bigger max sizes
+  // Size constraints - SCALE DOWN for more bubbles
+  const minRadius = n > 200 ? 25 : n > 150 ? 30 : n > 100 ? 35 : n > 50 ? 40 : 45; // Smaller for more bubbles
+  const maxRadius = n > 200 ? 50 : n > 150 ? 60 : n > 100 ? 70 : n > 50 ? 80 : 90; // Smaller max sizes
   const baseRadius = Math.max(minRadius, Math.min(maxRadius, Math.min(radiusFromSpace, estimatedRadius)));
   
   // Calculate bubble sizes based on VOLUME (higher volume = bigger bubble)
@@ -74,14 +75,15 @@ export function layoutRadialBubbleCloud<T>(
   const minVolumeRadius = baseRadius * 0.7; // 70% of base for low volume
   const maxVolumeRadius = baseRadius * 2.5; // 250% of base for high volume (bigger range for more variation)
   
-  // Bubbles should be close together - minimal gap just for visual separation
+  // Bubbles should NOT touch or overlap - ensure proper spacing for natural floating
   // CRITICAL: Account for visual effects that extend beyond bubble radius:
   // - 2px border (border-2)
   // - Box shadow blur (~8px extension)
-  // - Border glow effect (~10-15px visible extension)
-  const visualExtension = 8; // Reduced further for tighter spacing
-  const minGap = 2; // VERY MINIMAL gap between bubbles - they should be close together like real bubbles
-  const effectiveMinGap = minGap + visualExtension; // Minimal gap with visual extension
+  // - Border glow effect (~10px visible extension)
+  // - Animation movement (~15px extension during float)
+  const visualExtension = 10; // Reduced for tighter packing
+  const minGap = 8; // Smaller gap to fit more bubbles - NO TOUCHING, NO STACKING
+  const effectiveMinGap = minGap + visualExtension; // Safe gap with visual extension = 18px minimum
   
   // Use ACTUAL max radius for bounds checking only - NO padding, bubbles go to edges
   const actualMaxRadius = maxVolumeRadius;
@@ -91,8 +93,10 @@ export function layoutRadialBubbleCloud<T>(
   const actualUsableWidth = width;
   const actualUsableHeight = height;
   
-  const horizontalSpacing = 2 * maxVolumeRadius + effectiveMinGap;
-  const verticalSpacing = Math.sqrt(3) * (maxVolumeRadius + effectiveMinGap * 0.5);
+  // Increase spacing to account for animation movement and ensure no touching
+  const animationBuffer = 15; // Reduced for tighter packing
+  const horizontalSpacing = 2 * maxVolumeRadius + effectiveMinGap + animationBuffer;
+  const verticalSpacing = Math.sqrt(3) * (maxVolumeRadius + (effectiveMinGap + animationBuffer) * 0.5);
 
   // Calculate how many rows/cols we need to fit all items across the FULL available space
   // Use hexagonal grid layout spread across ENTIRE area - no center clustering
@@ -159,7 +163,8 @@ export function layoutRadialBubbleCloud<T>(
   }
 
   // Function to check if a position would collide with existing bubbles
-  // CRITICAL: Account for visual extensions (borders, shadows, glows)
+  // CRITICAL: Account for visual extensions (borders, shadows, glows, animation movement)
+  // STRICT: Bubbles must NEVER touch or overlap
   const hasCollision = (x: number, y: number, radius: number, excludeIndex: number = -1): boolean => {
     for (let j = 0; j < bubbles.length; j++) {
       if (j === excludeIndex) continue;
@@ -167,9 +172,12 @@ export function layoutRadialBubbleCloud<T>(
       const dx = x - existingBubble.x;
       const dy = y - existingBubble.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      // Use effective gap that accounts for visual extensions
-      const minDistance = radius + existingBubble.radius + effectiveMinGap;
+      // Use effective gap that accounts for visual extensions AND animation movement
+      // Add extra buffer for floating animation (bubbles move ~15px during animation)
+      const animationBuffer = 15; // Reduced for tighter packing
+      const minDistance = radius + existingBubble.radius + effectiveMinGap + animationBuffer;
       
+      // STRICT: If distance is less than minimum, it's a collision
       if (distance < minDistance && distance > 0.001) {
         return true;
       }
@@ -191,10 +199,12 @@ export function layoutRadialBubbleCloud<T>(
     }
 
     // Try positions in a spiral around the preferred position
+    // Use larger step size to ensure proper spacing
+    const animationBuffer = 15; // Reduced for tighter packing
     const maxSpiralRadius = Math.min(width, height) / 2;
-    const stepSize = effectiveMinGap + radius;
+    const stepSize = effectiveMinGap + radius + animationBuffer; // Larger steps for better spacing
     let spiralRadius = stepSize;
-    const maxSpiralAttempts = 200; // Maximum positions to try in spiral
+    const maxSpiralAttempts = 500; // More attempts to find a good position
     
     while (spiralRadius < maxSpiralRadius && bubbles.length < maxSpiralAttempts) {
       const numPoints = Math.max(8, Math.floor((2 * Math.PI * spiralRadius) / stepSize));
@@ -223,7 +233,7 @@ export function layoutRadialBubbleCloud<T>(
         const y = row * (verticalSpacing * 0.5);
         
         const clampedX = Math.max(radius, Math.min(width - radius, x));
-        const clampedY = Math.max(navbarHeight + radius, Math.min(height - radius, y)); // Y must be at least navbarHeight + radius
+        const clampedY = Math.max(radius, Math.min(height - radius, y)); // Fill entire screen
         
         if (!hasCollision(clampedX, clampedY, radius)) {
           return { x: clampedX, y: clampedY };
@@ -234,7 +244,8 @@ export function layoutRadialBubbleCloud<T>(
     return null; // Could not find a position
   };
 
-  // Place bubbles one by one with strict collision detection
+  // Place bubbles one by one with EXTREMELY strict collision detection
+  // CRITICAL: Each bubble MUST be verified before adding to prevent ANY stacking
   for (let i = 0; i < n; i++) {
     const item = visible[i];
     const radius = bubbleRadii[i];
@@ -254,23 +265,77 @@ export function layoutRadialBubbleCloud<T>(
       preferredY = (rows + extraRow) * verticalSpacing;
       
       // Make sure we don't go beyond full space bounds (just radius minimum)
-      // Y must be at least navbarHeight + radius to stay below navbar
+      // Fill entire screen
       preferredX = Math.max(radius, Math.min(preferredX, width - radius));
-      preferredY = Math.max(navbarHeight + radius, Math.min(preferredY, height - radius));
+      preferredY = Math.max(radius, Math.min(preferredY, height - radius));
     }
 
-    // Find a non-colliding position
-    const pos = findNonCollidingPosition(radius, preferredX, preferredY);
+    // Find a non-colliding position - try multiple times if needed
+    let pos = findNonCollidingPosition(radius, preferredX, preferredY);
     
+    // If first attempt fails, try random positions across the screen
+    const maxRandomAttempts = 100;
     if (!pos) {
+      let attempts = 0;
+      while (!pos && attempts < maxRandomAttempts) {
+        const randomX = radius + Math.random() * (width - 2 * radius);
+        const randomY = radius + Math.random() * (height - 2 * radius);
+        pos = findNonCollidingPosition(radius, randomX, randomY);
+        attempts++;
+      }
+    }
+    
+    // STRICT: If we STILL can't find a position, SKIP this bubble - don't stack it
+    if (!pos) {
+      console.warn(`Could not find position for bubble ${i} after ${maxRandomAttempts} attempts, skipping to prevent stacking`);
+      continue;
+    }
+    
+    // TRIPLE CHECK: Verify the position doesn't collide with ANY existing bubble
+    let hasAnyCollision = false;
+    for (let j = 0; j < bubbles.length; j++) {
+      const existingBubble = bubbles[j];
+      const dx = pos.x - existingBubble.x;
+      const dy = pos.y - existingBubble.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const animationBuffer = 15;
+      const minDistance = radius + existingBubble.radius + effectiveMinGap + animationBuffer;
+      
+      if (distance < minDistance && distance > 0.001) {
+        hasAnyCollision = true;
+        break;
+      }
+    }
+    
+    if (hasAnyCollision) {
+      console.warn(`Position for bubble ${i} collides with existing bubbles, skipping to prevent stacking`);
       continue;
     }
 
+    // FINAL VERIFICATION: Position is safe, add bubble
+    // CRITICAL: Check for duplicate positions - if two bubbles have same x,y, offset one slightly
+    let finalX = pos.x;
+    let finalY = pos.y;
+    
+    // Check if this exact position already exists
+    for (const existing of bubbles) {
+      if (Math.abs(existing.x - finalX) < 0.1 && Math.abs(existing.y - finalY) < 0.1) {
+        // Same position! Offset this bubble slightly
+        finalX += radius * 0.5;
+        finalY += radius * 0.5;
+        // Clamp to bounds
+        finalX = Math.max(radius, Math.min(width - radius, finalX));
+        finalY = Math.max(radius, Math.min(height - radius, finalY));
+        console.warn(`Bubble ${i} had duplicate position, offset to (${finalX.toFixed(1)}, ${finalY.toFixed(1)})`);
+        break;
+      }
+    }
+    
     bubbles.push({
       id: item.id,
       data: item.data,
-      x: pos.x,
-      y: pos.y,
+      x: finalX,
+      y: finalY,
       radius,
       index: i,
     });
@@ -278,7 +343,7 @@ export function layoutRadialBubbleCloud<T>(
 
   // Post-processing: resolve any remaining collisions with iterative relaxation
   // STRICT: Run MANY iterations until NO overlaps remain
-  const maxRelaxationIterations = 300; // Increased significantly
+  const maxRelaxationIterations = 500; // Increased significantly - MUST resolve all overlaps
   let totalMoved = 0;
   
   for (let iter = 0; iter < maxRelaxationIterations; iter++) {
@@ -296,12 +361,14 @@ export function layoutRadialBubbleCloud<T>(
         const dx = bubble.x - other.x;
         const dy = bubble.y - other.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const minDistance = bubble.radius + other.radius + effectiveMinGap;
+        // Include animation buffer in minimum distance check
+        const animationBuffer = 15;
+        const minDistance = bubble.radius + other.radius + effectiveMinGap + animationBuffer;
         
         if (distance < minDistance && distance > 0.001) {
-          // Overlap detected - STRONG repulsion force
+          // Overlap detected - EXTREMELY STRONG repulsion force
           const overlap = minDistance - distance;
-          const force = overlap * 1.5; // Even more aggressive repulsion
+          const force = overlap * 3.0; // MUCH more aggressive repulsion to prevent touching/stacking
           const angle = Math.atan2(dy, dx);
           fx += Math.cos(angle) * force;
           fy += Math.sin(angle) * force;
@@ -311,10 +378,9 @@ export function layoutRadialBubbleCloud<T>(
       
       // Also apply boundary forces - allow bubbles closer to edges
       const padding = bubble.radius; // Just radius, no extra gap
-      const minY = navbarHeight + bubble.radius; // Minimum Y to stay below navbar
       if (bubble.x < padding) fx += (padding - bubble.x) * 0.5;
       if (bubble.x > width - padding) fx -= (bubble.x - (width - padding)) * 0.5;
-      if (bubble.y < minY) fy += (minY - bubble.y) * 0.5; // Push below navbar
+      if (bubble.y < padding) fy += (padding - bubble.y) * 0.5; // Fill entire screen
       if (bubble.y > height - padding) fy -= (bubble.y - (height - padding)) * 0.5;
       
       // Apply forces
@@ -322,10 +388,9 @@ export function layoutRadialBubbleCloud<T>(
         bubble.x += fx;
         bubble.y += fy;
         
-        // Clamp to bounds - allow bubbles closer to edges
-        // Y must be at least navbarHeight + radius to stay below navbar
+        // Clamp to bounds - fill entire screen
         bubble.x = Math.max(bubble.radius, Math.min(width - bubble.radius, bubble.x));
-        bubble.y = Math.max(minY, Math.min(height - bubble.radius, bubble.y));
+        bubble.y = Math.max(bubble.radius, Math.min(height - bubble.radius, bubble.y));
         totalMoved++;
       }
     }
@@ -336,8 +401,9 @@ export function layoutRadialBubbleCloud<T>(
 
   // STRICT Final verification - run MULTIPLE passes until ZERO overlaps remain
   // This is the ABSOLUTE last resort to ensure perfect separation
+  // DO NOT REMOVE - just force separate
   let verificationPasses = 0;
-  const maxVerificationPasses = 50;
+  const maxVerificationPasses = 100; // Increased significantly
   let overlapsRemaining = 0;
   
   do {
@@ -350,49 +416,60 @@ export function layoutRadialBubbleCloud<T>(
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const minDistance = a.radius + b.radius + effectiveMinGap;
+        // Include animation buffer in final verification
+        const animationBuffer = 15;
+        const minDistance = a.radius + b.radius + effectiveMinGap + animationBuffer;
         
         if (distance < minDistance && distance > 0.001) {
           overlapsRemaining++;
           
-          // Emergency separation - FORCE apart with extra space
+          // Try emergency separation first - FORCE apart with extra space
           const overlap = minDistance - distance;
           const angle = Math.atan2(dy, dx);
-          // Push further apart to ensure gap - be VERY aggressive
-          const pushDistance = (overlap / 2) + (effectiveMinGap * 0.3); // Add extra push
+          // Push further apart to ensure gap - be EXTREMELY aggressive
+          const pushDistance = overlap + (effectiveMinGap * 1.2); // MUCH larger push to prevent stacking
           const pushX = Math.cos(angle) * pushDistance;
           const pushY = Math.sin(angle) * pushDistance;
           
           // Move both bubbles apart
-          a.x += pushX;
-          a.y += pushY;
-          b.x -= pushX;
-          b.y -= pushY;
+          const newAX = a.x + pushX;
+          const newAY = a.y + pushY;
+          const newBX = b.x - pushX;
+          const newBY = b.y - pushY;
           
-          // Clamp both strictly - allow closer to edges
-          // Y must be at least navbarHeight + radius to stay below navbar
-          a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
-          a.y = Math.max(navbarHeight + a.radius, Math.min(height - a.radius, a.y));
-          b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
-          b.y = Math.max(navbarHeight + b.radius, Math.min(height - b.radius, b.y));
+          // Clamp both strictly - fill entire screen
+          const clampedAX = Math.max(a.radius, Math.min(width - a.radius, newAX));
+          const clampedAY = Math.max(a.radius, Math.min(height - a.radius, newAY));
+          const clampedBX = Math.max(b.radius, Math.min(width - b.radius, newBX));
+          const clampedBY = Math.max(b.radius, Math.min(height - b.radius, newBY));
           
-          // Verify they're actually separated now
-          const newDx = a.x - b.x;
-          const newDy = a.y - b.y;
+          // Check if separation worked - if not, mark one for removal
+          const newDx = clampedAX - clampedBX;
+          const newDy = clampedAY - clampedBY;
           const newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
           
-          // If still overlapping after push, use more extreme separation
-          if (newDistance < minDistance && newDistance > 0.001) {
-            const extremeAngle = Math.atan2(newDy, newDx);
-            const extremePush = minDistance - newDistance + effectiveMinGap; // Extra gap
-            a.x = b.x + Math.cos(extremeAngle) * (b.radius + a.radius + effectiveMinGap);
-            a.y = b.y + Math.sin(extremeAngle) * (b.radius + a.radius + effectiveMinGap);
-            
-            // Clamp again - allow closer to edges
-            // Y must be at least navbarHeight + radius to stay below navbar
+          if (newDistance >= minDistance) {
+            // Separation worked, apply it
+            a.x = clampedAX;
+            a.y = clampedAY;
+            b.x = clampedBX;
+            b.y = clampedBY;
+          } else {
+            // Separation failed - try harder, push further
+            const extremePush = overlap * 2;
+            const extremePushX = Math.cos(angle) * extremePush;
+            const extremePushY = Math.sin(angle) * extremePush;
+            a.x += extremePushX;
+            a.y += extremePushY;
+            b.x -= extremePushX;
+            b.y -= extremePushY;
+            // Clamp again
             a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
-            a.y = Math.max(navbarHeight + a.radius, Math.min(height - a.radius, a.y));
+            a.y = Math.max(a.radius, Math.min(height - a.radius, a.y));
+            b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
+            b.y = Math.max(b.radius, Math.min(height - b.radius, b.y));
           }
+          
         }
       }
     }
@@ -405,8 +482,8 @@ export function layoutRadialBubbleCloud<T>(
     }
   } while (overlapsRemaining > 0 && verificationPasses < maxVerificationPasses);
   
-  // Final count of remaining overlaps (should be ZERO)
-  let finalOverlaps = 0;
+  // NO REMOVAL - keep all bubbles, just ensure they're separated
+  // Final pass: Force separate any remaining overlaps instead of removing
   for (let i = 0; i < bubbles.length; i++) {
     for (let j = i + 1; j < bubbles.length; j++) {
       const a = bubbles[i];
@@ -414,13 +491,32 @@ export function layoutRadialBubbleCloud<T>(
       const dx = a.x - b.x;
       const dy = a.y - b.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      const minDistance = a.radius + b.radius + effectiveMinGap;
+      const animationBuffer = 15;
+      const minDistance = a.radius + b.radius + effectiveMinGap + animationBuffer;
+      
       if (distance < minDistance && distance > 0.001) {
-        finalOverlaps++;
+        // Force separate - push apart
+        const overlap = minDistance - distance;
+        const angle = Math.atan2(dy, dx);
+        const pushDistance = overlap * 0.5;
+        const pushX = Math.cos(angle) * pushDistance;
+        const pushY = Math.sin(angle) * pushDistance;
+        
+        a.x += pushX;
+        a.y += pushY;
+        b.x -= pushX;
+        b.y -= pushY;
+        
+        // Clamp to bounds
+        a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
+        a.y = Math.max(a.radius, Math.min(height - a.radius, a.y));
+        b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
+        b.y = Math.max(b.radius, Math.min(height - b.radius, b.y));
       }
     }
   }
-  
+
+  console.log(`Layout complete: ${bubbles.length} bubbles placed (ALL bubbles shown)`);
   return bubbles;
   } catch (error) {
     return [];

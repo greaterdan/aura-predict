@@ -61,6 +61,8 @@ const areEqual = (prevProps: PredictionNodeProps, nextProps: PredictionNodeProps
 };
 
 export const PredictionNode = memo(({ data, position, size, animationIndex = 0, isHighlighted, onClick, onShowTrades, onDragStart, onDrag, onDragEnd, isDragging: externalIsDragging }: PredictionNodeProps) => {
+  const [isPressed, setIsPressed] = useState(false);
+  
   // Use provided size, or fallback to fixed size (prevents glitch on refresh)
   // Size is always provided from layout, so this fallback should rarely be used
   const bubbleSize = size || 120; // Fixed fallback size
@@ -96,18 +98,31 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
           pointerEvents: 'auto',
           cursor: 'pointer',
           outline: 'none',
+          border: 'none',
+          boxShadow: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
           MozUserSelect: 'none',
           msUserSelect: 'none',
-        }}
+          WebkitTapHighlightColor: 'transparent',
+          '--tw-ring-width': '0',
+          '--tw-ring-offset-width': '0',
+          '--tw-ring-color': 'transparent',
+        } as React.CSSProperties}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          // Trigger pulse effect
+          setIsPressed(true);
+          setTimeout(() => setIsPressed(false), 300);
           onClick?.();
         }}
         onMouseDown={(e) => {
           e.preventDefault(); // Prevent text selection
+          setIsPressed(true);
+        }}
+        onMouseUp={() => {
+          setIsPressed(false);
         }}
         tabIndex={-1} // Prevent keyboard focus
       >
@@ -127,29 +142,72 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
+            // Better image quality
+            imageRendering: 'auto' as any, // Better quality
+            WebkitImageRendering: 'auto' as any,
+            msImageRendering: 'auto' as any,
+            // Force hardware acceleration for better rendering
+            transform: 'translateZ(0)',
+            WebkitTransform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
             pointerEvents: 'auto',
-            // Make it more bubbly with subtle shadow
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+            // VERY VISIBLE colored glow - green for YES, red for NO
+            boxShadow: data.position === "YES"
+              ? '0 0 20px rgba(48, 230, 140, 0.8), 0 0 30px rgba(48, 230, 140, 0.5), 0 0 40px rgba(48, 230, 140, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+              : '0 0 20px rgba(255, 79, 100, 0.8), 0 0 30px rgba(255, 79, 100, 0.5), 0 0 40px rgba(255, 79, 100, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+            // AGGRESSIVE: Prevent any focus rectangles, borders, rings
+            outline: 'none',
+            border: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            MozUserSelect: 'none',
+            msUserSelect: 'none',
+            WebkitTapHighlightColor: 'transparent',
+            // Prevent any ring styles from Tailwind
+            '--tw-ring-width': '0',
+            '--tw-ring-offset-width': '0',
+            '--tw-ring-color': 'transparent',
+          } as React.CSSProperties}
+          onMouseDown={(e) => {
+            e.preventDefault(); // Prevent any default behavior
           }}
+          tabIndex={-1} // Prevent keyboard focus
         >
-          {/* Dark overlay to ensure text is readable over image */}
+          {/* Lighter overlay to ensure text is readable but images are clearer */}
           {data.imageUrl && (
             <div
               className={`absolute inset-0 rounded-full ${
-                data.position === "NO" ? 'bg-red-900/60' : 'bg-black/60'
+                data.position === "NO" ? 'bg-red-900/40' : 'bg-black/40'
               }`}
               style={{ zIndex: 1 }}
             />
           )}
           
-          {/* Border - Red for NO, Green for YES */}
+          {/* Border - Red for NO, Green for YES - VERY VISIBLE */}
           <div
-            className={`pointer-events-none absolute inset-[2px] rounded-full border-2 ${
+            className={`pointer-events-none absolute inset-0 rounded-full border-2 ${
               data.position === "YES"
-                ? 'border-emerald-500/60'
-                : 'border-red-500/60'
+                ? 'border-emerald-300'
+                : 'border-red-300'
             }`}
-            style={{ zIndex: 3 }}
+            style={{ 
+              zIndex: 3,
+              boxShadow: data.position === "YES"
+                ? '0 0 15px rgba(48, 230, 140, 1), 0 0 25px rgba(48, 230, 140, 0.6), inset 0 0 10px rgba(48, 230, 140, 0.4)'
+                : '0 0 15px rgba(255, 79, 100, 1), 0 0 25px rgba(255, 79, 100, 0.6), inset 0 0 10px rgba(255, 79, 100, 0.4)'
+            }}
+          />
+          
+          {/* Additional outer glow layer for maximum visibility */}
+          <div
+            className="pointer-events-none absolute inset-[-4px] rounded-full"
+            style={{ 
+              zIndex: -1,
+              boxShadow: data.position === "YES"
+                ? '0 0 30px rgba(48, 230, 140, 0.6), 0 0 50px rgba(48, 230, 140, 0.3)'
+                : '0 0 30px rgba(255, 79, 100, 0.6), 0 0 50px rgba(255, 79, 100, 0.3)'
+            }}
           />
           
           {/* Content - Minimal: Only YES/NO and price */}
@@ -184,15 +242,17 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
           </div>
         </div>
 
-        {/* Static highlight ring - NO ANIMATION - subtle glow on hover/select */}
-        {isHighlighted && (
+        {/* Subtle glow/pulse effect when clicked or highlighted */}
+        {(isHighlighted || isPressed) && (
           <div
             className="absolute inset-0 pointer-events-none rounded-full"
             style={{
               border: `2px solid ${data.position === "YES" ? 'hsl(var(--trade-yes))' : 'hsl(var(--trade-no))'}`,
               boxShadow: data.position === "YES"
-                ? '0 0 8px hsl(var(--trade-yes) / 0.4), 0 0 16px hsl(var(--trade-yes) / 0.2)'
-                : '0 0 8px hsl(var(--trade-no) / 0.4), 0 0 16px hsl(var(--trade-no) / 0.2)'
+                ? `0 0 ${isPressed ? '20px' : '12px'} hsl(var(--trade-yes) / ${isPressed ? '0.6' : '0.4'}), 0 0 ${isPressed ? '30px' : '20px'} hsl(var(--trade-yes) / ${isPressed ? '0.3' : '0.2'})`
+                : `0 0 ${isPressed ? '20px' : '12px'} hsl(var(--trade-no) / ${isPressed ? '0.6' : '0.4'}), 0 0 ${isPressed ? '30px' : '20px'} hsl(var(--trade-no) / ${isPressed ? '0.3' : '0.2'})`,
+              transition: 'box-shadow 0.2s ease, border 0.2s ease',
+              animation: isPressed ? 'pulse-glow 0.3s ease-out' : 'none',
             }}
           />
         )}

@@ -143,18 +143,61 @@ const Index = () => {
         const data = await response.json();
         
         if (data.predictions && Array.isArray(data.predictions)) {
-          setPredictions(data.predictions);
+          // Only update if market IDs actually changed to prevent unnecessary re-renders
+          setPredictions(prevPredictions => {
+            const prevIds = new Set(prevPredictions.map(p => p.id).filter(Boolean));
+            const newPredictions = data.predictions as PredictionNodeData[];
+            const newIds = new Set(newPredictions.map(p => p.id).filter(Boolean));
+            
+            // Check if market IDs changed
+            const idsChanged = 
+              prevIds.size !== newIds.size ||
+              ![...newIds].every(id => prevIds.has(id));
+            
+            // If only prices/data changed (same IDs), merge new data with existing positions
+            if (!idsChanged && prevPredictions.length === newPredictions.length) {
+              // Map new data to existing predictions, preserving order
+              return newPredictions.map((newPred) => {
+                const existing = prevPredictions.find(p => p.id === newPred.id);
+                if (existing) {
+                  // Keep existing prediction, just update price/data fields
+                  return {
+                    ...existing,
+                    price: newPred.price,
+                    probability: newPred.probability,
+                    change: newPred.change,
+                    volume: newPred.volume,
+                    liquidity: newPred.liquidity,
+                    // Update other data fields but keep position/styling
+                  };
+                }
+                return newPred;
+              });
+            }
+            
+            // Market IDs changed - return new predictions
+            return newPredictions;
+          });
         } else {
           setPredictions([]);
         }
       } catch (error) {
-        setPredictions([]);
+        // Don't clear predictions on error - keep existing ones
+        console.error('Error loading predictions:', error);
       } finally {
         setLoadingMarkets(false);
       }
     };
 
+    // Load immediately
     loadPredictions();
+
+    // Auto-refresh markets and prices every 30 seconds
+    const refreshInterval = setInterval(() => {
+      loadPredictions();
+    }, 30 * 1000); // 30 seconds
+
+    return () => clearInterval(refreshInterval);
   }, [selectedCategory]);
 
   // Simulate AI trading activity

@@ -56,7 +56,7 @@ export function filterMarket(market) {
         // Market is expired if end date is in the past (with 1 hour buffer for timezone issues)
         const buffer = 60 * 60 * 1000; // 1 hour in milliseconds
         if (endDateObj.getTime() < (now.getTime() - buffer)) {
-          return false; // Expired
+        return false; // Expired
         }
       }
     } catch (e) {
@@ -392,153 +392,153 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
   
   // If we didn't get prices from the /prices endpoint, try other sources
   if (yesPrice === null || noPrice === null) {
-    // Try outcomePrices FIRST (this is the format we see in the API response)
-    // outcomePrices is a JSON string like "[\"0.0035\", \"0.9965\"]"
-    if (actualMarket.outcomePrices) {
-      try {
-        let prices = actualMarket.outcomePrices;
-        // If it's a string, parse it as JSON
-        if (typeof prices === 'string') {
-          prices = JSON.parse(prices);
+  // Try outcomePrices FIRST (this is the format we see in the API response)
+  // outcomePrices is a JSON string like "[\"0.0035\", \"0.9965\"]"
+  if (actualMarket.outcomePrices) {
+    try {
+      let prices = actualMarket.outcomePrices;
+      // If it's a string, parse it as JSON
+      if (typeof prices === 'string') {
+        prices = JSON.parse(prices);
+      }
+      // Handle array format: ["0.0035", "0.9965"] - first is YES, second is NO
+      if (Array.isArray(prices) && prices.length >= 2) {
+        const yesVal = parseFloat(String(prices[0]));
+        const noVal = parseFloat(String(prices[1]));
+        if (!isNaN(yesVal) && yesVal >= 0 && yesVal <= 1) {
+          yesPrice = yesVal;
         }
-        // Handle array format: ["0.0035", "0.9965"] - first is YES, second is NO
-        if (Array.isArray(prices) && prices.length >= 2) {
-          const yesVal = parseFloat(String(prices[0]));
-          const noVal = parseFloat(String(prices[1]));
-          if (!isNaN(yesVal) && yesVal >= 0 && yesVal <= 1) {
-            yesPrice = yesVal;
-          }
-          if (!isNaN(noVal) && noVal >= 0 && noVal <= 1) {
-            noPrice = noVal;
-          }
+        if (!isNaN(noVal) && noVal >= 0 && noVal <= 1) {
+          noPrice = noVal;
         }
-      } catch (e) {
-        // Failed to parse outcomePrices
+      }
+    } catch (e) {
+      // Failed to parse outcomePrices
+    }
+  }
+  
+  // Try tokens array (alternative structure)
+  if (actualMarket.tokens && Array.isArray(actualMarket.tokens) && actualMarket.tokens.length >= 2) {
+    // Try to find YES/NO tokens by multiple methods
+    let yesToken = actualMarket.tokens.find(t => 
+      (t.outcome === 'Yes' || t.outcome === 'YES' || (t.outcome && t.outcome.toLowerCase().includes('yes'))) ||
+      (t.side === 'yes' || t.side === 'YES') ||
+      t.token_id === '0' ||
+      t.outcome === '0'
+    );
+    
+    let noToken = actualMarket.tokens.find(t => 
+      (t.outcome === 'No' || t.outcome === 'NO' || (t.outcome && t.outcome.toLowerCase().includes('no'))) ||
+      (t.side === 'no' || t.side === 'NO') ||
+      t.token_id === '1' ||
+      t.outcome === '1'
+    );
+    
+    // Fallback: use first two tokens if we can't identify YES/NO
+    if (!yesToken) yesToken = actualMarket.tokens[0];
+    if (!noToken) noToken = actualMarket.tokens.find(t => t !== yesToken) || actualMarket.tokens[1];
+    
+    // Try ALL possible price field names - Polymarket API uses various formats
+    const priceFields = ['price', 'lastPrice', 'currentPrice', 'last_price', 'current_price', 
+                         'lastPriceUsd', 'priceUsd', 'value', 'usdPrice', 'usd_price',
+                         'lastPriceUSD', 'priceUSD', 'lastPriceUsdc', 'priceUsdc'];
+    
+    for (const field of priceFields) {
+      if (yesPrice === null && yesToken && yesToken[field] !== undefined && yesToken[field] !== null) {
+        yesPrice = parseFloat(String(yesToken[field]));
+        if (!isNaN(yesPrice)) break;
       }
     }
     
-    // Try tokens array (alternative structure)
-    if (actualMarket.tokens && Array.isArray(actualMarket.tokens) && actualMarket.tokens.length >= 2) {
-      // Try to find YES/NO tokens by multiple methods
-      let yesToken = actualMarket.tokens.find(t => 
-        (t.outcome === 'Yes' || t.outcome === 'YES' || (t.outcome && t.outcome.toLowerCase().includes('yes'))) ||
-        (t.side === 'yes' || t.side === 'YES') ||
-        t.token_id === '0' ||
-        t.outcome === '0'
-      );
-      
-      let noToken = actualMarket.tokens.find(t => 
-        (t.outcome === 'No' || t.outcome === 'NO' || (t.outcome && t.outcome.toLowerCase().includes('no'))) ||
-        (t.side === 'no' || t.side === 'NO') ||
-        t.token_id === '1' ||
-        t.outcome === '1'
-      );
-      
-      // Fallback: use first two tokens if we can't identify YES/NO
-      if (!yesToken) yesToken = actualMarket.tokens[0];
-      if (!noToken) noToken = actualMarket.tokens.find(t => t !== yesToken) || actualMarket.tokens[1];
-      
-      // Try ALL possible price field names - Polymarket API uses various formats
-      const priceFields = ['price', 'lastPrice', 'currentPrice', 'last_price', 'current_price', 
-                           'lastPriceUsd', 'priceUsd', 'value', 'usdPrice', 'usd_price',
-                           'lastPriceUSD', 'priceUSD', 'lastPriceUsdc', 'priceUsdc'];
-      
-      for (const field of priceFields) {
-        if (yesPrice === null && yesToken && yesToken[field] !== undefined && yesToken[field] !== null) {
-          yesPrice = parseFloat(String(yesToken[field]));
-          if (!isNaN(yesPrice)) break;
-        }
-      }
-      
-      for (const field of priceFields) {
-        if (noPrice === null && noToken && noToken[field] !== undefined && noToken[field] !== null) {
-          noPrice = parseFloat(String(noToken[field]));
-          if (!isNaN(noPrice)) break;
-        }
+    for (const field of priceFields) {
+      if (noPrice === null && noToken && noToken[field] !== undefined && noToken[field] !== null) {
+        noPrice = parseFloat(String(noToken[field]));
+        if (!isNaN(noPrice)) break;
       }
     }
-    
-    // Try outcomePrices (can be string JSON array or object)
-    if ((yesPrice === null || noPrice === null) && actualMarket.outcomePrices) {
-      try {
-        let prices = actualMarket.outcomePrices;
-        // If it's a string, parse it
-        if (typeof prices === 'string') {
-          prices = JSON.parse(prices);
+  }
+  
+  // Try outcomePrices (can be string JSON array or object)
+  if ((yesPrice === null || noPrice === null) && actualMarket.outcomePrices) {
+    try {
+      let prices = actualMarket.outcomePrices;
+      // If it's a string, parse it
+      if (typeof prices === 'string') {
+        prices = JSON.parse(prices);
+      }
+      // Handle array format: ["0.0035", "0.9965"] or [0.0035, 0.9965]
+      if (Array.isArray(prices) && prices.length >= 2) {
+        if (yesPrice === null) {
+          yesPrice = parseFloat(String(prices[0]));
         }
-        // Handle array format: ["0.0035", "0.9965"] or [0.0035, 0.9965]
-        if (Array.isArray(prices) && prices.length >= 2) {
-          if (yesPrice === null) {
-            yesPrice = parseFloat(String(prices[0]));
-          }
-          if (noPrice === null) {
-            noPrice = parseFloat(String(prices[1]));
-          }
+        if (noPrice === null) {
+          noPrice = parseFloat(String(prices[1]));
         }
-      } catch (e) {
-        // Ignore parse errors
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+  
+  // Try outcome_prices object (various formats)
+  if ((yesPrice === null || noPrice === null) && actualMarket.outcome_prices) {
+    // Try numeric keys
+    if (yesPrice === null) {
+      yesPrice = actualMarket.outcome_prices['0'] ?? actualMarket.outcome_prices[0] ?? 
+                 actualMarket.outcome_prices['yes'] ?? actualMarket.outcome_prices['YES'];
+      if (yesPrice !== undefined && yesPrice !== null) {
+        yesPrice = parseFloat(String(yesPrice));
+      } else {
+        yesPrice = null;
       }
     }
-    
-    // Try outcome_prices object (various formats)
-    if ((yesPrice === null || noPrice === null) && actualMarket.outcome_prices) {
-      // Try numeric keys
-      if (yesPrice === null) {
-        yesPrice = actualMarket.outcome_prices['0'] ?? actualMarket.outcome_prices[0] ?? 
-                   actualMarket.outcome_prices['yes'] ?? actualMarket.outcome_prices['YES'];
-        if (yesPrice !== undefined && yesPrice !== null) {
-          yesPrice = parseFloat(String(yesPrice));
-        } else {
-          yesPrice = null;
-        }
-      }
-      if (noPrice === null) {
-        noPrice = actualMarket.outcome_prices['1'] ?? actualMarket.outcome_prices[1] ?? 
-                  actualMarket.outcome_prices['no'] ?? actualMarket.outcome_prices['NO'];
-        if (noPrice !== undefined && noPrice !== null) {
-          noPrice = parseFloat(String(noPrice));
-        } else {
-          noPrice = null;
-        }
+    if (noPrice === null) {
+      noPrice = actualMarket.outcome_prices['1'] ?? actualMarket.outcome_prices[1] ?? 
+                actualMarket.outcome_prices['no'] ?? actualMarket.outcome_prices['NO'];
+      if (noPrice !== undefined && noPrice !== null) {
+        noPrice = parseFloat(String(noPrice));
+      } else {
+        noPrice = null;
       }
     }
-    
-    // Try prices object (alternative format)
-    if ((yesPrice === null || noPrice === null) && actualMarket.prices) {
-      if (yesPrice === null && actualMarket.prices['0'] !== undefined) {
-        yesPrice = parseFloat(String(actualMarket.prices['0']));
+  }
+  
+  // Try prices object (alternative format)
+  if ((yesPrice === null || noPrice === null) && actualMarket.prices) {
+    if (yesPrice === null && actualMarket.prices['0'] !== undefined) {
+      yesPrice = parseFloat(String(actualMarket.prices['0']));
+    }
+    if (noPrice === null && actualMarket.prices['1'] !== undefined) {
+      noPrice = parseFloat(String(actualMarket.prices['1']));
+    }
+  }
+  
+  // Try current_price (single value, calculate other)
+  if (yesPrice === null && actualMarket.current_price !== undefined) {
+    yesPrice = parseFloat(String(actualMarket.current_price));
+    noPrice = 1 - yesPrice;
+  }
+  
+  // Try price field directly
+  if (yesPrice === null && actualMarket.price !== undefined) {
+    yesPrice = parseFloat(String(actualMarket.price));
+    noPrice = 1 - yesPrice;
+  }
+  
+  // Try market data fields
+  if (yesPrice === null && actualMarket.market) {
+    const marketData = actualMarket.market;
+    if (marketData.outcome_prices) {
+      if (marketData.outcome_prices['0'] !== undefined) {
+        yesPrice = parseFloat(String(marketData.outcome_prices['0']));
       }
-      if (noPrice === null && actualMarket.prices['1'] !== undefined) {
-        noPrice = parseFloat(String(actualMarket.prices['1']));
+      if (marketData.outcome_prices['1'] !== undefined) {
+        noPrice = parseFloat(String(marketData.outcome_prices['1']));
       }
     }
-    
-    // Try current_price (single value, calculate other)
-    if (yesPrice === null && actualMarket.current_price !== undefined) {
-      yesPrice = parseFloat(String(actualMarket.current_price));
+    if (yesPrice === null && marketData.current_price !== undefined) {
+      yesPrice = parseFloat(String(marketData.current_price));
       noPrice = 1 - yesPrice;
-    }
-    
-    // Try price field directly
-    if (yesPrice === null && actualMarket.price !== undefined) {
-      yesPrice = parseFloat(String(actualMarket.price));
-      noPrice = 1 - yesPrice;
-    }
-    
-    // Try market data fields
-    if (yesPrice === null && actualMarket.market) {
-      const marketData = actualMarket.market;
-      if (marketData.outcome_prices) {
-        if (marketData.outcome_prices['0'] !== undefined) {
-          yesPrice = parseFloat(String(marketData.outcome_prices['0']));
-        }
-        if (marketData.outcome_prices['1'] !== undefined) {
-          noPrice = parseFloat(String(marketData.outcome_prices['1']));
-        }
-      }
-      if (yesPrice === null && marketData.current_price !== undefined) {
-        yesPrice = parseFloat(String(marketData.current_price));
-        noPrice = 1 - yesPrice;
       }
     }
   }
@@ -584,10 +584,10 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
     }
     
     // Only default to 0.5 if we STILL have no price data
-    if (yesPrice === null || noPrice === null) {
-      // Default to 50/50 if no price data
-      yesPrice = 0.5;
-      noPrice = 0.5;
+  if (yesPrice === null || noPrice === null) {
+    // Default to 50/50 if no price data
+    yesPrice = 0.5;
+    noPrice = 0.5;
     }
   }
   
@@ -647,8 +647,17 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
                    market.imageUrl ||
                    market.thumbnail;
   
-  // Detect category
+  // Detect category - log for debugging
   const category = detectCategoryFromMarket(actualMarket);
+  
+  // DEBUG: Log category detection for Earnings, Geopolitics, Elections
+  const debugCategories = ['Earnings', 'Geopolitics', 'Elections'];
+  if (debugCategories.includes(category)) {
+    console.log(`[${category}] Market: "${question.substring(0, 50)}..."`);
+    console.log(`  - API category: ${actualMarket.category || 'none'}`);
+    console.log(`  - API tags: ${JSON.stringify(actualMarket.tags || [])}`);
+    console.log(`  - Detected as: ${category}`);
+  }
   
   // Extract volume and liquidity data - using actual Polymarket API field names
   const volume = actualMarket.volume || 

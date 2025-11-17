@@ -186,11 +186,11 @@ export const MarketDetailsModal = ({ isOpen, onClose, market }: MarketDetailsMod
                 </div>
 
                 {/* Outcomes Section */}
-                <div className="p-4 rounded-lg border border-border bg-secondary/30">
-                  <div className="text-xs text-muted-foreground font-mono mb-4">OUTCOMES & PRICES</div>
+                <div className="p-3 rounded-lg border border-border bg-secondary/30">
+                  <div className="text-xs text-muted-foreground font-mono mb-2">OUTCOMES & PRICES</div>
                   
                   {market.outcomes && market.outcomes.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {market.outcomes.map((outcome, idx) => {
                         const isSelected = market.position === outcome.name.toUpperCase() || 
                                          (market.position === 'YES' && outcome.name.toUpperCase() === 'YES') ||
@@ -238,35 +238,35 @@ export const MarketDetailsModal = ({ isOpen, onClose, market }: MarketDetailsMod
                         return (
                           <div 
                             key={outcome.tokenId || idx}
-                            className={`p-4 rounded-lg border-2 ${bgClass} ${borderClass}`}
+                            className={`p-2.5 rounded-lg border-2 ${bgClass} ${borderClass}`}
                           >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${dotClass}`} />
-                                <span className={`text-sm font-bold ${textClass} uppercase tracking-wider truncate`}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} />
+                                <span className={`text-xs font-bold ${textClass} uppercase tracking-wider truncate`}>
                                   {outcome.name}
                                 </span>
                               </div>
                               <div className="text-right flex-shrink-0 ml-2">
-                                <div className={`text-2xl font-bold ${textClass}`}>
+                                <div className={`text-base font-bold ${textClass}`}>
                                   ${outcome.price.toFixed(3)}
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center justify-between mb-1">
                               <span className="text-xs text-muted-foreground">Probability</span>
-                              <span className={`text-sm font-bold ${textClass}`}>
+                              <span className={`text-xs font-bold ${textClass}`}>
                                 {outcome.probability.toFixed(1)}%
                               </span>
                             </div>
                             {outcome.buyPrice !== undefined && outcome.sellPrice !== undefined && (
-                              <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                                 <span>Buy: ${outcome.buyPrice.toFixed(3)}</span>
                                 <span>Sell: ${outcome.sellPrice.toFixed(3)}</span>
                               </div>
                             )}
                             {/* Progress bar */}
-                            <div className={`mt-2 h-2 ${barBgClass} rounded-full overflow-hidden`}>
+                            <div className={`mt-1.5 h-1.5 ${barBgClass} rounded-full overflow-hidden`}>
                               <div 
                                 className={`h-full ${barFillClass} rounded-full transition-all duration-300`}
                                 style={{ width: `${outcome.probability}%` }}
@@ -277,7 +277,7 @@ export const MarketDetailsModal = ({ isOpen, onClose, market }: MarketDetailsMod
                       })}
                       
                       {/* Summary */}
-                      <div className="mt-4 pt-4 border-t border-border">
+                      <div className="mt-2 pt-2 border-t border-border">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground font-mono">Total Probability</span>
                           <span className="font-bold text-foreground">
@@ -285,7 +285,7 @@ export const MarketDetailsModal = ({ isOpen, onClose, market }: MarketDetailsMod
                           </span>
                         </div>
                         {Math.abs(market.outcomes.reduce((sum, o) => sum + o.probability, 0) - 100) > 1 && (
-                          <div className="mt-1 text-xs text-muted-foreground italic">
+                          <div className="mt-0.5 text-xs text-muted-foreground italic">
                             Note: Prices may not sum to 100% due to market spread
                           </div>
                         )}
@@ -293,35 +293,35 @@ export const MarketDetailsModal = ({ isOpen, onClose, market }: MarketDetailsMod
                     </div>
                   ) : (
                     // Fallback to YES/NO display if no outcomes array
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {/* YES Outcome */}
-                      <div className={`p-4 rounded-lg border-2 ${
+                      <div className={`p-2.5 rounded-lg border-2 ${
                         isYes 
                           ? 'bg-trade-yes/20 border-trade-yes/50' 
                           : 'bg-trade-yes/5 border-trade-yes/20'
                       }`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2 h-2 rounded-full ${
                               isYes ? 'bg-trade-yes' : 'bg-trade-yes/50'
                             }`} />
-                            <span className="text-sm font-bold text-trade-yes uppercase tracking-wider">
+                            <span className="text-xs font-bold text-trade-yes uppercase tracking-wider">
                               YES Outcome
                             </span>
                           </div>
                           <div className="text-right">
-                            <div className="text-2xl font-bold text-trade-yes">
+                            <div className="text-base font-bold text-trade-yes">
                               ${yesPrice.toFixed(3)}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">Probability</span>
-                          <span className="text-sm font-bold text-trade-yes">
+                          <span className="text-xs font-bold text-trade-yes">
                             {(yesPrice * 100).toFixed(1)}%
                           </span>
                         </div>
-                        <div className="mt-2 h-2 bg-trade-yes/10 rounded-full overflow-hidden">
+                        <div className="mt-1.5 h-1.5 bg-trade-yes/10 rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-trade-yes rounded-full transition-all duration-300"
                             style={{ width: `${yesPrice * 100}%` }}
@@ -330,33 +330,33 @@ export const MarketDetailsModal = ({ isOpen, onClose, market }: MarketDetailsMod
                       </div>
 
                       {/* NO Outcome */}
-                      <div className={`p-4 rounded-lg border-2 ${
+                      <div className={`p-2.5 rounded-lg border-2 ${
                         !isYes 
                           ? 'bg-trade-no/20 border-trade-no/50' 
                           : 'bg-trade-no/5 border-trade-no/20'
                       }`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2 h-2 rounded-full ${
                               !isYes ? 'bg-trade-no' : 'bg-trade-no/50'
                             }`} />
-                            <span className="text-sm font-bold text-trade-no uppercase tracking-wider">
+                            <span className="text-xs font-bold text-trade-no uppercase tracking-wider">
                               NO Outcome
                             </span>
                           </div>
                           <div className="text-right">
-                            <div className="text-2xl font-bold text-trade-no">
+                            <div className="text-base font-bold text-trade-no">
                               ${noPrice.toFixed(3)}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">Probability</span>
-                          <span className="text-sm font-bold text-trade-no">
+                          <span className="text-xs font-bold text-trade-no">
                             {(noPrice * 100).toFixed(1)}%
                           </span>
                         </div>
-                        <div className="mt-2 h-2 bg-trade-no/10 rounded-full overflow-hidden">
+                        <div className="mt-1.5 h-1.5 bg-trade-no/10 rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-trade-no rounded-full transition-all duration-300"
                             style={{ width: `${noPrice * 100}%` }}
@@ -364,7 +364,7 @@ export const MarketDetailsModal = ({ isOpen, onClose, market }: MarketDetailsMod
                         </div>
                       </div>
                       
-                      <div className="mt-4 pt-4 border-t border-border">
+                      <div className="mt-2 pt-2 border-t border-border">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground font-mono">Total Probability</span>
                           <span className="font-bold text-foreground">

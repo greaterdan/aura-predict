@@ -34,13 +34,37 @@ app.get('/api/predictions', async (req, res) => {
     }
     
     // Fetch markets from Polymarket - limit to 100 for "All Markets" to reduce glitchiness
-    const maxMarkets = category === 'All Markets' ? 100 : 1000;
-    const markets = await fetchAllMarkets({
+    // For specific categories, fetch more markets to ensure we get enough
+    const maxMarkets = category === 'All Markets' ? 100 : 2000;
+    let markets = await fetchAllMarkets({
       category: polymarketCategory,
       active: true,
-      maxPages: Math.ceil(maxMarkets / 1000) + 1, // Only fetch enough pages
+      maxPages: Math.ceil(maxMarkets / 1000) + 1, // Fetch more pages for category searches
       limitPerPage: 1000,
     });
+    
+    // ALWAYS fetch all markets for Earnings, Geopolitics, and Elections
+    // and rely on category detection from actual market data
+    if (category === 'Earnings' || category === 'Geopolitics' || category === 'Elections') {
+      console.log(`Fetching ALL markets for ${category} category (will filter by detection)...`);
+      const allMarkets = await fetchAllMarkets({
+        category: null, // Fetch all markets - don't filter by API category
+        active: true,
+        maxPages: Math.ceil(3000 / 1000) + 1, // Fetch more to find enough markets
+        limitPerPage: 1000,
+      });
+      markets = allMarkets; // Use all markets, will filter by detection below
+      console.log(`Fetched ${markets.length} total markets for ${category} detection`);
+    } else if (markets.length < 50 && polymarketCategory) {
+      console.log(`Category search for ${category} returned only ${markets.length} markets. Trying without category filter...`);
+      const allMarkets = await fetchAllMarkets({
+        category: null, // Fetch all markets
+        active: true,
+        maxPages: Math.ceil(2000 / 1000) + 1,
+        limitPerPage: 1000,
+      });
+      markets = allMarkets; // Use all markets, will filter by detection below
+    }
     
     // Limit markets for "All Markets" category
     const limitedMarkets = category === 'All Markets' ? markets.slice(0, 100) : markets;
@@ -48,6 +72,15 @@ app.get('/api/predictions', async (req, res) => {
     // Transform markets to predictions (server-side filtering and transformation)
     // Note: transformMarkets is now async to fetch prices from /prices endpoint
     const predictions = await transformMarkets(limitedMarkets);
+    
+    // DEBUG: Log category distribution
+    const categoryCounts = {};
+    predictions.forEach(p => {
+      const cat = p.category || 'World';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    });
+    console.log(`Category distribution:`, categoryCounts);
+    console.log(`Total predictions: ${predictions.length}`);
     
     // Filter by category if needed (client-side category filtering)
     let filteredPredictions = predictions;
@@ -57,8 +90,33 @@ app.get('/api/predictions', async (req, res) => {
           // For these, show all (or implement specific logic)
           return true;
         }
-        return (p.category || 'World') === category;
+        // Match category - be flexible with category names
+        const marketCategory = (p.category || 'World');
+        // Allow matching if category matches or if it's a related category
+        if (marketCategory === category) {
+          return true;
+        }
+        // For Elections, also accept Politics markets
+        if (category === 'Elections' && marketCategory === 'Politics') {
+          return true;
+        }
+        // For Geopolitics, also accept Politics markets
+        if (category === 'Geopolitics' && marketCategory === 'Politics') {
+          return true;
+        }
+        // For Earnings, also accept Finance markets
+        if (category === 'Earnings' && marketCategory === 'Finance') {
+          return true;
+        }
+        return false;
       });
+      console.log(`Filtered ${filteredPredictions.length} predictions for category: ${category}`);
+      if (filteredPredictions.length > 0) {
+        console.log(`Sample filtered prediction:`, {
+          question: filteredPredictions[0].question?.substring(0, 50),
+          category: filteredPredictions[0].category
+        });
+      }
     }
     
     // Apply limit if specified
