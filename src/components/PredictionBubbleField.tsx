@@ -3,7 +3,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { PredictionNodeData } from "./PredictionNode";
 import { PredictionNode } from "./PredictionNode";
-import { layoutRadialBubbleCloud } from "@/lib/layoutRadialBubbleCloud";
+import { layoutRadialBubbleCloud, PositionedBubble } from "@/lib/layoutRadialBubbleCloud";
 
 type Props = {
   markets: PredictionNodeData[];
@@ -11,6 +11,8 @@ type Props = {
   selectedNodeId?: string | null;
   selectedAgent?: string | null;
   agents?: Array<{ id: string; name: string }>;
+  isTransitioning?: boolean; // CRITICAL: Prevent recalculations during panel transitions
+  isResizing?: boolean; // CRITICAL: Prevent recalculations during panel resize
 };
 
 export const PredictionBubbleField: React.FC<Props> = ({
@@ -19,6 +21,8 @@ export const PredictionBubbleField: React.FC<Props> = ({
   selectedNodeId,
   selectedAgent,
   agents = [],
+  isTransitioning = false,
+  isResizing = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -36,9 +40,15 @@ export const PredictionBubbleField: React.FC<Props> = ({
   const measureFunctionRef = useRef<(() => void) | null>(null);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef<boolean>(false);
+  // CRITICAL: Track if a drag actually occurred to prevent click after drag
+  const hasDraggedRef = useRef<boolean>(false);
   // Store stable positions by market ID to prevent recalculation on price updates
   const stablePositionsRef = useRef<Record<string, { x: number; y: number; radius: number; width?: number; height?: number }>>({});
   const previousMarketIdsRef = useRef<Set<string>>(new Set());
+  // CRITICAL: Store the initial container size - bubbles should NEVER move when panels resize
+  // Only recalculate if window actually resizes or markets change
+  const initialContainerSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const isPanelResizingRef = useRef<boolean>(false);
 
   useLayoutEffect(() => {
     let mounted = true;
@@ -46,6 +56,11 @@ export const PredictionBubbleField: React.FC<Props> = ({
     let measureTimeout: NodeJS.Timeout | null = null;
     
     function measure() {
+      // CRITICAL: DO NOT measure during transitions or resizing - prevents glitching
+      if (isTransitioning || isResizing) {
+        return; // Skip all measurements during panel transitions
+      }
+      
       if (!containerRef.current || !mounted) return;
       
       // Get the parent container's full dimensions (the dashboard area)
@@ -61,11 +76,43 @@ export const PredictionBubbleField: React.FC<Props> = ({
       
       // Use parent's full dimensions - allow ANY size (even small)
       if (width > 0 && height > 0) {
-        if (width !== sizeRef.width || height !== sizeRef.height) {
+        // CRITICAL: Only update if size change is significant (more than 5%)
+        // This prevents recalculation during panel animations which cause small size changes
+        const widthDiff = Math.abs(width - sizeRef.width);
+        const heightDiff = Math.abs(height - sizeRef.height);
+        const widthChangePercent = sizeRef.width > 0 ? (widthDiff / sizeRef.width) * 100 : 100;
+        const heightChangePercent = sizeRef.height > 0 ? (heightDiff / sizeRef.height) * 100 : 100;
+        
+        // CRITICAL: Only update size if it's the first measurement OR if window actually resized
+        // NEVER update when panels resize - bubbles should stay in their positions
+        if (sizeRef.width === 0 && sizeRef.height === 0) {
+          // First measurement - always update and store as initial size
           sizeRef.width = width;
           sizeRef.height = height;
+          initialContainerSizeRef.current = { width, height };
           setSize({ width, height });
           setIsSizeReady(true);
+        } else if (initialContainerSizeRef.current) {
+          // Check if this is a window resize (both dimensions change significantly) vs panel resize (only one dimension)
+          const initialWidth = initialContainerSizeRef.current.width;
+          const initialHeight = initialContainerSizeRef.current.height;
+          const widthChangeFromInitial = Math.abs(width - initialWidth) / initialWidth * 100;
+          const heightChangeFromInitial = Math.abs(height - initialHeight) / initialHeight * 100;
+          
+          // Only update if BOTH dimensions changed significantly (window resize) OR if change is huge (>30%)
+          // Panel resizes typically only change one dimension, window resizes change both
+          const isWindowResize = (widthChangeFromInitial > 10 && heightChangeFromInitial > 10) || 
+                                 widthChangePercent > 30 || heightChangePercent > 30;
+          
+          if (isWindowResize) {
+            // Actual window resize - update size and recalculate
+            sizeRef.width = width;
+            sizeRef.height = height;
+            initialContainerSizeRef.current = { width, height }; // Update initial size
+            setSize({ width, height });
+            setIsSizeReady(true);
+          }
+          // Panel resize - IGNORE completely, bubbles stay in place
         }
       }
     }
@@ -88,8 +135,14 @@ export const PredictionBubbleField: React.FC<Props> = ({
     }, 200);
     
     // OPTIMIZED: Debounce resize observer to prevent excessive recalculations
+    // CRITICAL: Completely disable during transitions
     const resizeObserver = new ResizeObserver((entries) => {
       if (!mounted) return;
+      
+      // CRITICAL: DO NOT measure during transitions or resizing
+      if (isTransitioning || isResizing) {
+        return; // Skip completely during panel transitions
+      }
       
       // Clear any pending timeout
       if (measureTimeout) {
@@ -97,58 +150,102 @@ export const PredictionBubbleField: React.FC<Props> = ({
         measureTimeout = null;
       }
       
-      // OPTIMIZED: Debounce measurements to prevent layout thrashing
+      // OPTIMIZED: Much longer debounce to prevent recalculation during panel open/close
+      // This prevents glitching when Performance/Summary panels open
       if (layoutCalculationRef.current) {
         clearTimeout(layoutCalculationRef.current);
       }
       layoutCalculationRef.current = setTimeout(() => {
-        if (mounted) {
+        if (mounted && !isTransitioning && !isResizing) {
           measure();
         }
-      }, 50); // 50ms debounce for better performance
+      }, 500); // 500ms debounce - wait well after panel animation completes
     });
 
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }
     
-    // Also observe parent container to catch panel size changes
-    const parentElement = containerRef.current?.parentElement;
-    let parentObserver: ResizeObserver | null = null;
-    if (parentElement) {
-      parentObserver = new ResizeObserver(() => {
-        if (mounted) {
-          // Simple immediate measure - no debounce for responsiveness
+    // CRITICAL: DO NOT observe parent container - it causes recalculation when panels resize
+    // Bubbles should stay in their positions when panels open/close
+    // Only window resize should trigger recalculation
+    // const parentElement = containerRef.current?.parentElement;
+    // let parentObserver: ResizeObserver | null = null;
+    // DISABLED: Parent observer causes bubbles to recalculate when panels resize
+
+    // CRITICAL: Debounce window resize too to prevent recalculation during panel transitions
+    let windowResizeTimeout: NodeJS.Timeout | null = null;
+    const handleWindowResize = () => {
+      if (!mounted) return;
+      
+      // CRITICAL: DO NOT measure during transitions
+      if (isTransitioning || isResizing) {
+        return;
+      }
+      
+      if (windowResizeTimeout) {
+        clearTimeout(windowResizeTimeout);
+      }
+      windowResizeTimeout = setTimeout(() => {
+        if (mounted && !isTransitioning && !isResizing) {
           measure();
         }
-      });
-      parentObserver.observe(parentElement);
-    }
-
-    window.addEventListener("resize", measure);
+      }, 500); // 500ms debounce
+    };
     
+    window.addEventListener("resize", handleWindowResize);
+    
+    // Update effect when isTransitioning or isResizing changes
+    // This ensures measurements are blocked during transitions
     return () => {
       mounted = false;
       clearTimeout(initialTimeout);
       if (measureTimeout) clearTimeout(measureTimeout);
+      // parentMeasureTimeout removed - parent observer disabled
+      if (windowResizeTimeout) clearTimeout(windowResizeTimeout);
       if (layoutCalculationRef.current) {
         clearTimeout(layoutCalculationRef.current);
       }
       resizeObserver.disconnect();
-      if (parentObserver) {
-        parentObserver.disconnect();
-      }
-      window.removeEventListener("resize", measure);
+      // Parent observer disabled - no need to disconnect
+      window.removeEventListener("resize", handleWindowResize);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, []);
+  }, [isTransitioning, isResizing]); // Re-run when transition state changes
 
   // OPTIMIZED: Debounce layout calculation to prevent excessive recalculations
   const layoutCalculationRef = useRef<NodeJS.Timeout | null>(null);
   
+  // OPTIMIZED: Defer layout calculations for many bubbles to prevent blocking
+  const [deferredBubbles, setDeferredBubbles] = useState<PositionedBubble<PredictionNodeData>[]>([]);
+  
   const initialBubbles = useMemo(() => {
+    // CRITICAL: DO NOT recalculate during transitions - reuse existing positions
+    if (isTransitioning || isResizing) {
+      // Return existing bubbles to prevent recalculation
+      const existing = Object.keys(stablePositionsRef.current).map(id => {
+        const stablePos = stablePositionsRef.current[id];
+        const market = markets.find(m => (m.id ?? '') === id);
+        if (market && stablePos) {
+          return {
+            id,
+            data: market,
+            x: stablePos.x,
+            y: stablePos.y,
+            radius: stablePos.radius,
+            index: markets.findIndex(m => (m.id ?? '') === id),
+          };
+        }
+        return null;
+      }).filter((b): b is NonNullable<typeof b> => b !== null);
+      
+      if (existing.length > 0) {
+        return existing;
+      }
+    }
+    
     // Don't calculate layout if size is not ready (prevents glitch on refresh)
     // Allow ANY size - no minimum requirement
     if (!isSizeReady || size.width <= 0 || size.height <= 0 || markets.length === 0) {
@@ -160,11 +257,13 @@ export const PredictionBubbleField: React.FC<Props> = ({
     const previousMarketIds = previousMarketIdsRef.current;
     
     // Check if markets were added/removed (not just price updates)
-    // Also check if viewport size changed (which requires recalculation)
+    // CRITICAL: Only check size change if it's a real window resize, not panel resize
     const firstStablePos = Object.values(stablePositionsRef.current)[0];
-    const sizeChanged = firstStablePos && (
-      firstStablePos.width !== size.width || 
-      firstStablePos.height !== size.height
+    // Only consider size changed if it's significantly different (window resize)
+    // Panel resizes should NOT trigger recalculation
+    const sizeChanged = firstStablePos && initialContainerSizeRef.current && (
+      Math.abs(firstStablePos.width - initialContainerSizeRef.current.width) / initialContainerSizeRef.current.width > 0.1 ||
+      Math.abs(firstStablePos.height - initialContainerSizeRef.current.height) / initialContainerSizeRef.current.height > 0.1
     );
     
     const marketsChanged = 
@@ -203,6 +302,62 @@ export const PredictionBubbleField: React.FC<Props> = ({
     // Markets changed or first load - recalculate layout
     const maxVisible = markets.length;
     
+    // OPTIMIZED: For many bubbles, use setTimeout to defer layout calculation and prevent blocking
+    // This allows the UI to remain responsive while calculating positions
+    // CRITICAL: For 300+ bubbles, layout is ultra-fast (simple grid), so we can calculate immediately
+    if (maxVisible > 150 && maxVisible < 300) {
+      // Use setTimeout to defer calculation to next event loop tick
+      // This prevents blocking the main thread
+      setTimeout(() => {
+        try {
+          const bubbles = layoutRadialBubbleCloud(
+            markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
+            size.width,
+            size.height,
+            maxVisible
+          );
+          
+      // Store stable positions with initial container size (not current size)
+      // This ensures bubbles don't move when panels resize
+      const storedWidth = initialContainerSizeRef.current?.width || size.width;
+      const storedHeight = initialContainerSizeRef.current?.height || size.height;
+      bubbles.forEach(bubble => {
+        stablePositionsRef.current[bubble.id] = {
+          x: bubble.x,
+          y: bubble.y,
+          radius: bubble.radius,
+          width: storedWidth,
+          height: storedHeight,
+        };
+      });
+          
+          // Clean up
+          Object.keys(stablePositionsRef.current).forEach(id => {
+            if (!currentMarketIds.has(id)) {
+              delete stablePositionsRef.current[id];
+            }
+          });
+          
+          previousMarketIdsRef.current = currentMarketIds;
+          
+          const validIds = new Set(bubbles.map(b => b.id));
+          Object.keys(persistentPositionsRef.current).forEach(id => {
+            if (!validIds.has(id)) {
+              delete persistentPositionsRef.current[id];
+            }
+          });
+          
+          setDeferredBubbles(bubbles);
+        } catch (error) {
+          setDeferredBubbles([]);
+        }
+      }, 0);
+      
+      // Return deferred bubbles if available, otherwise return empty (will update when ready)
+      return deferredBubbles.length > 0 ? deferredBubbles : [];
+    }
+    
+    // For smaller counts, calculate immediately
     try {
       const bubbles = layoutRadialBubbleCloud(
         markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
@@ -211,14 +366,17 @@ export const PredictionBubbleField: React.FC<Props> = ({
         maxVisible // Show ALL markets
       );
       
-      // Store stable positions for future updates
+      // Store stable positions with initial container size (not current size)
+      // This ensures bubbles don't move when panels resize
+      const storedWidth = initialContainerSizeRef.current?.width || size.width;
+      const storedHeight = initialContainerSizeRef.current?.height || size.height;
       bubbles.forEach(bubble => {
         stablePositionsRef.current[bubble.id] = {
           x: bubble.x,
           y: bubble.y,
           radius: bubble.radius,
-          width: size.width,
-          height: size.height,
+          width: storedWidth,
+          height: storedHeight,
         };
       });
       
@@ -245,7 +403,7 @@ export const PredictionBubbleField: React.FC<Props> = ({
     } catch (error) {
       return [];
     }
-  }, [markets, size.width, size.height, isSizeReady]);
+  }, [markets, size.width, size.height, isSizeReady, deferredBubbles, isTransitioning, isResizing]);
 
   // Merge initial positions with dragged positions
   // Use useMemo with proper dependencies to prevent unnecessary recalculations
@@ -289,39 +447,119 @@ export const PredictionBubbleField: React.FC<Props> = ({
   // Viewport-based virtualization: Only render bubbles visible in viewport + buffer
   // OPTIMIZED: Enable virtualization earlier for better performance
   const [viewport, setViewport] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
-  const viewportBuffer = 200; // Render bubbles 200px outside viewport
+  // CRITICAL: Much smaller buffer for large counts to prevent rendering too many bubbles
+  // More aggressive buffer reduction for better performance
+  const viewportBuffer = bubbles.length > 300 ? 30 : bubbles.length > 200 ? 50 : bubbles.length > 150 ? 75 : bubbles.length > 100 ? 100 : 200;
+  
+  // OPTIMIZED: Progressive rendering - render bubbles in batches for many bubbles
+  const [renderedCount, setRenderedCount] = useState(0);
+  // CRITICAL: Much smaller batches for very large counts to prevent blocking
+  // More aggressive batching for better performance
+  const renderBatchSize = bubbles.length > 400 ? 10 : bubbles.length > 300 ? 15 : bubbles.length > 200 ? 20 : bubbles.length > 150 ? 25 : bubbles.length > 100 ? 30 : 50;
+  
+  useEffect(() => {
+    if (bubbles.length > 100) {
+      // Reset and progressively render
+      setRenderedCount(0);
+      const batches = Math.ceil(bubbles.length / renderBatchSize);
+      let currentBatch = 0;
+      
+      const renderNextBatch = () => {
+        if (currentBatch < batches) {
+          setRenderedCount(Math.min((currentBatch + 1) * renderBatchSize, bubbles.length));
+          currentBatch++;
+          // Use setTimeout for larger counts to prevent blocking - more aggressive delays
+          if (bubbles.length > 300) {
+            setTimeout(() => requestAnimationFrame(renderNextBatch), 20); // Slower for very large counts
+          } else if (bubbles.length > 200) {
+            setTimeout(() => requestAnimationFrame(renderNextBatch), 15);
+          } else if (bubbles.length > 150) {
+            setTimeout(() => requestAnimationFrame(renderNextBatch), 10);
+          } else {
+            requestAnimationFrame(renderNextBatch);
+          }
+        }
+      };
+      
+      // Start rendering after a short delay
+      const timeout = setTimeout(() => {
+        requestAnimationFrame(renderNextBatch);
+      }, 150); // Longer initial delay
+      
+      return () => clearTimeout(timeout);
+    } else {
+      // For smaller counts, render all immediately
+      setRenderedCount(bubbles.length);
+    }
+  }, [bubbles.length, renderBatchSize]);
   
   const visibleBubbles = useMemo(() => {
     if (bubbles.length === 0) return [];
     
-    // OPTIMIZED: Enable virtualization at 100+ bubbles for better performance
+    // Limit to rendered count for progressive rendering
+    const bubblesToCheck = bubbles.slice(0, renderedCount);
+    
+    // CRITICAL: For 100+ bubbles, ALWAYS use viewport virtualization to prevent crashes
+    // Lowered threshold for much better performance
     if (bubbles.length > 100) {
-      return bubbles.filter(bubble => {
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      if (!containerRect) {
+        // Safety: hard limit if container not ready
+        return bubblesToCheck.slice(0, bubbles.length > 300 ? 30 : bubbles.length > 200 ? 50 : 80);
+      }
+      
+      // CRITICAL: Cache viewport calculations ONCE to avoid repeated math in filter
+      const viewTop = viewport.top - viewportBuffer;
+      const viewBottom = viewport.bottom + viewportBuffer;
+      const viewLeft = viewport.left - viewportBuffer;
+      const viewRight = viewport.right + viewportBuffer;
+      const containerTop = containerRect.top;
+      const containerLeft = containerRect.left;
+      
+      const visible = bubblesToCheck.filter(bubble => {
         // Convert bubble position (relative to container) to viewport coordinates
-        const containerRect = containerRef.current?.getBoundingClientRect();
-        if (!containerRect) return true; // If container not ready, show all
+        // Use cached values to avoid repeated calculations
+        const bubbleTop = containerTop + bubble.y - bubble.radius;
+        const bubbleBottom = containerTop + bubble.y + bubble.radius;
+        const bubbleLeft = containerLeft + bubble.x - bubble.radius;
+        const bubbleRight = containerLeft + bubble.x + bubble.radius;
         
-        const bubbleTop = containerRect.top + bubble.y - bubble.radius;
-        const bubbleBottom = containerRect.top + bubble.y + bubble.radius;
-        const bubbleLeft = containerRect.left + bubble.x - bubble.radius;
-        const bubbleRight = containerRect.left + bubble.x + bubble.radius;
-        
+        // Only render bubbles visible in viewport + buffer
         return (
-          bubbleBottom >= viewport.top - viewportBuffer &&
-          bubbleTop <= viewport.bottom + viewportBuffer &&
-          bubbleRight >= viewport.left - viewportBuffer &&
-          bubbleLeft <= viewport.right + viewportBuffer
+          bubbleBottom >= viewTop &&
+          bubbleTop <= viewBottom &&
+          bubbleRight >= viewLeft &&
+          bubbleLeft <= viewRight
         );
       });
+      
+      // CRITICAL: Hard limit on max visible bubbles to prevent DOM overload
+      // Even if more are in viewport, limit to prevent crashes
+      // MUCH more aggressive limits for better performance
+      const maxVisible = bubbles.length > 400 ? 40 : bubbles.length > 300 ? 50 : bubbles.length > 200 ? 60 : bubbles.length > 150 ? 70 : bubbles.length > 100 ? 80 : Infinity;
+      return visible.slice(0, maxVisible);
     }
     
     // For smaller numbers, render all
-    return bubbles;
-  }, [bubbles, viewport, viewportBuffer]);
+    return bubblesToCheck;
+  }, [bubbles, viewport, viewportBuffer, renderedCount]);
   
   // Update viewport on scroll/resize (throttled)
+  // CRITICAL: Throttle viewport updates aggressively for large counts
+  const viewportUpdateThrottleRef = useRef<number | null>(null);
+  const lastViewportUpdateRef = useRef<number>(0);
+  
   const updateViewport = useCallback(() => {
     if (!containerRef.current) return;
+    
+    // Throttle updates - only update every 100ms for large counts
+    const now = Date.now();
+    const throttleMs = bubbles.length > 300 ? 100 : bubbles.length > 200 ? 50 : 16;
+    
+    if (now - lastViewportUpdateRef.current < throttleMs) {
+      return; // Skip this update
+    }
+    lastViewportUpdateRef.current = now;
     
     // Get container's position relative to viewport
     const rect = containerRef.current.getBoundingClientRect();
@@ -331,19 +569,37 @@ export const PredictionBubbleField: React.FC<Props> = ({
       left: rect.left,
       right: rect.right,
     });
-  }, []);
+  }, [bubbles.length]);
   
   useEffect(() => {
     if (!containerRef.current) return;
     
     updateViewport();
     
+    // CRITICAL: Throttle scroll/resize handlers aggressively for large counts
+    let rafId: number | null = null;
+    let scrollTimeout: NodeJS.Timeout | null = null;
+    
     const handleScroll = () => {
-      requestAnimationFrame(updateViewport);
+      // Cancel any pending updates
+      if (rafId) cancelAnimationFrame(rafId);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      
+      // For large counts, use setTimeout instead of RAF to throttle more aggressively
+      if (bubbles.length > 300) {
+        scrollTimeout = setTimeout(() => {
+          updateViewport();
+        }, 50); // 50ms throttle for very large counts
+      } else {
+        rafId = requestAnimationFrame(updateViewport);
+      }
     };
     
     const handleResize = () => {
-      requestAnimationFrame(updateViewport);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      // Resize is less frequent, can use RAF
+      rafId = requestAnimationFrame(updateViewport);
     };
     
     // Use passive listeners for better performance
@@ -355,11 +611,13 @@ export const PredictionBubbleField: React.FC<Props> = ({
     container.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
       container.removeEventListener('scroll', handleScroll);
     };
-  }, [updateViewport]);
+  }, [updateViewport, bubbles.length]);
   
   // Mark as rendered once we have bubbles and size is ready
   useEffect(() => {
@@ -380,6 +638,7 @@ export const PredictionBubbleField: React.FC<Props> = ({
     // Store initial mouse position to distinguish click from drag
     mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
     isDraggingRef.current = false;
+    hasDraggedRef.current = false; // Reset drag flag
     
     // Don't set draggedBubbleId yet - wait to see if mouse moves
     setDragOffset({
@@ -392,10 +651,16 @@ export const PredictionBubbleField: React.FC<Props> = ({
     if (!dragOffset || !containerRef.current) return;
     
     // Check if mouse has moved enough to consider it a drag (not just a click)
-    const dragThreshold = 5; // pixels
+    const dragThreshold = 3; // Lower threshold - 3 pixels to catch drags earlier
     if (mouseDownPosRef.current) {
       const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
       const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+      
+      // CRITICAL: Set hasDraggedRef IMMEDIATELY when mouse moves, even before threshold
+      // This prevents any click events from firing
+      if (dx > 0 || dy > 0) {
+        hasDraggedRef.current = true; // Mark drag immediately on ANY movement
+      }
       
       if (dx < dragThreshold && dy < dragThreshold) {
         // Mouse hasn't moved enough - treat as click, not drag
@@ -405,6 +670,7 @@ export const PredictionBubbleField: React.FC<Props> = ({
       // Mouse has moved - this is a drag
       if (!isDraggingRef.current) {
         isDraggingRef.current = true;
+        hasDraggedRef.current = true; // Mark that a drag occurred (redundant but safe)
         // Find which bubble we're dragging based on mouse position
         const rect = containerRef.current.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
@@ -680,11 +946,26 @@ export const PredictionBubbleField: React.FC<Props> = ({
       setBubblePositions({ ...persistentPositionsRef.current });
     }
     
+    // CRITICAL: Clear drag state but keep hasDraggedRef for longer to prevent click
+    // Keep it longer to ensure click events are completely blocked
+    const wasDragging = hasDraggedRef.current || isDraggingRef.current;
     lastMousePosRef.current = null;
     setDraggedBubbleId(null);
     setDragOffset(null);
     mouseDownPosRef.current = null;
     isDraggingRef.current = false;
+    
+    // CRITICAL: Keep hasDraggedRef true for longer to prevent ANY click after drag
+    // This prevents the performance panel from opening when dragging
+    if (wasDragging) {
+      // Keep flag true for 300ms to ensure all click events are blocked
+      setTimeout(() => {
+        hasDraggedRef.current = false;
+      }, 300); // Longer delay to ensure clicks are blocked
+    } else {
+      // If no drag occurred, clear immediately
+      hasDraggedRef.current = false;
+    }
   };
 
   return (
@@ -711,29 +992,40 @@ export const PredictionBubbleField: React.FC<Props> = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {isSizeReady && visibleBubbles.length > 0 && visibleBubbles.map((bubble) => {
-        const isSelected =
-          selectedNodeId === bubble.id ||
-          (selectedAgent &&
-            bubble.data.agentName ===
-              agents.find((a) => a.id === selectedAgent)?.name);
-        const isHighlighted = isSelected || hoveredBubbleId === bubble.id;
-        const isDragging = draggedBubbleId === bubble.id;
+      {isSizeReady && visibleBubbles.length > 0 && (() => {
+        // CRITICAL: Pre-calculate expensive lookups ONCE, not for every bubble
+        const selectedAgentName = selectedAgent ? agents.find((a) => a.id === selectedAgent)?.name : null;
         
-        // When agent is selected, dim non-matching bubbles but keep same size/styling
-        const opacity = selectedAgent && !isSelected ? 0.4 : 1;
+        return visibleBubbles.map((bubble) => {
+          // CRITICAL: Use pre-calculated values to prevent expensive lookups in loop
+          const isSelected =
+            selectedNodeId === bubble.id ||
+            (selectedAgentName && bubble.data.agentName === selectedAgentName);
+          const isHighlighted = isSelected || hoveredBubbleId === bubble.id;
+          const isDragging = draggedBubbleId === bubble.id;
+          
+          // When agent is selected, dim non-matching bubbles but keep same size/styling
+          const opacity = selectedAgent && !isSelected ? 0.4 : 1;
+        
+        // Note: visibleBubbles useMemo already filters by viewport correctly
+        // No need for expensive getBoundingClientRect calls here
 
         return (
           <div
             key={bubble.id}
             className="absolute banter-bubble-wrapper"
             style={{
-              left: bubble.x - bubble.radius,
-              top: bubble.y - bubble.radius,
-              width: bubble.radius * 2,
-              height: bubble.radius * 2,
+              // CRITICAL: Use fixed positioning - bubbles should NEVER move when container resizes
+              position: 'absolute',
+              left: `${bubble.x - bubble.radius}px`,
+              top: `${bubble.y - bubble.radius}px`,
+              width: `${bubble.radius * 2}px`,
+              height: `${bubble.radius * 2}px`,
               borderRadius: '50%', // Make wrapper round too
               overflow: 'hidden', // Clip to round shape
+              // CRITICAL: Prevent any layout shifts during transitions
+              willChange: isTransitioning || isResizing ? 'auto' : 'transform',
+              transform: 'translateZ(0)', // GPU acceleration - single transform property
               // Floating animation - smooth natural float (like bubbles in water)
               // Enable for all bubbles for more bubbly effect
               animationName: isDragging ? 'none' : 'bubble-float-smooth',
@@ -748,7 +1040,6 @@ export const PredictionBubbleField: React.FC<Props> = ({
                 : bubblePositions[bubble.id] && bubble.id !== draggedBubbleId
                 ? 'left 0.2s cubic-bezier(0.4, 0, 0.2, 1), top 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease' // Smooth transition for pushed bubbles
                 : 'none', // NO transition on position updates - prevents glitchy movement
-              transform: 'translateZ(0)',
               opacity: hasRendered ? opacity : 0,
               // OPTIMIZED: Better CSS containment for performance (paint removed to allow glow)
               contain: 'layout style', // Layout/style containment for performance
@@ -781,9 +1072,22 @@ export const PredictionBubbleField: React.FC<Props> = ({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (!isDragging) {
-                onBubbleClick?.(bubble.data);
+              e.stopImmediatePropagation(); // CRITICAL: Stop ALL event propagation immediately
+              
+              // CRITICAL: Prevent click if drag occurred or if currently dragging
+              // Check ALL drag flags to ensure no clicks fire after drags
+              if (hasDraggedRef.current || isDraggingRef.current || isDragging || draggedBubbleId) {
+                // Drag occurred - DO NOT fire click
+                return;
               }
+              
+              // Only fire click if NO drag occurred - add delay to be extra safe
+              setTimeout(() => {
+                // Double-check drag didn't occur during delay
+                if (!hasDraggedRef.current && !isDraggingRef.current && !draggedBubbleId) {
+                  onBubbleClick?.(bubble.data);
+                }
+              }, 50);
             }}
             onMouseEnter={() => setHoveredBubbleId(bubble.id)}
             onMouseLeave={() => {
@@ -801,14 +1105,18 @@ export const PredictionBubbleField: React.FC<Props> = ({
               isHighlighted={isHighlighted}
               isDragging={isDragging}
               onClick={() => {
-                if (!isDragging) {
-                  onBubbleClick?.(bubble.data);
+                // CRITICAL: Also check drag flags in PredictionNode onClick
+                if (hasDraggedRef.current || isDraggingRef.current || isDragging || draggedBubbleId) {
+                  // Drag occurred - DO NOT fire click
+                  return;
                 }
+                // Only fire click if NO drag occurred
+                onBubbleClick?.(bubble.data);
               }}
             />
           </div>
         );
-      })}
+        })})()}
     </div>
   );
 };

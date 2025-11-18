@@ -86,7 +86,7 @@ export const MarketDetailsPanel = ({ market, onClose }: MarketDetailsPanelProps)
   const noPrice = market.noPrice ?? (isYes ? 1 - market.price : market.price);
 
   return (
-    <div className="h-full flex flex-col bg-bg-elevated overflow-hidden">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-border bg-secondary/50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">

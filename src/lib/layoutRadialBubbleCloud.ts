@@ -25,6 +25,13 @@ export function layoutRadialBubbleCloud<T>(
       return [];
     }
     
+    // CRITICAL: For 150+ bubbles, use ultra-simple grid layout to prevent crashes
+    // Skip ALL expensive collision detection and verification for better performance
+    const totalItems = Math.min(items.length, maxVisible);
+    if (totalItems >= 150) {
+      return layoutSimpleGrid(items.slice(0, totalItems), width, height);
+    }
+    
   // Container height already accounts for navbars (viewport - top navbar - bottom navbar)
   // Add padding to keep bubbles away from edges (glow extends ~15px)
   const edgePadding = 20; // Padding to keep bubbles away from container edges
@@ -234,12 +241,12 @@ export function layoutRadialBubbleCloud<T>(
     }
 
     // Try positions in a spiral around the preferred position
-    // OPTIMIZED: Reduce spiral attempts for many bubbles
+    // OPTIMIZED: Dramatically reduce spiral attempts for many bubbles to prevent freezing
     const animationBuffer = 15; // Reduced for tighter packing
     const maxSpiralRadius = Math.min(width, height) / 2;
     const stepSize = effectiveMinGap + radius + animationBuffer; // Larger steps for better spacing
     let spiralRadius = stepSize;
-    const maxSpiralAttempts = n > 200 ? 100 : n > 100 ? 200 : 300; // Fewer attempts for many bubbles
+    const maxSpiralAttempts = n > 300 ? 20 : n > 200 ? 50 : n > 150 ? 80 : n > 100 ? 150 : 300; // Much fewer attempts for many bubbles
     
     while (spiralRadius < maxSpiralRadius && bubbles.length < maxSpiralAttempts) {
       const numPoints = Math.max(8, Math.floor((2 * Math.PI * spiralRadius) / stepSize));
@@ -309,7 +316,8 @@ export function layoutRadialBubbleCloud<T>(
     let pos = findNonCollidingPosition(radius, preferredX, preferredY);
     
     // If first attempt fails, try random positions across the screen
-    const maxRandomAttempts = 100;
+    // OPTIMIZED: Reduce random attempts for many bubbles
+    const maxRandomAttempts = n > 300 ? 20 : n > 200 ? 50 : 100;
     if (!pos) {
       let attempts = 0;
       while (!pos && attempts < maxRandomAttempts) {
@@ -399,9 +407,10 @@ export function layoutRadialBubbleCloud<T>(
   rebuildSpatialGrid();
   
   // Post-processing: resolve any remaining collisions with iterative relaxation
-  // OPTIMIZED: Reduce iterations based on bubble count for performance
-  // For many bubbles, use fewer iterations but still ensure separation
-  const maxRelaxationIterations = n > 200 ? 50 : n > 100 ? 100 : n > 50 ? 200 : 300;
+  // OPTIMIZED: Dramatically reduce iterations for many bubbles to prevent freezing
+  // For many bubbles, use much fewer iterations - prioritize performance over perfect spacing
+  // Skip entirely for 250+ bubbles (handled by simple grid above)
+  const maxRelaxationIterations = n > 250 ? 0 : n > 200 ? 10 : n > 150 ? 20 : n > 100 ? 30 : n > 50 ? 50 : 100;
   let totalMoved = 0;
   
   for (let iter = 0; iter < maxRelaxationIterations; iter++) {
@@ -468,8 +477,9 @@ export function layoutRadialBubbleCloud<T>(
   }
 
   // STRICT Final verification - run MULTIPLE passes until ZERO overlaps remain
-  // OPTIMIZED: Reduce verification passes for many bubbles
-  const maxVerificationPasses = n > 200 ? 10 : n > 100 ? 25 : n > 50 ? 50 : 75;
+  // OPTIMIZED: Dramatically reduce verification passes for many bubbles to prevent freezing
+  // Skip verification entirely for very large counts - prioritize performance
+  const maxVerificationPasses = n > 300 ? 0 : n > 200 ? 3 : n > 150 ? 5 : n > 100 ? 10 : n > 50 ? 25 : 50;
   let verificationPasses = 0;
   let overlapsRemaining = 0;
   
@@ -608,5 +618,74 @@ export function layoutRadialBubbleCloud<T>(
   } catch (error) {
     return [];
   }
+}
+
+// ULTRA-SIMPLE grid layout for 300+ bubbles - NO collision detection, NO verification
+// This prevents crashes and freezing for very large bubble counts
+function layoutSimpleGrid<T>(
+  items: BubbleItem<T>[],
+  width: number,
+  height: number
+): PositionedBubble<T>[] {
+  const n = items.length;
+  const edgePadding = 20;
+  const usableWidth = width - 2 * edgePadding;
+  const usableHeight = height - 2 * edgePadding;
+  
+  // Calculate grid dimensions - aim for roughly square cells
+  const aspectRatio = usableWidth / usableHeight;
+  const cols = Math.ceil(Math.sqrt(n * aspectRatio));
+  const rows = Math.ceil(n / cols);
+  
+  // Calculate cell size
+  const cellWidth = usableWidth / cols;
+  const cellHeight = usableHeight / rows;
+  const cellSize = Math.min(cellWidth, cellHeight);
+  
+  // Fixed radius for all bubbles (very small to fit many)
+  // CRITICAL: For 150+ bubbles, ALWAYS use fixed radius (no volume calculation) for max performance
+  // Volume calculations are expensive and cause slowness
+  const useFixedRadius = n >= 150; // Always use fixed radius for 150+
+  const radius = Math.max(15, Math.min(30, cellSize * 0.35));
+  
+  // SKIP volume calculations entirely for 150+ bubbles - too expensive
+  // No size variation for large counts - all bubbles same size for performance
+  
+  const bubbles: PositionedBubble<T>[] = [];
+  
+  // Place bubbles in grid - simple, fast, no collision detection
+  for (let i = 0; i < n; i++) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    
+    // Center in cell with slight random offset for natural look
+    // CRITICAL: Reduce/eliminate random offset for 150+ bubbles - Math.random() is expensive
+    const offsetFactor = n >= 300 ? 0 : n >= 200 ? 0.1 : n >= 150 ? 0.15 : 0.3; // No offset for very large counts
+    const baseX = edgePadding + (col + 0.5) * cellWidth;
+    const baseY = edgePadding + (row + 0.5) * cellHeight;
+    // Skip random calculation for 300+ bubbles - use deterministic positioning
+    const offsetX = offsetFactor > 0 ? (Math.random() - 0.5) * cellWidth * offsetFactor : 0;
+    const offsetY = offsetFactor > 0 ? (Math.random() - 0.5) * cellHeight * offsetFactor : 0;
+    
+    // CRITICAL: Always use fixed radius for 150+ bubbles - no volume calculations
+    // Volume calculations are too expensive and cause performance issues
+    const bubbleRadius = radius; // Fixed size for all bubbles
+    
+    // Clamp to bounds
+    const x = Math.max(edgePadding + bubbleRadius, Math.min(width - edgePadding - bubbleRadius, baseX + offsetX));
+    const y = Math.max(edgePadding + bubbleRadius, Math.min(height - edgePadding - bubbleRadius, baseY + offsetY));
+    
+    bubbles.push({
+      id: items[i].id,
+      data: items[i].data,
+      x,
+      y,
+      radius: bubbleRadius,
+      index: i,
+    });
+  }
+  
+  console.log(`Simple grid layout: ${bubbles.length} bubbles placed (fast mode for large count)`);
+  return bubbles;
 }
 

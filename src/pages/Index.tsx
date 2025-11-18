@@ -46,6 +46,8 @@ const Index = () => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [agents, setAgents] = useState(mockAgents);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  // Track if performance panel was auto-opened from a bubble click (when both panels were closed)
+  const performancePanelAutoOpenedRef = useRef(false);
   const [marketModalOpen, setMarketModalOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionNodeData | null>(null);
   // Removed zoom/pan - bubbles now fill full screen and can only be dragged individually
@@ -241,18 +243,106 @@ const Index = () => {
     }
   };
 
+  // Track if we're currently transitioning to prevent unwanted panel opens
+  const isTransitioningRef = useRef(false);
+  const bubbleClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const handleBubbleClick = (prediction: PredictionNodeData) => {
-    setSelectedPrediction(prediction);
-    // Show in side panel instead of modal
-    // Ensure performance panel is open to show the details
-    if (!isPerformanceOpen) {
-      setIsPerformanceOpen(true);
+    // CRITICAL: Clear any pending click timeout
+    if (bubbleClickTimeoutRef.current) {
+      clearTimeout(bubbleClickTimeoutRef.current);
+      bubbleClickTimeoutRef.current = null;
     }
+    
+    // CRITICAL: Don't open panel if we're transitioning - prevents glitching
+    if (isTransitioningRef.current || isTransitioning) {
+      return;
+    }
+    
+    // CRITICAL: Add a small delay to ensure this wasn't triggered by a drag
+    // This prevents the panel from opening when dragging bubbles
+    bubbleClickTimeoutRef.current = setTimeout(() => {
+      // Double-check we're still not transitioning
+      if (isTransitioningRef.current || isTransitioning) {
+        return;
+      }
+      
+      setSelectedPrediction(prediction);
+      // Show in side panel instead of modal
+      // Ensure performance panel is open to show the details
+      // CRITICAL: Only open if it's a genuine click, not after a drag
+      if (!isPerformanceOpen) {
+        // CRITICAL: Mark that panel was auto-opened from bubble click
+        performancePanelAutoOpenedRef.current = true;
+        
+        // CRITICAL: Set transition state to prevent bubble layout recalculation
+        setIsTransitioning(true);
+        isTransitioningRef.current = true;
+        
+        // CRITICAL: Set panel size to default (30%) when opening from bubble click
+        // This ensures the panel opens at the correct size, not smaller
+        const defaultSize = 30;
+        setIsPerformanceOpen(true);
+        setLeftPanelSize(defaultSize);
+        setSavedLeftPanelSize(defaultSize);
+        if (leftPanelRef.current) {
+          leftPanelRef.current.size = defaultSize;
+        }
+        // Update localStorage
+        localStorage.setItem('savedLeftPanelSize', '30');
+        localStorage.removeItem('react-resizable-panels:panel-layout');
+        // Update middle panel size
+        const newMiddle = isSummaryOpen 
+          ? 100 - defaultSize - rightPanelSize
+          : 100 - defaultSize;
+        setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+        
+        // Clear transition state after animation completes
+        setTimeout(() => {
+          setIsTransitioning(false);
+          isTransitioningRef.current = false;
+        }, 200);
+      } else {
+        // Panel was already open (manually opened), so don't mark as auto-opened
+        performancePanelAutoOpenedRef.current = false;
+      }
+      bubbleClickTimeoutRef.current = null;
+    }, 100); // Longer delay to catch drag events
   };
 
   const handleCloseMarketDetails = () => {
     setSelectedPrediction(null);
     setSelectedNode(null);
+    // CRITICAL: If performance panel was auto-opened from a bubble click (when both panels were closed),
+    // close it when user clicks X to return to dashboard view
+    if (isPerformanceOpen && performancePanelAutoOpenedRef.current) {
+      // Reset the auto-opened flag
+      performancePanelAutoOpenedRef.current = false;
+      
+      // Set transition state to prevent bubble layout recalculation
+      setIsTransitioning(true);
+      isTransitioningRef.current = true;
+      
+      // Close the performance panel
+      setIsPerformanceOpen(false);
+      setLeftPanelSize(0);
+      setSavedLeftPanelSize(0);
+      if (leftPanelRef.current) {
+        leftPanelRef.current.size = 0;
+      }
+      
+      // Update middle panel to take full space
+      const newMiddle = isSummaryOpen 
+        ? 100 - rightPanelSize
+        : 100;
+      setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      
+      // Clear transition state after animation completes
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 200);
+    }
   };
 
   // Pan/zoom handlers removed - bubbles now fill full screen and can only be dragged individually
@@ -532,7 +622,11 @@ const Index = () => {
 
   const handleTogglePerformance = () => {
     const newState = !isPerformanceOpen;
+    // CRITICAL: Reset auto-opened flag when manually toggling
+    performancePanelAutoOpenedRef.current = false;
+    
     setIsTransitioning(true);
+    isTransitioningRef.current = true; // Set ref to prevent bubble clicks from opening panel
     setIsPerformanceOpen(newState);
     if (newState) {
       // Opening Performance - always restore to default size (30%)
@@ -561,8 +655,11 @@ const Index = () => {
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
       // DO NOT touch Summary refs - keep panels independent
     }
-    // Clear transitioning state after animation completes
-    setTimeout(() => setIsTransitioning(false), 400);
+    // Clear transitioning state after animation completes - faster transition
+    setTimeout(() => {
+      setIsTransitioning(false);
+      isTransitioningRef.current = false; // Clear ref after transition
+    }, 200); // Faster transition - 200ms instead of 400ms
   };
 
   const handleToggleSummary = () => {
@@ -576,7 +673,10 @@ const Index = () => {
         ? 100 - leftPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-      setTimeout(() => setIsTransitioning(false), 400);
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 200); // Faster transition
       return;
     }
     
@@ -596,7 +696,10 @@ const Index = () => {
       ? 100 - leftPanelSize - defaultSize
       : 100 - defaultSize;
     setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-    setTimeout(() => setIsTransitioning(false), 400);
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 200); // Faster transition
   };
 
   const handleToggleAgentBuilder = () => {
@@ -613,7 +716,10 @@ const Index = () => {
         ? 100 - leftPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-      setTimeout(() => setIsTransitioning(false), 400);
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 200); // Faster transition
       return;
     }
     
@@ -633,7 +739,10 @@ const Index = () => {
       ? 100 - leftPanelSize - defaultSize
       : 100 - defaultSize;
     setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-    setTimeout(() => setIsTransitioning(false), 400);
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 200); // Faster transition
   };
 
   const handleToggleNewsFeed = () => {
@@ -651,7 +760,10 @@ const Index = () => {
         ? 100 - leftPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-      setTimeout(() => setIsTransitioning(false), 400);
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 200); // Faster transition
       return;
     }
     
@@ -671,7 +783,10 @@ const Index = () => {
       ? 100 - leftPanelSize - defaultSize
       : 100 - defaultSize;
     setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
-    setTimeout(() => setIsTransitioning(false), 400);
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 200); // Faster transition
   };
 
   return (
@@ -679,7 +794,7 @@ const Index = () => {
       {/* Global styles for smooth panel transitions */}
       <style>{`
         [data-panel-id] {
-          transition: ${isTransitioning ? 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'} !important;
+          transition: ${isTransitioning ? 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'} !important;
         }
         [data-panel-group] {
           transition: ${isTransitioning ? 'none' : 'none'} !important;
@@ -1204,6 +1319,8 @@ const Index = () => {
                 selectedNodeId={selectedNode}
                 selectedAgent={selectedAgent}
                 agents={mockAgents}
+                isTransitioning={isTransitioning}
+                isResizing={isResizing}
               />
             </div>
           </div>
