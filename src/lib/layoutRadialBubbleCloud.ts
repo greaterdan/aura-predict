@@ -163,24 +163,58 @@ export function layoutRadialBubbleCloud<T>(
     bubbleRadii.push(radius);
   }
 
+  // OPTIMIZED: Spatial grid for O(1) collision detection instead of O(n)
+  const gridCellSize = Math.max(100, maxVolumeRadius * 2 + effectiveMinGap + 15);
+  const gridCols = Math.ceil(width / gridCellSize);
+  const gridRows = Math.ceil(height / gridCellSize);
+  const spatialGrid: PositionedBubble<T>[][] = Array(gridRows * gridCols).fill(null).map(() => []);
+  
+  // Helper to get grid cell index
+  const getGridIndex = (x: number, y: number): number => {
+    const col = Math.floor(Math.max(0, Math.min(width - 1, x)) / gridCellSize);
+    const row = Math.floor(Math.max(0, Math.min(height - 1, y)) / gridCellSize);
+    return row * gridCols + col;
+  };
+  
+  // Helper to get all nearby grid cells
+  const getNearbyCells = (x: number, y: number, radius: number): number[] => {
+    const cells: number[] = [];
+    const searchRadius = radius + maxVolumeRadius + effectiveMinGap + 15;
+    const minCol = Math.max(0, Math.floor((x - searchRadius) / gridCellSize));
+    const maxCol = Math.min(gridCols - 1, Math.floor((x + searchRadius) / gridCellSize));
+    const minRow = Math.max(0, Math.floor((y - searchRadius) / gridCellSize));
+    const maxRow = Math.min(gridRows - 1, Math.floor((y + searchRadius) / gridCellSize));
+    
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let col = minCol; col <= maxCol; col++) {
+        cells.push(row * gridCols + col);
+      }
+    }
+    return cells;
+  };
+  
   // Function to check if a position would collide with existing bubbles
-  // CRITICAL: Account for visual extensions (borders, shadows, glows, animation movement)
-  // STRICT: Bubbles must NEVER touch or overlap
+  // OPTIMIZED: Uses spatial grid for O(k) where k is nearby bubbles, not O(n)
   const hasCollision = (x: number, y: number, radius: number, excludeIndex: number = -1): boolean => {
-    for (let j = 0; j < bubbles.length; j++) {
-      if (j === excludeIndex) continue;
-      const existingBubble = bubbles[j];
-      const dx = x - existingBubble.x;
-      const dy = y - existingBubble.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      // Use effective gap that accounts for visual extensions AND animation movement
-      // Add extra buffer for floating animation (bubbles move ~15px during animation)
-      const animationBuffer = 15; // Reduced for tighter packing
-      const minDistance = radius + existingBubble.radius + effectiveMinGap + animationBuffer;
-      
-      // STRICT: If distance is less than minimum, it's a collision
-      if (distance < minDistance && distance > 0.001) {
-        return true;
+    const nearbyCells = getNearbyCells(x, y, radius);
+    const animationBuffer = 15;
+    const minDistance = radius + maxVolumeRadius + effectiveMinGap + animationBuffer;
+    
+    for (const cellIndex of nearbyCells) {
+      const cellBubbles = spatialGrid[cellIndex] || [];
+      for (const existingBubble of cellBubbles) {
+        // Skip if this is the excluded bubble
+        const bubbleIndex = bubbles.findIndex(b => b.id === existingBubble.id);
+        if (bubbleIndex === excludeIndex) continue;
+        
+        const dx = x - existingBubble.x;
+        const dy = y - existingBubble.y;
+        const distanceSq = dx * dx + dy * dy; // Use squared distance to avoid sqrt
+        const minDistanceSq = (radius + existingBubble.radius + effectiveMinGap + animationBuffer) ** 2;
+        
+        if (distanceSq < minDistanceSq && distanceSq > 0.000001) {
+          return true;
+        }
       }
     }
     return false;
@@ -200,12 +234,12 @@ export function layoutRadialBubbleCloud<T>(
     }
 
     // Try positions in a spiral around the preferred position
-    // Use larger step size to ensure proper spacing
+    // OPTIMIZED: Reduce spiral attempts for many bubbles
     const animationBuffer = 15; // Reduced for tighter packing
     const maxSpiralRadius = Math.min(width, height) / 2;
     const stepSize = effectiveMinGap + radius + animationBuffer; // Larger steps for better spacing
     let spiralRadius = stepSize;
-    const maxSpiralAttempts = 500; // More attempts to find a good position
+    const maxSpiralAttempts = n > 200 ? 100 : n > 100 ? 200 : 300; // Fewer attempts for many bubbles
     
     while (spiralRadius < maxSpiralRadius && bubbles.length < maxSpiralAttempts) {
       const numPoints = Math.max(8, Math.floor((2 * Math.PI * spiralRadius) / stepSize));
@@ -332,19 +366,42 @@ export function layoutRadialBubbleCloud<T>(
       }
     }
     
-    bubbles.push({
+    const newBubble: PositionedBubble<T> = {
       id: item.id,
       data: item.data,
       x: finalX,
       y: finalY,
       radius,
       index: i,
-    });
+    };
+    
+    bubbles.push(newBubble);
+    
+    // OPTIMIZED: Add to spatial grid for fast collision detection
+    const gridIndices = getNearbyCells(finalX, finalY, radius);
+    for (const idx of gridIndices) {
+      if (!spatialGrid[idx]) spatialGrid[idx] = [];
+      spatialGrid[idx].push(newBubble);
+    }
   }
 
+  // OPTIMIZED: Rebuild spatial grid after initial placement
+  const rebuildSpatialGrid = () => {
+    spatialGrid.forEach(cell => cell.length = 0);
+    bubbles.forEach(bubble => {
+      const gridIndices = getNearbyCells(bubble.x, bubble.y, bubble.radius);
+      for (const idx of gridIndices) {
+        if (!spatialGrid[idx]) spatialGrid[idx] = [];
+        spatialGrid[idx].push(bubble);
+      }
+    });
+  };
+  rebuildSpatialGrid();
+  
   // Post-processing: resolve any remaining collisions with iterative relaxation
-  // STRICT: Run MANY iterations until NO overlaps remain
-  const maxRelaxationIterations = 500; // Increased significantly - MUST resolve all overlaps
+  // OPTIMIZED: Reduce iterations based on bubble count for performance
+  // For many bubbles, use fewer iterations but still ensure separation
+  const maxRelaxationIterations = n > 200 ? 50 : n > 100 ? 100 : n > 50 ? 200 : 300;
   let totalMoved = 0;
   
   for (let iter = 0; iter < maxRelaxationIterations; iter++) {
@@ -355,25 +412,30 @@ export function layoutRadialBubbleCloud<T>(
       let fx = 0; // Force X
       let fy = 0; // Force Y
       
-      // Calculate repulsion forces from all other bubbles
-      for (let j = 0; j < bubbles.length; j++) {
-        if (i === j) continue;
-        const other = bubbles[j];
-        const dx = bubble.x - other.x;
-        const dy = bubble.y - other.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        // Include animation buffer in minimum distance check
-        const animationBuffer = 15;
-        const minDistance = bubble.radius + other.radius + effectiveMinGap + animationBuffer;
-        
-        if (distance < minDistance && distance > 0.001) {
-          // Overlap detected - EXTREMELY STRONG repulsion force
-          const overlap = minDistance - distance;
-          const force = overlap * 3.0; // MUCH more aggressive repulsion to prevent touching/stacking
-          const angle = Math.atan2(dy, dx);
-          fx += Math.cos(angle) * force;
-          fy += Math.sin(angle) * force;
-          moved = true;
+      // OPTIMIZED: Use spatial grid to only check nearby bubbles
+      const nearbyCells = getNearbyCells(bubble.x, bubble.y, bubble.radius);
+      const animationBuffer = 15;
+      const minDistanceBase = bubble.radius + effectiveMinGap + animationBuffer;
+      
+      for (const cellIndex of nearbyCells) {
+        const cellBubbles = spatialGrid[cellIndex] || [];
+        for (const other of cellBubbles) {
+          if (other.id === bubble.id) continue;
+          const dx = bubble.x - other.x;
+          const dy = bubble.y - other.y;
+          const distanceSq = dx * dx + dy * dy;
+          const minDistance = minDistanceBase + other.radius;
+          const minDistanceSq = minDistance * minDistance;
+          
+          if (distanceSq < minDistanceSq && distanceSq > 0.000001) {
+            const distance = Math.sqrt(distanceSq);
+            const overlap = minDistance - distance;
+            const force = overlap * 3.0;
+            const angle = Math.atan2(dy, dx);
+            fx += Math.cos(angle) * force;
+            fy += Math.sin(angle) * force;
+            moved = true;
+          }
         }
       }
       
@@ -396,81 +458,94 @@ export function layoutRadialBubbleCloud<T>(
       }
     }
     
+    // OPTIMIZED: Rebuild spatial grid after each iteration
+    if (moved) {
+      rebuildSpatialGrid();
+    }
+    
     // If no bubbles moved, we're done
     if (!moved) break;
   }
 
   // STRICT Final verification - run MULTIPLE passes until ZERO overlaps remain
-  // This is the ABSOLUTE last resort to ensure perfect separation
-  // DO NOT REMOVE - just force separate
+  // OPTIMIZED: Reduce verification passes for many bubbles
+  const maxVerificationPasses = n > 200 ? 10 : n > 100 ? 25 : n > 50 ? 50 : 75;
   let verificationPasses = 0;
-  const maxVerificationPasses = 100; // Increased significantly
   let overlapsRemaining = 0;
   
   do {
     overlapsRemaining = 0;
+    rebuildSpatialGrid(); // Ensure grid is up to date
     
+    // OPTIMIZED: Use spatial grid to only check nearby bubbles
     for (let i = 0; i < bubbles.length; i++) {
-      for (let j = i + 1; j < bubbles.length; j++) {
-        const a = bubbles[i];
-        const b = bubbles[j];
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        // Include animation buffer in final verification
-        const animationBuffer = 15;
-        const minDistance = a.radius + b.radius + effectiveMinGap + animationBuffer;
-        
-        if (distance < minDistance && distance > 0.001) {
-          overlapsRemaining++;
+      const a = bubbles[i];
+      const nearbyCells = getNearbyCells(a.x, a.y, a.radius);
+      const animationBuffer = 15;
+      const minDistanceBase = a.radius + effectiveMinGap + animationBuffer;
+      
+      for (const cellIndex of nearbyCells) {
+        const cellBubbles = spatialGrid[cellIndex] || [];
+        for (const b of cellBubbles) {
+          if (b.id === a.id || bubbles.findIndex(bub => bub.id === b.id) <= i) continue; // Skip self and already checked pairs
           
-          // Try emergency separation first - FORCE apart with extra space
-          const overlap = minDistance - distance;
-          const angle = Math.atan2(dy, dx);
-          // Push further apart to ensure gap - be EXTREMELY aggressive
-          const pushDistance = overlap + (effectiveMinGap * 1.2); // MUCH larger push to prevent stacking
-          const pushX = Math.cos(angle) * pushDistance;
-          const pushY = Math.sin(angle) * pushDistance;
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const distanceSq = dx * dx + dy * dy;
+          const minDistance = minDistanceBase + b.radius;
+          const minDistanceSq = minDistance * minDistance;
           
-          // Move both bubbles apart
-          const newAX = a.x + pushX;
-          const newAY = a.y + pushY;
-          const newBX = b.x - pushX;
-          const newBY = b.y - pushY;
-          
-          // Clamp both strictly - fill entire screen
-          const clampedAX = Math.max(a.radius, Math.min(width - a.radius, newAX));
-          const clampedAY = Math.max(a.radius, Math.min(height - a.radius, newAY));
-          const clampedBX = Math.max(b.radius, Math.min(width - b.radius, newBX));
-          const clampedBY = Math.max(b.radius, Math.min(height - b.radius, newBY));
-          
-          // Check if separation worked - if not, mark one for removal
-          const newDx = clampedAX - clampedBX;
-          const newDy = clampedAY - clampedBY;
-          const newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
-          
-          if (newDistance >= minDistance) {
-            // Separation worked, apply it
-            a.x = clampedAX;
-            a.y = clampedAY;
-            b.x = clampedBX;
-            b.y = clampedBY;
-          } else {
-            // Separation failed - try harder, push further
-            const extremePush = overlap * 2;
-            const extremePushX = Math.cos(angle) * extremePush;
-            const extremePushY = Math.sin(angle) * extremePush;
-            a.x += extremePushX;
-            a.y += extremePushY;
-            b.x -= extremePushX;
-            b.y -= extremePushY;
-            // Clamp again
-            a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
-            a.y = Math.max(a.radius, Math.min(height - a.radius, a.y));
-            b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
-            b.y = Math.max(b.radius, Math.min(height - b.radius, b.y));
+          if (distanceSq < minDistanceSq && distanceSq > 0.000001) {
+            overlapsRemaining++;
+            const distance = Math.sqrt(distanceSq);
+            
+            // Try emergency separation first - FORCE apart with extra space
+            const overlap = minDistance - distance;
+            const angle = Math.atan2(dy, dx);
+            // Push further apart to ensure gap - be EXTREMELY aggressive
+            const pushDistance = overlap + (effectiveMinGap * 1.2); // MUCH larger push to prevent stacking
+            const pushX = Math.cos(angle) * pushDistance;
+            const pushY = Math.sin(angle) * pushDistance;
+            
+            // Move both bubbles apart
+            const newAX = a.x + pushX;
+            const newAY = a.y + pushY;
+            const newBX = b.x - pushX;
+            const newBY = b.y - pushY;
+            
+            // Clamp both strictly - fill entire screen
+            const clampedAX = Math.max(a.radius, Math.min(width - a.radius, newAX));
+            const clampedAY = Math.max(a.radius, Math.min(height - a.radius, newAY));
+            const clampedBX = Math.max(b.radius, Math.min(width - b.radius, newBX));
+            const clampedBY = Math.max(b.radius, Math.min(height - b.radius, newBY));
+            
+            // Check if separation worked - if not, mark one for removal
+            const newDx = clampedAX - clampedBX;
+            const newDy = clampedAY - clampedBY;
+            const newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
+            
+            if (newDistance >= minDistance) {
+              // Separation worked, apply it
+              a.x = clampedAX;
+              a.y = clampedAY;
+              b.x = clampedBX;
+              b.y = clampedBY;
+            } else {
+              // Separation failed - try harder, push further
+              const extremePush = overlap * 2;
+              const extremePushX = Math.cos(angle) * extremePush;
+              const extremePushY = Math.sin(angle) * extremePush;
+              a.x += extremePushX;
+              a.y += extremePushY;
+              b.x -= extremePushX;
+              b.y -= extremePushY;
+              // Clamp again
+              a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
+              a.y = Math.max(a.radius, Math.min(height - a.radius, a.y));
+              b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
+              b.y = Math.max(b.radius, Math.min(height - b.radius, b.y));
+            }
           }
-          
         }
       }
     }
@@ -485,34 +560,45 @@ export function layoutRadialBubbleCloud<T>(
   
   // NO REMOVAL - keep all bubbles, just ensure they're separated
   // Final pass: Force separate any remaining overlaps instead of removing
+  // OPTIMIZED: Use spatial grid
+  rebuildSpatialGrid();
   for (let i = 0; i < bubbles.length; i++) {
-    for (let j = i + 1; j < bubbles.length; j++) {
-      const a = bubbles[i];
-      const b = bubbles[j];
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const animationBuffer = 15;
-      const minDistance = a.radius + b.radius + effectiveMinGap + animationBuffer;
-      
-      if (distance < minDistance && distance > 0.001) {
-        // Force separate - push apart
-        const overlap = minDistance - distance;
-        const angle = Math.atan2(dy, dx);
-        const pushDistance = overlap * 0.5;
-        const pushX = Math.cos(angle) * pushDistance;
-        const pushY = Math.sin(angle) * pushDistance;
+    const a = bubbles[i];
+    const nearbyCells = getNearbyCells(a.x, a.y, a.radius);
+    const animationBuffer = 15;
+    const minDistanceBase = a.radius + effectiveMinGap + animationBuffer;
+    
+    for (const cellIndex of nearbyCells) {
+      const cellBubbles = spatialGrid[cellIndex] || [];
+      for (const b of cellBubbles) {
+        if (b.id === a.id || bubbles.findIndex(bub => bub.id === b.id) <= i) continue;
         
-        a.x += pushX;
-        a.y += pushY;
-        b.x -= pushX;
-        b.y -= pushY;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const distanceSq = dx * dx + dy * dy;
+        const minDistance = minDistanceBase + b.radius;
+        const minDistanceSq = minDistance * minDistance;
         
-        // Clamp to bounds
-        a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
-        a.y = Math.max(a.radius, Math.min(height - a.radius, a.y));
-        b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
-        b.y = Math.max(b.radius, Math.min(height - b.radius, b.y));
+        if (distanceSq < minDistanceSq && distanceSq > 0.000001) {
+          const distance = Math.sqrt(distanceSq);
+          // Force separate - push apart
+          const overlap = minDistance - distance;
+          const angle = Math.atan2(dy, dx);
+          const pushDistance = overlap * 0.5;
+          const pushX = Math.cos(angle) * pushDistance;
+          const pushY = Math.sin(angle) * pushDistance;
+          
+          a.x += pushX;
+          a.y += pushY;
+          b.x -= pushX;
+          b.y -= pushY;
+          
+          // Clamp to bounds
+          a.x = Math.max(a.radius, Math.min(width - a.radius, a.x));
+          a.y = Math.max(a.radius, Math.min(height - a.radius, a.y));
+          b.x = Math.max(b.radius, Math.min(width - b.radius, b.x));
+          b.y = Math.max(b.radius, Math.min(height - b.radius, b.y));
+        }
       }
     }
   }

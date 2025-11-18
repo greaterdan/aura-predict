@@ -22,10 +22,30 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Polymarket proxy server is running', timestamp: new Date().toISOString() });
 });
 
+// Cache for predictions (5 minute cache - markets don't change that frequently)
+let predictionsCache = {
+  data: null,
+  timestamp: null,
+  category: null,
+  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
+};
+
 // Main endpoint: Get predictions (ready-to-use format)
 app.get('/api/predictions', async (req, res) => {
   try {
     const { category = 'All Markets', limit = 10000 } = req.query;
+    
+    // Check cache first
+    const cacheNow = Date.now();
+    if (predictionsCache.data && 
+        predictionsCache.category === category &&
+        predictionsCache.timestamp && 
+        (cacheNow - predictionsCache.timestamp) < predictionsCache.CACHE_DURATION) {
+      console.log(`[CACHE HIT] Returning cached predictions for category: ${category}`);
+      return res.json(predictionsCache.data);
+    }
+    
+    console.log(`[CACHE MISS] Fetching fresh predictions for category: ${category}`);
     
     // Map category to Polymarket category
     let polymarketCategory = null;
@@ -124,12 +144,22 @@ app.get('/api/predictions', async (req, res) => {
       filteredPredictions = filteredPredictions.slice(0, parseInt(limit));
     }
     
-    res.json({
+    // Cache the response AFTER filtering
+    const responseData = {
       predictions: filteredPredictions,
       count: filteredPredictions.length,
       totalFetched: markets.length,
       totalTransformed: predictions.length,
-    });
+    };
+    
+    predictionsCache = {
+      data: responseData,
+      timestamp: Date.now(),
+      category: category,
+      CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
+    };
+    
+    res.json(responseData);
   } catch (error) {
     res.status(500).json({ 
       error: error.message,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { PredictionNodeData } from "@/components/PredictionNode";
 import { PredictionBubbleField } from "@/components/PredictionBubbleField";
 import { PerformanceChart } from "@/components/PerformanceChart";
@@ -74,6 +74,8 @@ const Index = () => {
   // Panel visibility state - both open by default
   const [isPerformanceOpen, setIsPerformanceOpen] = useState(true);
   const [isSummaryOpen, setIsSummaryOpen] = useState(true);
+  // Track if we're transitioning to prevent dashboard glitches
+  const [isTransitioning, setIsTransitioning] = useState(false);
   // News feed toggle state
   const [showNewsFeed, setShowNewsFeed] = useState(false);
   // Store saved panel sizes to restore when reopened
@@ -193,10 +195,10 @@ const Index = () => {
     // Load immediately
     loadPredictions();
 
-    // Auto-refresh markets and prices every 30 seconds
+    // Auto-refresh markets and prices every 5 minutes (server caches for 5 minutes)
     const refreshInterval = setInterval(() => {
       loadPredictions();
-    }, 30 * 1000); // 30 seconds
+    }, 5 * 60 * 1000); // 5 minutes (matches server cache)
 
     return () => clearInterval(refreshInterval);
   }, [selectedCategory]);
@@ -428,12 +430,76 @@ const Index = () => {
   
   // Track if we're currently resizing to prevent glitching
   const isResizingRef = useRef(false);
+  const [isResizing, setIsResizing] = useState(false); // State version for re-renders
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Track which panel is being directly resized (to prevent interference)
   const isDirectlyResizingLeftRef = useRef(false);
   const isDirectlyResizingRightRef = useRef(false);
   // REMOVED: All inversion logic and refs for Summary panel
   // Summary now drags normally just like Performance - no special handling needed
+  
+  // OPTIMIZATION: Throttle resize updates using requestAnimationFrame
+  const resizeRAFRef = useRef<number | null>(null);
+  const pendingResizeUpdateRef = useRef<{ type: 'left' | 'right' | 'middle'; size: number } | null>(null);
+  
+  // Refs to track current panel sizes for resize calculations (avoid stale closures)
+  const currentLeftPanelSizeRef = useRef(leftPanelSize);
+  const currentRightPanelSizeRef = useRef(rightPanelSize);
+  
+  // Update refs when state changes
+  useEffect(() => {
+    currentLeftPanelSizeRef.current = leftPanelSize;
+  }, [leftPanelSize]);
+  
+  useEffect(() => {
+    currentRightPanelSizeRef.current = rightPanelSize;
+  }, [rightPanelSize]);
+  
+  // Batch resize updates to prevent excessive re-renders
+  const applyResizeUpdate = () => {
+    if (pendingResizeUpdateRef.current) {
+      const { type, size } = pendingResizeUpdateRef.current;
+      
+      if (type === 'left' && isPerformanceOpen && size >= 10) {
+        const clampedSize = Math.max(15, Math.min(30, size));
+        setLeftPanelSize(clampedSize);
+        setSavedLeftPanelSize(clampedSize);
+        leftPanelRef.current.size = clampedSize;
+        currentLeftPanelSizeRef.current = clampedSize;
+      } else if (type === 'right' && isSummaryOpen && size >= 10) {
+        const clampedSize = Math.max(15, Math.min(30, size));
+        setRightPanelSize(clampedSize);
+        setSavedRightPanelSize(clampedSize);
+        rightPanelRef.current.size = clampedSize;
+        currentRightPanelSizeRef.current = clampedSize;
+      } else if (type === 'middle') {
+        // Middle panel resize logic (only when both panels open)
+        if (isPerformanceOpen && isSummaryOpen) {
+          setMiddlePanelSize(size);
+          const availableSpace = 100 - size;
+          // Use refs to get current values (avoid stale closures)
+          const totalSidePanels = currentLeftPanelSizeRef.current + currentRightPanelSizeRef.current;
+          if (totalSidePanels > 0) {
+            const leftRatio = currentLeftPanelSizeRef.current / totalSidePanels;
+            const rightRatio = currentRightPanelSizeRef.current / totalSidePanels;
+            const newLeftSize = availableSpace * leftRatio;
+            const newRightSize = availableSpace * rightRatio;
+            const clampedLeftSize = Math.max(15, Math.min(30, newLeftSize));
+            const clampedRightSize = Math.max(15, Math.min(30, newRightSize));
+            setLeftPanelSize(clampedLeftSize);
+            setRightPanelSize(clampedRightSize);
+            setSavedLeftPanelSize(clampedLeftSize);
+            setSavedRightPanelSize(clampedRightSize);
+            currentLeftPanelSizeRef.current = clampedLeftSize;
+            currentRightPanelSizeRef.current = clampedRightSize;
+          }
+        }
+      }
+      
+      pendingResizeUpdateRef.current = null;
+    }
+    resizeRAFRef.current = null;
+  };
 
   // Calculate middle panel size based on which panels are open
   // CRITICAL: Skip updates during resize to prevent interference between panels
@@ -466,6 +532,7 @@ const Index = () => {
 
   const handleTogglePerformance = () => {
     const newState = !isPerformanceOpen;
+    setIsTransitioning(true);
     setIsPerformanceOpen(newState);
     if (newState) {
       // Opening Performance - always restore to default size (30%)
@@ -494,9 +561,12 @@ const Index = () => {
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
       // DO NOT touch Summary refs - keep panels independent
     }
+    // Clear transitioning state after animation completes
+    setTimeout(() => setIsTransitioning(false), 400);
   };
 
   const handleToggleSummary = () => {
+    setIsTransitioning(true);
     // If Summary is already showing (and no other view is active), close the panel
     if (isSummaryOpen && !showNewsFeed && !showAgentBuilder) {
       setIsSummaryOpen(false);
@@ -506,6 +576,7 @@ const Index = () => {
         ? 100 - leftPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      setTimeout(() => setIsTransitioning(false), 400);
       return;
     }
     
@@ -525,9 +596,11 @@ const Index = () => {
       ? 100 - leftPanelSize - defaultSize
       : 100 - defaultSize;
     setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+    setTimeout(() => setIsTransitioning(false), 400);
   };
 
   const handleToggleAgentBuilder = () => {
+    setIsTransitioning(true);
     // If Agent Builder is already showing, close the panel
     if (showAgentBuilder && isSummaryOpen && !showNewsFeed) {
       setShowAgentBuilder(false);
@@ -540,6 +613,7 @@ const Index = () => {
         ? 100 - leftPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      setTimeout(() => setIsTransitioning(false), 400);
       return;
     }
     
@@ -559,9 +633,11 @@ const Index = () => {
       ? 100 - leftPanelSize - defaultSize
       : 100 - defaultSize;
     setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+    setTimeout(() => setIsTransitioning(false), 400);
   };
 
   const handleToggleNewsFeed = () => {
+    setIsTransitioning(true);
     // If News Feed is already showing and panel is open, close it
     if (showNewsFeed && isSummaryOpen) {
       setIsSummaryOpen(false);
@@ -575,6 +651,7 @@ const Index = () => {
         ? 100 - leftPanelSize
         : 100;
       setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+      setTimeout(() => setIsTransitioning(false), 400);
       return;
     }
     
@@ -594,10 +671,20 @@ const Index = () => {
       ? 100 - leftPanelSize - defaultSize
       : 100 - defaultSize;
     setMiddlePanelSize(Math.max(20, Math.min(100, newMiddle)));
+    setTimeout(() => setIsTransitioning(false), 400);
   };
 
   return (
     <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
+      {/* Global styles for smooth panel transitions */}
+      <style>{`
+        [data-panel-id] {
+          transition: ${isTransitioning ? 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'} !important;
+        }
+        [data-panel-group] {
+          transition: ${isTransitioning ? 'none' : 'none'} !important;
+        }
+      `}</style>
       {/* Top Status Bar */}
       <SystemStatusBar 
         onToggleAgentBuilder={handleToggleAgentBuilder}
@@ -616,27 +703,32 @@ const Index = () => {
           key={`group-${isPerformanceOpen}-${isSummaryOpen}`}
           direction="horizontal" 
           className="flex-1 w-full"
-          style={{ margin: 0, padding: 0, width: '100%' }}
+          style={{ 
+            margin: 0, 
+            padding: 0, 
+            width: '100%',
+            transition: 'none', // Prevent default transitions that cause glitches
+            // OPTIMIZATION: GPU acceleration for smooth resizing
+            transform: 'translateZ(0)',
+            willChange: 'auto',
+          }}
         >
           {/* LEFT: Performance Chart */}
           <ResizablePanel 
             defaultSize={isPerformanceOpen ? 30 : 0}
             onResize={(size) => {
               // Mark as resizing IMMEDIATELY to prevent any interference
-              isResizingRef.current = true;
+              if (!isResizingRef.current) {
+                isResizingRef.current = true;
+                setIsResizing(true);
+              }
               isDirectlyResizingLeftRef.current = true;
               
-              // ONLY update Performance panel - DO NOT touch Summary panel state
-              if (isPerformanceOpen && size >= 10) {
-                // Clamp to valid range - max is initial/default size (30%)
-                const clampedSize = Math.max(15, Math.min(30, size));
-                setLeftPanelSize(clampedSize);
-                // Save the size so it restores to the same size when reopened
-                setSavedLeftPanelSize(clampedSize);
-                leftPanelRef.current.size = clampedSize; // Update ref
-                
-                // DO NOT update middlePanelSize here - let the library handle it naturally
-                // Updating it causes interference with other panels
+              // OPTIMIZATION: Throttle updates using requestAnimationFrame
+              pendingResizeUpdateRef.current = { type: 'left', size };
+              
+              if (resizeRAFRef.current === null) {
+                resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               }
               
               // Clear resizing flag after a short delay
@@ -645,7 +737,8 @@ const Index = () => {
               }
               resizeTimeoutRef.current = setTimeout(() => {
                 if (isDirectlyResizingLeftRef.current) {
-                isResizingRef.current = false;
+                  isResizingRef.current = false;
+                  setIsResizing(false);
                   isDirectlyResizingLeftRef.current = false;
                 }
               }, 150);
@@ -655,20 +748,45 @@ const Index = () => {
             collapsible={true}
             collapsedSize={0}
             className={`${isPerformanceOpen ? 'border-r border-border' : ''} overflow-hidden relative`}
+            style={{
+              // OPTIMIZATION: GPU acceleration and prevent layout thrashing
+              transform: 'translateZ(0)',
+              willChange: 'width',
+              contain: 'layout style',
+            }}
           >
-            {isPerformanceOpen && leftPanelSize >= 10 && (
-              selectedPrediction ? (
-                <MarketDetailsPanel
-                  market={selectedPrediction}
-                  onClose={handleCloseMarketDetails}
-                />
-              ) : (
-              <PerformanceChart 
-                predictions={predictions}
-                selectedMarketId={selectedNode}
-              />
-              )
-            )}
+            <AnimatePresence mode="wait">
+              {isPerformanceOpen && leftPanelSize >= 10 && (
+                <motion.div
+                  key="performance-content"
+                  initial={{ x: -30, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: -30, opacity: 0 }}
+                  transition={{
+                    duration: 0.35,
+                    ease: [0.4, 0, 0.2, 1],
+                  }}
+                  className="h-full w-full"
+                  style={{
+                    // OPTIMIZATION: Prevent expensive re-renders during resize
+                    pointerEvents: isResizing ? 'none' : 'auto',
+                    willChange: 'auto',
+                  }}
+                >
+                  {selectedPrediction ? (
+                    <MarketDetailsPanel
+                      market={selectedPrediction}
+                      onClose={handleCloseMarketDetails}
+                    />
+                  ) : (
+                    <PerformanceChart 
+                      predictions={predictions}
+                      selectedMarketId={selectedNode}
+                    />
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </ResizablePanel>
 
           {/* Only show handle when Performance panel is open */}
@@ -688,33 +806,16 @@ const Index = () => {
               
               // Only process middle panel resize when manually dragging middle panel handle
               // Mark as resizing
-              isResizingRef.current = true;
+              if (!isResizingRef.current) {
+                isResizingRef.current = true;
+                setIsResizing(true);
+              }
               
-              // Only allow manual resizing when both panels are open
-              if (isPerformanceOpen && isSummaryOpen) {
-                setMiddlePanelSize(size);
-                // When middle panel is resized, adjust side panels proportionally
-                // BUT only update sizes, don't touch Summary refs to maintain independence
-                const availableSpace = 100 - size;
-                const totalSidePanels = leftPanelSize + rightPanelSize;
-                if (totalSidePanels > 0) {
-                  const leftRatio = leftPanelSize / totalSidePanels;
-                  const rightRatio = rightPanelSize / totalSidePanels;
-                  const newLeftSize = availableSpace * leftRatio;
-                  const newRightSize = availableSpace * rightRatio;
-                  
-                  // IMPORTANT: Clamp sizes to valid range - max is initial/default size (30%)
-                  const clampedLeftSize = Math.max(15, Math.min(30, newLeftSize));
-                  const clampedRightSize = Math.max(15, Math.min(30, newRightSize));
-                  
-                  setLeftPanelSize(clampedLeftSize);
-                  setRightPanelSize(clampedRightSize);
-                  // Save the sizes so they restore to the same size when reopened
-                  setSavedLeftPanelSize(clampedLeftSize);
-                  setSavedRightPanelSize(clampedRightSize);
-                  // CRITICAL: DO NOT update Summary refs - this breaks independence
-                  // Summary panel manages its own refs independently
-                }
+              // OPTIMIZATION: Throttle updates using requestAnimationFrame
+              pendingResizeUpdateRef.current = { type: 'middle', size };
+              
+              if (resizeRAFRef.current === null) {
+                resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               }
               
               // Clear resizing flag after a delay
@@ -724,14 +825,26 @@ const Index = () => {
               resizeTimeoutRef.current = setTimeout(() => {
                 // Only clear if no side panels are being dragged
                 if (!isDirectlyResizingLeftRef.current && !isDirectlyResizingRightRef.current) {
-                isResizingRef.current = false;
+                  isResizingRef.current = false;
+                  setIsResizing(false);
                 }
               }, 200);
             }}
             minSize={20} 
             maxSize={100}
             className={`relative ${isSummaryOpen ? 'border-r border-border' : ''} flex flex-col bg-background`}
-            style={{ position: 'relative', overflow: 'hidden', zIndex: 1, padding: 0, margin: 0, width: '100%' }}
+            style={{ 
+              position: 'relative', 
+              overflow: 'hidden', 
+              zIndex: 1, 
+              padding: 0, 
+              margin: 0, 
+              width: '100%',
+              // OPTIMIZATION: GPU acceleration and prevent layout thrashing
+              transform: 'translateZ(0)',
+              willChange: 'width',
+              contain: 'layout style',
+            }}
           >
           {/* Market Category Dropdown - EDGE TO EDGE - NO MARGINS OR PADDING ON CONTAINER */}
           <div className="border-b border-border flex flex-col bg-bg-elevated" style={{ width: '100%', margin: 0, padding: 0, marginLeft: 0, marginRight: 0 }}>
@@ -1058,6 +1171,9 @@ const Index = () => {
               height: '100%',
               position: 'relative',
               overflow: 'hidden', // CRITICAL: Clip bubbles to prevent navbar overlap
+              willChange: isTransitioning || isResizing ? 'auto' : 'auto',
+              // OPTIMIZATION: Prevent layout thrashing during resize
+              contain: 'layout style paint',
             }}
           >
             {/* Subtle grid background */}
@@ -1073,6 +1189,15 @@ const Index = () => {
             />
 
             {/* Prediction Bubble Field - FULL SPACE - NO ZOOM/PAN */}
+            {/* OPTIMIZATION: Hide during resize to prevent expensive re-renders */}
+            <div 
+              style={{ 
+                width: '100%',
+                height: '100%',
+                display: isResizing ? 'none' : 'block',
+                pointerEvents: isResizing ? 'none' : 'auto',
+              }}
+            >
               <PredictionBubbleField
                 markets={limitedPredictions}
                 onBubbleClick={(market) => handleBubbleClick(market)}
@@ -1080,6 +1205,7 @@ const Index = () => {
                 selectedAgent={selectedAgent}
                 agents={mockAgents}
               />
+            </div>
           </div>
           </ResizablePanel>
 
@@ -1092,22 +1218,17 @@ const Index = () => {
             defaultSize={isSummaryOpen ? 30 : 0}
             onResize={(size) => {
               // Mark as resizing IMMEDIATELY to prevent interference
-              isResizingRef.current = true;
+              if (!isResizingRef.current) {
+                isResizingRef.current = true;
+                setIsResizing(true);
+              }
               isDirectlyResizingRightRef.current = true;
               
-              // Only allow resizing when panel is open
-              // NO INVERSION - drag normally just like Performance panel
-              if (isSummaryOpen && size >= 10) {
-                // Clamp to valid range - max is initial/default size (30%)
-                const clampedSize = Math.max(15, Math.min(30, size));
-                
-                // Update state directly - no inversion, no refs, just like Performance
-                setRightPanelSize(clampedSize);
-                setSavedRightPanelSize(clampedSize);
-                rightPanelRef.current.size = clampedSize;
-                
-                // DO NOT update middlePanelSize here - let the library handle it naturally
-                // Updating it causes interference with other panels
+              // OPTIMIZATION: Throttle updates using requestAnimationFrame
+              pendingResizeUpdateRef.current = { type: 'right', size };
+              
+              if (resizeRAFRef.current === null) {
+                resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               }
               
               // Clear resizing flag after a delay
@@ -1116,7 +1237,8 @@ const Index = () => {
               }
               resizeTimeoutRef.current = setTimeout(() => {
                 if (isDirectlyResizingRightRef.current) {
-                isResizingRef.current = false;
+                  isResizingRef.current = false;
+                  setIsResizing(false);
                   isDirectlyResizingRightRef.current = false;
                 }
               }, 150);
@@ -1126,33 +1248,58 @@ const Index = () => {
             collapsible={true}
             collapsedSize={0}
             className={`${isSummaryOpen ? 'border-l border-border' : ''} overflow-hidden relative`}
+            style={{
+              // OPTIMIZATION: GPU acceleration and prevent layout thrashing
+              transform: 'translateZ(0)',
+              willChange: 'width',
+              contain: 'layout style',
+            }}
           >
-            {isSummaryOpen && rightPanelSize >= 10 && (
-              showAgentBuilder ? (
-                custodialWallet ? (
-                  <AgentBuilder
-                    walletAddress={custodialWallet.publicKey}
-                    privateKey={custodialWallet.privateKey}
-                    onDeploy={() => {
-                      // Refresh or show success message
-                      setShowAgentBuilder(false);
-                    }}
-                  />
-                ) : (
-                  <AgentBuilder
-                    walletAddress=""
-                    privateKey=""
-                    onDeploy={() => {
-                      setShowAgentBuilder(false);
-                    }}
-                  />
-                )
-              ) : showNewsFeed ? (
-                <NewsFeed />
-              ) : (
-                <AISummaryPanel />
-              )
-            )}
+            <AnimatePresence mode="wait">
+              {isSummaryOpen && rightPanelSize >= 10 && (
+                <motion.div
+                  key="summary-content"
+                  initial={{ x: 30, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 30, opacity: 0 }}
+                  transition={{
+                    duration: 0.35,
+                    ease: [0.4, 0, 0.2, 1],
+                  }}
+                  className="h-full w-full"
+                  style={{
+                    // OPTIMIZATION: Prevent expensive re-renders during resize
+                    pointerEvents: isResizing ? 'none' : 'auto',
+                    willChange: 'auto',
+                  }}
+                >
+                  {showAgentBuilder ? (
+                    custodialWallet ? (
+                      <AgentBuilder
+                        walletAddress={custodialWallet.publicKey}
+                        privateKey={custodialWallet.privateKey}
+                        onDeploy={() => {
+                          // Refresh or show success message
+                          setShowAgentBuilder(false);
+                        }}
+                      />
+                    ) : (
+                      <AgentBuilder
+                        walletAddress=""
+                        privateKey=""
+                        onDeploy={() => {
+                          setShowAgentBuilder(false);
+                        }}
+                      />
+                    )
+                  ) : showNewsFeed ? (
+                    <NewsFeed />
+                  ) : (
+                    <AISummaryPanel />
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
