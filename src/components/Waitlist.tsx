@@ -68,7 +68,7 @@ export const Waitlist = () => {
           });
           
           if (!retryResponse.ok) {
-            throw new Error("Failed to join waitlist");
+        throw new Error("Failed to join waitlist");
           }
           
           // Success on retry - continue with normal flow
