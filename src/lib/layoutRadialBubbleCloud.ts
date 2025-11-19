@@ -50,17 +50,17 @@ export function layoutRadialBubbleCloud<T>(
   
   // Estimate radius from available area (rectangular, not circular)
   const totalArea = usableWidth * usableHeight;
-  const areaPer = totalArea / (n * 1.5); // Space per bubble
+  const areaPer = totalArea / (n * 1.3); // Space per bubble (increased from 1.5 to 1.3 for bigger bubbles)
   let estimatedRadius = Math.sqrt(areaPer / Math.PI);
 
   // Base radius - SCALE DOWN if we have many bubbles to fit them all
   // Calculate based on available space and item count
   const spacePerBubble = (usableWidth * usableHeight) / n;
-  const radiusFromSpace = Math.sqrt(spacePerBubble / Math.PI) * 0.4; // Use 40% of available space per bubble
+  const radiusFromSpace = Math.sqrt(spacePerBubble / Math.PI) * 0.5; // Use 50% of available space per bubble (increased from 40%)
   
-  // Size constraints - SCALE DOWN for more bubbles
-  const minRadius = n > 200 ? 25 : n > 150 ? 30 : n > 100 ? 35 : n > 50 ? 40 : 45; // Smaller for more bubbles
-  const maxRadius = n > 200 ? 50 : n > 150 ? 60 : n > 100 ? 70 : n > 50 ? 80 : 90; // Smaller max sizes
+  // Size constraints - SCALE DOWN for more bubbles (increased base sizes)
+  const minRadius = n > 200 ? 35 : n > 150 ? 40 : n > 100 ? 45 : n > 50 ? 50 : 55; // Bigger base sizes (increased ~10px across the board)
+  const maxRadius = n > 200 ? 70 : n > 150 ? 80 : n > 100 ? 90 : n > 50 ? 100 : 110; // Bigger max sizes (increased ~20px across the board)
   const baseRadius = Math.max(minRadius, Math.min(maxRadius, Math.min(radiusFromSpace, estimatedRadius)));
   
   // Calculate bubble sizes based on VOLUME (higher volume = bigger bubble)
@@ -642,11 +642,11 @@ function layoutSimpleGrid<T>(
   const cellHeight = usableHeight / rows;
   const cellSize = Math.min(cellWidth, cellHeight);
   
-  // Fixed radius for all bubbles (very small to fit many)
+  // Fixed radius for all bubbles (increased size to match main layout)
   // CRITICAL: For 150+ bubbles, ALWAYS use fixed radius (no volume calculation) for max performance
   // Volume calculations are expensive and cause slowness
   const useFixedRadius = n >= 150; // Always use fixed radius for 150+
-  const radius = Math.max(15, Math.min(30, cellSize * 0.35));
+  const radius = Math.max(20, Math.min(40, cellSize * 0.45)); // Increased from 15-30 to 20-40, and multiplier from 0.35 to 0.45
   
   // SKIP volume calculations entirely for 150+ bubbles - too expensive
   // No size variation for large counts - all bubbles same size for performance

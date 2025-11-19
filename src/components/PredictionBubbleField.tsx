@@ -733,7 +733,7 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
     // OPTIMIZED: Only check nearby bubbles for collision (spatial optimization)
     // COLLISION PREVENTION: Iteratively resolve all collisions
     // REDUCED iterations to prevent glitching from too many rapid updates
-    const maxIterations = 5;
+    const maxIterations = 3; // Reduced from 5 to 3 for smoother, less aggressive movement
     // Find max radius from current bubbles for search optimization
     const maxRadius = currentBubbles.length > 0 
       ? Math.max(...currentBubbles.map(b => b.radius), draggedBubble.radius)
@@ -763,12 +763,12 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
           const pushAngle = Math.atan2(dy, dx);
           const overlap = requiredDistance - distance;
           
-          // SMOOTH push - use much slower interpolation to prevent glitching
-          const pushFactor = 0.1; // Much slower interpolation to prevent rapid movement
+          // SMOOTH push - use gentle interpolation for smooth, non-bouncy movement
+          const pushFactor = 0.05; // Much gentler interpolation (reduced from 0.1) to prevent rapid/bouncy movement
           const targetX = otherBubble.x + Math.cos(pushAngle) * requiredDistance;
           const targetY = otherBubble.y + Math.sin(pushAngle) * requiredDistance;
           
-          // Interpolate for smooth movement - much slower to prevent glitching
+          // Interpolate for smooth movement - gentle and non-bouncy
           finalX = finalX + (targetX - finalX) * pushFactor;
           finalY = finalY + (targetY - finalY) * pushFactor;
           hasCollision = true;
@@ -786,14 +786,14 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
       // COLLISION DETECTION: Only push other bubbles if we're actually dragging
       // Don't push on click - only on drag
       const pushedBubbles: Record<string, { x: number; y: number }> = {};
-      const pushStrength = 1.0; // Full push to prevent overlap - no smoothing during overlap
+      const pushStrength = 0.3; // Gentler push to prevent aggressive movement
       
       // Only push other bubbles if we're actually dragging (not just clicking)
       if (isDraggingRef.current) {
       // OPTIMIZED: Use spatial optimization - only check nearby bubbles
       // Use iterative relaxation to push all affected bubbles smoothly
       // REDUCED passes to prevent glitching from too many rapid updates
-      for (let pass = 0; pass < 3; pass++) {
+      for (let pass = 0; pass < 2; pass++) {
       let movedAny = false;
       const pushMaxRadius = currentBubbles.length > 0
         ? Math.max(...currentBubbles.map(b => b.radius), draggedBubble.radius)
@@ -819,19 +819,19 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
           const pushAngle = Math.atan2(dy, dx);
           const overlap = requiredDistance - distance;
           
-          // SMOOTH push - use much slower interpolation to prevent glitching
-          const smoothPushFactor = 0.15; // Much slower interpolation to prevent rapid movement
+          // SMOOTH push - use gentle interpolation for smooth, non-bouncy movement
+          const smoothPushFactor = 0.08; // Much gentler interpolation for smooth movement (reduced from 0.15)
           const pushDistance = overlap * pushStrength;
           
-          // Calculate target position - push away from dragged bubble smoothly
-          const targetX = currentPos.x - Math.cos(pushAngle) * (pushDistance + totalMinDistance * 0.5);
-          const targetY = currentPos.y - Math.sin(pushAngle) * (pushDistance + totalMinDistance * 0.5);
+          // Calculate target position - push away from dragged bubble smoothly (no extra distance)
+          const targetX = currentPos.x - Math.cos(pushAngle) * pushDistance;
+          const targetY = currentPos.y - Math.sin(pushAngle) * pushDistance;
           
-          // Interpolate for smooth movement - much slower to prevent glitching
+          // Interpolate for smooth movement - gentle and non-bouncy
           let finalTargetX = currentPos.x + (targetX - currentPos.x) * smoothPushFactor;
           let finalTargetY = currentPos.y + (targetY - currentPos.y) * smoothPushFactor;
           
-          // Also check for collisions with other pushed bubbles
+          // Also check for collisions with other pushed bubbles (gentle correction)
           for (const [otherId, otherPos] of Object.entries(pushedBubbles)) {
             if (otherId === otherBubble.id || otherId === draggedBubbleId) continue;
             const otherB = currentBubbles.find(b => b.id === otherId);
@@ -844,8 +844,11 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
             
             if (otherDistance < otherRequiredDistance && otherDistance > 0.001) {
               const otherAngle = Math.atan2(otherDy, otherDx);
-              finalTargetX = otherPos.x + Math.cos(otherAngle) * (otherRequiredDistance + totalMinDistance * 0.5);
-              finalTargetY = otherPos.y + Math.sin(otherAngle) * (otherRequiredDistance + totalMinDistance * 0.5);
+              const otherOverlap = otherRequiredDistance - otherDistance;
+              // Gentle correction without extra distance
+              const correctionFactor = 0.5;
+              finalTargetX = finalTargetX + Math.cos(otherAngle) * (otherOverlap * correctionFactor);
+              finalTargetY = finalTargetY + Math.sin(otherAngle) * (otherOverlap * correctionFactor);
               movedAny = true;
             }
           }
