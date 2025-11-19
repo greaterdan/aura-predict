@@ -182,7 +182,7 @@ const apiLimiter = rateLimit({
 
 const predictionsLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 30, // Limit predictions endpoint to 30 requests per minute
+  max: 100, // Increased to 100 requests per minute - cache handles most requests, this allows more concurrent users
   message: 'Too many prediction requests, please try again later.',
 });
 
@@ -357,12 +357,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Cache for predictions (5 minute cache - markets don't change that frequently)
+// Cache for predictions (2 minute cache - balance between freshness and server load)
+// Most users will get cached data, only first request in 2-min window hits Polymarket
 let predictionsCache = {
   data: null,
   timestamp: null,
   category: null,
-  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
+  CACHE_DURATION: 2 * 60 * 1000, // 2 minutes - fresh data while serving many users
 };
 
 // Main endpoint: Get predictions (ready-to-use format)
