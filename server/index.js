@@ -249,20 +249,20 @@ if (redisUrl) {
       console.log('✅ Redis connected');
     });
     
-    // Try to connect to Redis (non-blocking)
-    redisClient.connect().then(() => {
-      console.log('✅ Using Redis for session storage');
-    }).catch((err) => {
-      console.warn('⚠️  Redis connection failed, falling back to MemoryStore:', err.message);
-      console.warn('   Server will continue without Redis (sessions may be lost on restart)');
-      sessionStore = undefined; // Fall back to MemoryStore
-    });
-    
-    // Use Redis store (even if not connected yet - it will retry)
+    // Create RedisStore (will work even if not connected yet - Redis client handles reconnection)
     try {
       sessionStore = new RedisStore({
         client: redisClient,
         prefix: 'probly:sess:',
+      });
+      console.log('✅ RedisStore created (connecting in background...)');
+      
+      // Try to connect to Redis (non-blocking - don't wait for it)
+      redisClient.connect().then(() => {
+        console.log('✅ Redis connected - using Redis for session storage');
+      }).catch((err) => {
+        console.warn('⚠️  Redis connection failed, sessions will use MemoryStore:', err.message);
+        // Don't set sessionStore to undefined here - let it try to reconnect
       });
     } catch (storeError) {
       console.warn('⚠️  Failed to create RedisStore, using MemoryStore:', storeError.message);
