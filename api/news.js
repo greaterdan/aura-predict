@@ -1,4 +1,4 @@
-// Vercel serverless function for /api/news
+// API endpoint for /api/news
 // SECURITY: All API keys must be in environment variables - never hardcode
 import nodemailer from 'nodemailer';
 

@@ -13,7 +13,7 @@ const getApiBaseUrl = (): string => {
   }
   
   // In production, use relative URLs (same domain)
-  // This works if backend is deployed on the same domain or via Vercel serverless functions
+  // This works if backend is deployed on the same domain
   if (isProduction) {
     return ''; // Empty string means relative URL
   }

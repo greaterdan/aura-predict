@@ -4,15 +4,61 @@
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
 import { fetchAllMarkets } from './services/polymarketService.js';
 import { transformMarkets } from './services/marketTransformer.js';
 import { mapCategoryToPolymarket } from './utils/categoryMapper.js';
 
-const app = express();
-const PORT = 3002;
+// Load environment variables
+dotenv.config();
 
-app.use(cors());
-app.use(express.json());
+const app = express();
+const PORT = process.env.PORT || 3002;
+
+// Security: CORS - restrict to specific origins instead of wildcard
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5173', 'http://localhost:3000', 'https://probly.tech']; // Default for development
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
+// Security: Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const predictionsLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 30, // Limit predictions endpoint to 30 requests per minute
+  message: 'Too many prediction requests, please try again later.',
+});
+
+const waitlistLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Limit waitlist submissions to 5 per hour per IP
+  message: 'Too many waitlist submissions, please try again later.',
+});
+
+// Apply rate limiting to all API routes
+app.use('/api/', apiLimiter);
+app.use(express.json({ limit: '1mb' })); // Limit request body size
 
 // Health check endpoints
 app.get('/', (req, res) => {
@@ -32,9 +78,32 @@ let predictionsCache = {
 };
 
 // Main endpoint: Get predictions (ready-to-use format)
-app.get('/api/predictions', async (req, res) => {
+// SECURITY: Apply rate limiting and input validation
+app.get('/api/predictions', predictionsLimiter, async (req, res) => {
   try {
-    const { category = 'All Markets', limit = 10000, search = null } = req.query;
+    // SECURITY: Input validation and limits
+    let { category = 'All Markets', limit = 5000, search = null } = req.query;
+    
+    // Validate and sanitize inputs
+    const MAX_LIMIT = 10000;
+    const MAX_SEARCH_LENGTH = 200;
+    const MAX_CATEGORY_LENGTH = 50;
+    
+    // Enforce maximum limit to prevent DoS
+    limit = Math.min(Math.max(parseInt(limit) || 5000, 1), MAX_LIMIT);
+    
+    // Validate category
+    if (typeof category !== 'string' || category.length > MAX_CATEGORY_LENGTH) {
+      return res.status(400).json({ error: 'Invalid category parameter' });
+    }
+    
+    // Validate and sanitize search query
+    if (search) {
+      if (typeof search !== 'string' || search.length > MAX_SEARCH_LENGTH) {
+        return res.status(400).json({ error: 'Invalid search parameter' });
+      }
+      search = search.trim().substring(0, MAX_SEARCH_LENGTH);
+    }
     
     // Check cache first (but don't cache search results - they should be fresh)
     const cacheNow = Date.now();
@@ -235,14 +304,13 @@ app.get('/api/polymarket/markets', async (req, res) => {
 });
 
 // News API proxy endpoint with caching
-const NEWS_API_KEY = '245568e9eb38441fbe7f2e48527932d8';
+// SECURITY: All API keys must be in environment variables - never hardcode
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const NEWS_API_URL = 'https://newsapi.org/v2/everything';
-const NEWSDATA_API_KEY = 'pub_c8c2a4c6f89848319fc7c5798cd1c287';
+const NEWSDATA_API_KEY = process.env.NEWSDATA_API_KEY;
 const NEWSDATA_API_URL = 'https://newsdata.io/api/1/news';
 // GNews API - Get your free API key from https://gnews.io/register
-// You can either set it as an environment variable: GNEWS_API_KEY=your_key_here
-// Or replace the empty string below with your API key
-const GNEWS_API_KEY = process.env.GNEWS_API_KEY || 'ff4c132f93616db0e87009c771ea52db';
+const GNEWS_API_KEY = process.env.GNEWS_API_KEY;
 const GNEWS_API_URL = 'https://gnews.io/api/v4/search';
 
 // Simple in-memory cache (refresh every 5 minutes)
@@ -311,6 +379,11 @@ const deduplicateArticles = (articles) => {
 
 // Fetch news from NewsAPI
 const fetchNewsAPI = async () => {
+  // SECURITY: Check if API key is configured
+  if (!NEWS_API_KEY) {
+    console.warn('NEWS_API_KEY not configured, skipping NewsAPI');
+    return [];
+  }
   // Get date from last 24 hours for freshest news
   const fromDate = new Date();
   fromDate.setHours(fromDate.getHours() - 24); // Last 24 hours
@@ -387,6 +460,11 @@ const fetchNewsAPI = async () => {
 
 // Fetch news from NewsData.io
 const fetchNewsData = async () => {
+  // SECURITY: Check if API key is configured
+  if (!NEWSDATA_API_KEY) {
+    console.warn('NEWSDATA_API_KEY not configured, skipping NewsData.io');
+    return [];
+  }
   // Get date from last 24 hours for freshest news
   const fromDate = new Date();
   fromDate.setHours(fromDate.getHours() - 24);
@@ -473,7 +551,9 @@ const fetchNewsData = async () => {
 
 // Fetch news from GNews
 const fetchGNews = async () => {
+  // SECURITY: Check if API key is configured
   if (!GNEWS_API_KEY) {
+    console.warn('GNEWS_API_KEY not configured, skipping GNews');
     return [];
   }
   
@@ -672,7 +752,8 @@ app.get('/api/news', async (req, res) => {
 });
 
 // Waitlist endpoint - sends email notification
-app.post('/api/waitlist', async (req, res) => {
+// SECURITY: Apply rate limiting and input sanitization
+app.post('/api/waitlist', waitlistLimiter, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -680,20 +761,51 @@ app.post('/api/waitlist', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
+    // SECURITY: Strict email validation and length limit
+    const MAX_EMAIL_LENGTH = 254; // RFC 5321
+    if (email.length > MAX_EMAIL_LENGTH) {
+      return res.status(400).json({ error: 'Email too long' });
+    }
+    
+    // Trim and sanitize email
+    const sanitizedEmail = email.trim().toLowerCase().substring(0, MAX_EMAIL_LENGTH);
+    
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(sanitizedEmail)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    // SECURITY: Additional validation - check for common injection patterns
+    if (/[<>\"'%;()&+]/.test(sanitizedEmail)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
     // Send email notification to dev@probly.tech
-    const notificationEmail = 'dev@probly.tech';
-    const subject = `New Waitlist Signup: ${email}`;
+    const notificationEmail = process.env.NOTIFICATION_EMAIL || 'dev@probly.tech';
+    
+    // SECURITY: Sanitize email for HTML output to prevent injection
+    // Escape HTML special characters
+    const escapeHtml = (text) => {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, (m) => map[m]);
+    };
+    
+    const safeEmail = escapeHtml(sanitizedEmail);
+    const timestamp = new Date().toISOString();
+    
+    const subject = `New Waitlist Signup: ${safeEmail}`;
     const htmlMessage = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">New Agent Builder Waitlist Signup</h2>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+        <p><strong>Email:</strong> ${safeEmail}</p>
+        <p><strong>Timestamp:</strong> ${timestamp}</p>
         <hr style="border: 1px solid #eee; margin: 20px 0;">
         <p style="color: #666; font-size: 12px;">This is an automated notification from the Probly waitlist system.</p>
       </div>
@@ -701,13 +813,13 @@ app.post('/api/waitlist', async (req, res) => {
     const textMessage = `
 New user joined the Agent Builder waitlist:
 
-Email: ${email}
-Timestamp: ${new Date().toISOString()}
+Email: ${sanitizedEmail}
+Timestamp: ${timestamp}
     `.trim();
 
     console.log(`\n=== WAITLIST SIGNUP ===`);
-    console.log(`Email: ${email}`);
-    console.log(`Time: ${new Date().toISOString()}`);
+    console.log(`Email: ${sanitizedEmail}`);
+    console.log(`Time: ${timestamp}`);
     console.log(`Sending notification to: ${notificationEmail}`);
     console.log(`========================\n`);
 
@@ -755,7 +867,7 @@ Timestamp: ${new Date().toISOString()}
     res.json({ 
       success: true, 
       message: 'Successfully joined waitlist',
-      email: email 
+      email: sanitizedEmail 
     });
   } catch (error) {
     console.error('Waitlist endpoint error:', error);
@@ -766,14 +878,16 @@ Timestamp: ${new Date().toISOString()}
   }
 });
 
-// Export app for Vercel serverless functions
+// Export app for serverless functions (Railway, etc.)
 export default app;
 
-// Only start server if not in serverless environment (Vercel)
-// Vercel uses serverless functions, so app.listen is not needed
+// Only start server if not in serverless environment
+// Serverless platforms (like AWS Lambda) don't need app.listen
+// Railway needs app.listen on 0.0.0.0 to be accessible
 if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`Healthcheck available at http://0.0.0.0:${PORT}/api/health`);
 });
 }
 

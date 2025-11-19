@@ -161,7 +161,7 @@ export const SystemStatusBar = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => window.open('https://github.com/greaterdan/aura-predict/blob/main/README.md', '_blank', 'noopener,noreferrer')}
+          onClick={() => window.open('https://github.com/greaterdan/probly/blob/main/README.md', '_blank', 'noopener,noreferrer')}
           className="h-7 w-7 p-0 border-border bg-background hover:bg-bg-elevated text-foreground hover:text-foreground rounded-full"
           title="README"
         >

@@ -1,4 +1,4 @@
-// Vercel serverless function for /api/predictions
+// API endpoint for /api/predictions
 import { fetchAllMarkets } from '../server/services/polymarketService.js';
 import { transformMarkets } from '../server/services/marketTransformer.js';
 import { mapCategoryToPolymarket } from '../server/utils/categoryMapper.js';
@@ -12,10 +12,18 @@ let predictionsCache = {
 };
 
 export default async function handler(req, res) {
-  // Handle CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // SECURITY: CORS - restrict to specific origins instead of wildcard
+  const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:5173', 'http://localhost:3000', 'https://probly.tech'];
+  
+  const origin = req.headers.origin;
+  if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -26,7 +34,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { category = 'All Markets', limit = 10000, search = null } = req.query;
+    // SECURITY: Input validation and limits
+    let { category = 'All Markets', limit = 5000, search = null } = req.query;
+    
+    // Validate and sanitize inputs
+    const MAX_LIMIT = 10000;
+    const MAX_SEARCH_LENGTH = 200;
+    const MAX_CATEGORY_LENGTH = 50;
+    
+    // Enforce maximum limit to prevent DoS
+    limit = Math.min(Math.max(parseInt(limit) || 5000, 1), MAX_LIMIT);
+    
+    // Validate category
+    if (typeof category !== 'string' || category.length > MAX_CATEGORY_LENGTH) {
+      return res.status(400).json({ error: 'Invalid category parameter' });
+    }
+    
+    // Validate and sanitize search query
+    if (search) {
+      if (typeof search !== 'string' || search.length > MAX_SEARCH_LENGTH) {
+        return res.status(400).json({ error: 'Invalid search parameter' });
+      }
+      search = search.trim().substring(0, MAX_SEARCH_LENGTH);
+    }
     
     // Check cache first (but don't cache search results - they should be fresh)
     const cacheNow = Date.now();
