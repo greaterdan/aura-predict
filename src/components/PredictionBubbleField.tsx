@@ -1042,7 +1042,8 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
               backfaceVisibility: 'hidden',
               perspective: 1000,
               // OPTIMIZED: Reduce repaints with will-change only when needed
-              willChange: (isTransitioning || isResizing || isDragging || isHighlighted) ? 'transform' : 'auto',
+              // During resizing, don't set willChange to prevent unnecessary repaints
+              willChange: (isDragging || isHighlighted) ? 'transform' : 'auto',
               // CRITICAL: Ensure pointer events work for dragging
               pointerEvents: 'auto',
               // AGGRESSIVE: Remove ALL outlines, borders, rings

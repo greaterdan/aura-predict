@@ -1263,13 +1263,13 @@ const Index = () => {
             />
 
             {/* Prediction Bubble Field - FULL SPACE - NO ZOOM/PAN */}
-            {/* OPTIMIZATION: Hide during resize to prevent expensive re-renders */}
+            {/* OPTIMIZATION: Disable interactions during resize but keep bubbles visible */}
             <div 
               style={{ 
                 width: '100%',
                 height: '100%',
-                display: isResizing ? 'none' : 'block',
                 pointerEvents: isResizing ? 'none' : 'auto',
+                willChange: isResizing ? 'auto' : 'auto',
               }}
             >
               <PredictionBubbleField
