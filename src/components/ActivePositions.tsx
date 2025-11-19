@@ -204,7 +204,7 @@ export const ActivePositions = ({ agents, selectedAgent, onAgentClick }: ActiveP
     <div className="h-16 bg-bg-card border-t border-border">
       <div className="flex items-center h-full px-2 gap-2">
         {/* AI Agents Section */}
-        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
           {agents.map((agent, index) => (
             <motion.button
               key={agent.id}

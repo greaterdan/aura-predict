@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Customized } from "recharts";
+import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Customized } from "recharts";
 import { TechnicalView } from "./TechnicalView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
@@ -45,6 +45,16 @@ const agents = [
 const MultiAgentTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload || !payload.length) return null;
 
+  // Deduplicate payload entries by dataKey (Area and Line both contribute, so we get duplicates)
+  const seen = new Set<string>();
+  const uniquePayload = payload.filter((entry: any) => {
+    if (seen.has(entry.dataKey)) {
+      return false;
+    }
+    seen.add(entry.dataKey);
+    return true;
+  });
+
   return (
     <div
       style={{
@@ -58,26 +68,30 @@ const MultiAgentTooltip = ({ active, payload, label }: any) => {
       <div style={{ color: "#C6CBD9", fontSize: "12px", marginBottom: "8px", fontWeight: 500 }}>
         {label}
       </div>
-      {payload.map((entry: any, index: number) => {
+      {uniquePayload.map((entry: any, index: number) => {
         const agent = agents.find(a => a.id === entry.dataKey);
         if (!agent) return null;
+        // Use agent color from agents array (more reliable than entry.color)
+        const agentColor = agent.color || entry.color;
         return (
           <div
-            key={index}
+            key={entry.dataKey}
             style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              marginBottom: index < payload.length - 1 ? "6px" : "0",
+              marginBottom: index < uniquePayload.length - 1 ? "6px" : "0",
             }}
           >
             <div
               style={{
-                width: "10px",
-                height: "10px",
-                backgroundColor: entry.color,
-                borderRadius: "2px",
+                width: "12px",
+                height: "12px",
+                backgroundColor: agentColor,
+                borderRadius: "3px",
                 flexShrink: 0,
+                border: `1px solid ${agentColor}`,
+                boxShadow: `0 0 4px ${agentColor}40`,
               }}
             />
             <span style={{ color: "#C6CBD9", fontSize: "12px", minWidth: "80px" }}>
@@ -416,6 +430,19 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
                   <stop offset="0%" stopColor="#1D120F" stopOpacity={0.8} />
                   <stop offset="100%" stopColor="#050608" stopOpacity={0} />
                 </linearGradient>
+                {/* Gradient definitions for each agent area */}
+                {agents.map((agent) => {
+                  const isVisible = selectedAgent === null || selectedAgent === agent.id;
+                  if (!isVisible) return null;
+                  
+                  return (
+                    <linearGradient key={`gradient-${agent.id}`} id={`gradient-${agent.id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={agent.color} stopOpacity={0.3} />
+                      <stop offset="50%" stopColor={agent.color} stopOpacity={0.15} />
+                      <stop offset="100%" stopColor={agent.color} stopOpacity={0} />
+                    </linearGradient>
+                  );
+                })}
               </defs>
               
               <CartesianGrid
@@ -454,7 +481,26 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
                 cursor={{ stroke: "#3A404B", strokeWidth: 1, strokeDasharray: "none" }}
               />
               
-              {/* Agent Lines */}
+              {/* Agent Areas and Lines - render areas first, then lines on top */}
+              {agents.map((agent) => {
+                const isVisible = selectedAgent === null || selectedAgent === agent.id;
+                
+                // Only render if visible
+                if (!isVisible) return null;
+                
+                return (
+                  <Area
+                    key={`area-${agent.id}`}
+                    type="monotone"
+                    dataKey={agent.id}
+                    fill={`url(#gradient-${agent.id})`}
+                    stroke="none"
+                    isAnimationActive={true}
+                    animationDuration={1500}
+                    animationEasing="ease-out"
+                  />
+                );
+              })}
               {agents.map((agent) => {
                 const isVisible = selectedAgent === null || selectedAgent === agent.id;
                 
@@ -470,12 +516,15 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
                     strokeWidth={selectedAgent === agent.id ? 2.5 : 2}
                     dot={false}
                     activeDot={{
-                      r: 5,
+                      r: 6,
                       fill: agent.color,
-                      strokeWidth: 0,
+                      strokeWidth: 2,
+                      stroke: "#050608",
                     }}
-                    isAnimationActive={false}
-                    animationDuration={0}
+                    isAnimationActive={true}
+                    animationDuration={1500}
+                    animationEasing="ease-out"
+                    animationBegin={0}
                   />
                 );
               })}

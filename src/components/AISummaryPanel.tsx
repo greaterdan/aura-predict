@@ -288,7 +288,7 @@ export const AISummaryPanel = () => {
     <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-bg-elevated flex-shrink-0">
-        <span className="text-xs text-terminal-accent font-mono leading-none flex items-center">
+        <span className="text-[13px] text-terminal-accent font-mono leading-none flex items-center">
           &gt; SUMMARY
         </span>
         <div className="flex items-center gap-2">
@@ -300,7 +300,7 @@ export const AISummaryPanel = () => {
             }}
             transition={{ duration: 1.5, repeat: Infinity }}
           />
-          <span className="text-[10px] text-muted-foreground font-mono">LIVE</span>
+          <span className="text-[12px] text-muted-foreground font-mono">LIVE</span>
         </div>
       </div>
 
@@ -336,12 +336,12 @@ export const AISummaryPanel = () => {
                           (e.target as HTMLImageElement).src = "/placeholder.svg";
                         }}
                       />
-                      <span className="text-xs font-mono text-foreground" style={{ fontWeight: 600 }}>
+                      <span className="text-[13px] font-mono text-foreground" style={{ fontWeight: 600 }}>
                         {decision.agentName}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] text-muted-foreground font-mono">
+                      <span className="text-[11px] text-muted-foreground font-mono">
                         {formatTimeAgo(decision.timestamp)}
                       </span>
                       {hasHistory && (
@@ -357,7 +357,7 @@ export const AISummaryPanel = () => {
 
               {/* Action Badge */}
               <div className="flex items-center gap-2 mb-2">
-                <div className={`px-2 py-0.5 rounded-lg text-[9px] font-mono uppercase ${
+                <div className={`px-2 py-0.5 rounded-lg text-[11px] font-mono uppercase ${
                   decision.action === "TRADE" 
                     ? "bg-terminal-accent/20 text-terminal-accent border border-terminal-accent/30"
                     : "bg-muted text-muted-foreground border border-border"
@@ -365,7 +365,7 @@ export const AISummaryPanel = () => {
                   {decision.action}
                 </div>
                 {decision.action === "TRADE" && (
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold ${
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold ${
                     decision.decision === "YES"
                       ? "bg-trade-yes/20 text-trade-yes border border-trade-yes/30"
                       : "bg-trade-no/20 text-trade-no border border-trade-no/30"
@@ -381,7 +381,7 @@ export const AISummaryPanel = () => {
               </div>
 
               {/* Market */}
-              <div className="text-xs font-mono text-foreground mb-2" style={{ fontWeight: 500 }}>
+              <div className="text-[13px] font-mono text-foreground mb-2" style={{ fontWeight: 500 }}>
                 {decision.market}
               </div>
 
@@ -389,8 +389,8 @@ export const AISummaryPanel = () => {
               {decision.action === "TRADE" && (
                 <div className="mb-2">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[9px] text-muted-foreground font-mono">CONFIDENCE</span>
-                    <span className="text-[10px] font-mono text-terminal-accent" style={{ fontWeight: 600 }}>
+                    <span className="text-[11px] text-muted-foreground font-mono">CONFIDENCE</span>
+                    <span className="text-[12px] font-mono text-terminal-accent" style={{ fontWeight: 600 }}>
                       {decision.confidence}%
                     </span>
                   </div>
@@ -406,7 +406,7 @@ export const AISummaryPanel = () => {
               )}
 
                   {/* Reasoning */}
-                  <div className="text-[10px] text-text-secondary leading-relaxed" style={{ fontWeight: 400 }}>
+                  <div className="text-[12px] text-text-secondary leading-relaxed" style={{ fontWeight: 400 }}>
                     {decision.reasoning}
                   </div>
                 </div>
@@ -422,7 +422,7 @@ export const AISummaryPanel = () => {
                       className="overflow-hidden"
                     >
                       <div className="px-3 pb-3 border-t border-border mt-2 pt-3">
-                        <div className="text-[11px] text-muted-foreground font-mono uppercase mb-2" style={{ fontWeight: 600 }}>
+                        <div className="text-[13px] text-muted-foreground font-mono uppercase mb-2" style={{ fontWeight: 600 }}>
                           Decision History
                         </div>
                         <div className="space-y-2">
@@ -433,10 +433,10 @@ export const AISummaryPanel = () => {
                             >
                               <div className="flex items-center justify-between mb-1.5">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[11px] font-mono text-foreground" style={{ fontWeight: 600 }}>
+                                  <span className="text-[13px] font-mono text-foreground" style={{ fontWeight: 600 }}>
                                     {historyItem.market}
                                   </span>
-                                  <div className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold ${
+                                  <div className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
                                     historyItem.decision === "YES"
                                       ? "bg-trade-yes/20 text-trade-yes border border-trade-yes/30"
                                       : "bg-trade-no/20 text-trade-no border border-trade-no/30"
@@ -445,15 +445,15 @@ export const AISummaryPanel = () => {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-muted-foreground font-mono">
+                                  <span className="text-[12px] text-muted-foreground font-mono">
                                     {formatTimeAgo(historyItem.timestamp)}
                                   </span>
-                                  <span className="text-[10px] font-mono text-terminal-accent" style={{ fontWeight: 600 }}>
+                                  <span className="text-[12px] font-mono text-terminal-accent" style={{ fontWeight: 600 }}>
                                     {historyItem.confidence}%
                                   </span>
                                 </div>
                               </div>
-                              <div className="text-[11px] text-text-secondary leading-relaxed" style={{ fontWeight: 400 }}>
+                              <div className="text-[13px] text-text-secondary leading-relaxed" style={{ fontWeight: 400 }}>
                                 {historyItem.reasoning}
                               </div>
                             </div>
@@ -474,12 +474,12 @@ export const AISummaryPanel = () => {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <Activity className="w-3 h-3 text-terminal-accent" />
-            <span className="text-[9px] text-muted-foreground font-mono">
+            <span className="text-[11px] text-muted-foreground font-mono">
               {decisions.filter(d => d.action === "TRADE").length} ACTIVE
             </span>
           </div>
           <div className="w-px h-4 bg-border" />
-          <span className="text-[9px] text-muted-foreground font-mono">
+          <span className="text-[11px] text-muted-foreground font-mono">
             {decisions.length} TOTAL
           </span>
         </div>
