@@ -201,16 +201,20 @@ export async function getAgentsSummary(req, res) {
     
     // Try to get cached trades first (much faster for summary)
     // Only regenerate if cache is empty/expired
+    // Import bridge to get getCachedTradesQuick
+    const bridge = await import('./agents-bridge.mjs');
+    const getCachedTradesQuick = bridge.getCachedTradesQuick;
+    
     const results = await Promise.allSettled(
       agentIds.map(async (agentId) => {
         try {
-          // Import cache module to get quick cached trades
-          const cacheModule = await import('../../src/lib/agents/cache.ts');
-          const cached = cacheModule.getCachedTradesQuick?.(agentId);
-          
-          if (cached && cached.length > 0) {
-            console.log(`[API:${req.id}] 💾 Using cached trades for ${agentId}: ${cached.length} trades`);
-            return cached;
+          // Try cached trades first (fast path)
+          if (getCachedTradesQuick) {
+            const cached = getCachedTradesQuick(agentId);
+            if (cached && cached.length > 0) {
+              console.log(`[API:${req.id}] 💾 Using cached trades for ${agentId}: ${cached.length} trades`);
+              return cached;
+            }
           }
           
           // Cache miss or empty - generate new trades (but this is slow)

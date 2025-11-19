@@ -18,7 +18,7 @@ try {
   // tsx not available - will try direct import
 }
 
-let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAgentSummary, computeSummaryStats, calculateAllAgentStats;
+let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAgentSummary, computeSummaryStats, calculateAllAgentStats, getCachedTradesQuick;
 
 try {
   // Import TypeScript modules (tsx will handle .ts extension)
@@ -35,6 +35,9 @@ try {
   
   const statsModule = await import('../../src/lib/agents/stats.ts');
   console.log('[API] stats.ts loaded, exports:', Object.keys(statsModule));
+  
+  const cacheModule = await import('../../src/lib/agents/cache.ts');
+  console.log('[API] cache.ts loaded, exports:', Object.keys(cacheModule));
   
   // Verify exports exist
   if (!agentsModule.generateAgentTrades) {
@@ -66,6 +69,7 @@ try {
   buildAgentSummary = summaryModule.buildAgentSummary;
   computeSummaryStats = summaryModule.computeSummaryStats;
   calculateAllAgentStats = statsModule.calculateAllAgentStats;
+  getCachedTradesQuick = cacheModule.getCachedTradesQuick;
   
   console.log('[API] ✅ Successfully loaded TypeScript trading engine modules');
   console.log('[API] generateAgentTrades type:', typeof generateAgentTrades);
@@ -84,4 +88,5 @@ export {
   buildAgentSummary,
   computeSummaryStats,
   calculateAllAgentStats,
+  getCachedTradesQuick,
 };
