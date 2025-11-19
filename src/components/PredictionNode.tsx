@@ -127,7 +127,7 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
         }}
         tabIndex={-1} // Prevent keyboard focus
       >
-        {/* OUTER GLOW LAYER - Subtle outer glow - +20% more */}
+        {/* OUTER GLOW LAYER - Pulsing shine effect */}
         <div
           className="pointer-events-none absolute rounded-full"
           style={{ 
@@ -137,9 +137,11 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             width: `${bubbleSize + 10}px`,
             height: `${bubbleSize + 10}px`,
             zIndex: 0,
-            boxShadow: data.position === "YES"
-              ? '0 0 7px rgba(48, 230, 140, 0.35), 0 0 14px rgba(48, 230, 140, 0.25)'
-              : '0 0 7px rgba(255, 79, 100, 0.35), 0 0 14px rgba(255, 79, 100, 0.25)'
+            animationName: isDragging ? 'none' : (data.position === "YES" ? 'glow-pulse-green' : 'glow-pulse-red'),
+            animationDuration: `${3.5 + (animationIndex % 6) * 0.3}s`,
+            animationTimingFunction: 'ease-in-out',
+            animationIterationCount: 'infinite',
+            animationDelay: `${(animationIndex % 10) * 0.2}s`,
           }}
         />
         
@@ -169,6 +171,12 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
             pointerEvents: 'auto',
+            // Subtle pulse animation
+            animationName: isDragging ? 'none' : 'bubble-pulse',
+            animationDuration: `${2 + (animationIndex % 5) * 0.3}s`,
+            animationTimingFunction: 'ease-in-out',
+            animationIterationCount: 'infinite',
+            animationDelay: `${(animationIndex % 10) * 0.2}s`,
             // Subtle colored glow - green for YES, red for NO - +20% more
             boxShadow: data.position === "YES"
               ? '0 0 5px rgba(48, 230, 140, 0.35), 0 0 10px rgba(48, 230, 140, 0.25)'

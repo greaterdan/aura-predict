@@ -335,6 +335,44 @@ All colors MUST be HSL.
     }
   }
 
+  /* Subtle continuous pulse animation for bubbles */
+  @keyframes bubble-pulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.03);
+    }
+  }
+
+  /* Subtle pulsing glow/shine animation for outer glow - green (YES) */
+  @keyframes glow-pulse-green {
+    0%, 100% {
+      opacity: 0.6;
+      box-shadow: 0 0 7px rgba(48, 230, 140, 0.35), 0 0 14px rgba(48, 230, 140, 0.25);
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      box-shadow: 0 0 10px rgba(48, 230, 140, 0.45), 0 0 18px rgba(48, 230, 140, 0.3);
+      transform: translate(-50%, -50%) scale(1.02);
+    }
+  }
+
+  /* Subtle pulsing glow/shine animation for outer glow - red (NO) */
+  @keyframes glow-pulse-red {
+    0%, 100% {
+      opacity: 0.6;
+      box-shadow: 0 0 7px rgba(255, 79, 100, 0.35), 0 0 14px rgba(255, 79, 100, 0.25);
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      box-shadow: 0 0 10px rgba(255, 79, 100, 0.45), 0 0 18px rgba(255, 79, 100, 0.3);
+      transform: translate(-50%, -50%) scale(1.02);
+    }
+  }
+
   /* AGGRESSIVE: Remove ALL rectangles, outlines, borders, rings from bubbles */
   /* BUT ALLOW box-shadow for glow effects */
   .banter-bubble-wrapper,

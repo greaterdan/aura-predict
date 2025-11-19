@@ -1210,9 +1210,6 @@ const Index = () => {
                   />
                 </div>
               </div>
-              <span className="text-xs text-muted-foreground font-mono ml-3">
-                {filteredPredictions.length} {filteredPredictions.length === 1 ? 'Market' : 'Markets'}
-              </span>
             </div>
 
           </div>
