@@ -113,7 +113,7 @@ app.get('/health', (req, res) => {
 app.get('/api/health', (req, res) => {
   // Minimal response for Railway healthcheck - must be fast
   res.status(200).json({ status: 'ok' });
-});
+}););
 
 // SECURITY: CSRF Protection - Initialize BEFORE endpoints that use it
 // Generate a secret for CSRF tokens (use environment variable or generate one)
