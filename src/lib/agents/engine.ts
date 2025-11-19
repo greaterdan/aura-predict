@@ -175,11 +175,13 @@ export async function generateTradeForMarket(
   
   const baseRisk = RISK_BUDGET[agent.risk];
   
-  // Confidence multiplier (0.5x to 1.5x) - higher confidence = larger position
-  const confidenceMultiplier = Math.max(0.5, Math.min(1.5, confidence));
+  // Confidence multiplier (0.7x to 1.8x) - higher confidence = larger position
+  const confidenceMultiplier = Math.max(0.7, Math.min(1.8, confidence * 1.2));
   
-  // Score multiplier (0.8x to 1.2x) - higher market score = larger position
-  const scoreMultiplier = Math.max(0.8, Math.min(1.2, scored.score / 50)); // Normalize score to 0-1 range
+  // Score multiplier (0.6x to 1.5x) - higher market score = larger position
+  // Scores are typically 10-50, so normalize to 0.2-1.0 range, then scale to 0.6-1.5
+  const normalizedScore = Math.min(1.0, scored.score / 50); // 0-1 range
+  const scoreMultiplier = 0.6 + (normalizedScore * 0.9); // 0.6 to 1.5 range
   
   // Calculate base size
   let investmentUsd = baseRisk * confidenceMultiplier * scoreMultiplier;

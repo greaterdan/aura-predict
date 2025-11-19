@@ -129,9 +129,19 @@ export async function fetchAllMarkets(): Promise<Market[]> {
       console.log(`[Polymarket] ✅ Fetched ${rawMarkets.length} raw markets from API`);
       
       // Map Polymarket response to trading engine Market format
+      // IMPORTANT: Use EXACT same ID extraction logic as marketTransformer.js to ensure matching
       const markets = rawMarkets.map((rawMarket: any) => {
         const actualMarket = rawMarket.market || rawMarket;
-        const conditionId = actualMarket.condition_id || actualMarket.conditionId || actualMarket.id;
+        
+        // Extract condition_id using EXACT same logic as predictions (marketTransformer.js line 235-240, 624-628)
+        // This ensures market IDs match prediction IDs exactly
+        const conditionId = actualMarket.condition_id || 
+                           actualMarket.event?.condition_id ||
+                           rawMarket.condition_id ||
+                           actualMarket.conditionId || 
+                           actualMarket.id ||
+                           rawMarket.id;
+        
         const question = actualMarket.question || actualMarket.title || '';
         const volume = parseFloat(actualMarket.volume || actualMarket.volume24h || '0');
         const liquidity = parseFloat(actualMarket.liquidity || actualMarket.liquidityUsd || '0');
@@ -148,14 +158,13 @@ export async function fetchAllMarkets(): Promise<Market[]> {
           categoryValue = typeof firstTag === 'string' ? firstTag : String(firstTag);
         }
         
-        // Use condition_id as ID to match prediction IDs from bubble maps
-        // This ensures trades can be clicked and matched to predictions
-        const marketId = conditionId 
-          ? String(conditionId) 
-          : (actualMarket.slug ? String(actualMarket.slug) : null);
+        // Use condition_id as ID - MUST match prediction IDs exactly
+        // Predictions use: condition_id || question_id || slug || id (marketTransformer.js line 624-628)
+        // We use condition_id only to ensure exact matching
+        const marketId = conditionId ? String(conditionId) : null;
         
         if (!marketId) {
-          // Skip markets without valid IDs
+          // Skip markets without valid condition_id (must match predictions)
           return null;
         }
         
