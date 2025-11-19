@@ -307,19 +307,21 @@ export const SystemStatusBar = ({
           >
             <Users className="w-3.5 h-3.5" />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggleWatchlist}
-            className={`h-7 w-7 p-0 border-border rounded-full transition-colors ${
-            showWatchlist && isSummaryOpen && !showNewsFeed && !showWaitlist
-                ? 'bg-terminal-accent/20 border-terminal-accent/50 text-terminal-accent hover:bg-terminal-accent/30' 
-                : 'bg-background hover:bg-bg-elevated text-foreground hover:text-foreground'
-            }`}
-            title="Watchlist"
-          >
-            <Star className={`w-3.5 h-3.5 ${showWatchlist ? 'fill-terminal-accent' : ''}`} />
-          </Button>
+          {isLoggedIn && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onToggleWatchlist}
+              className={`h-7 w-7 p-0 border-border rounded-full transition-colors ${
+              showWatchlist && isSummaryOpen && !showNewsFeed && !showWaitlist
+                  ? 'bg-terminal-accent/20 border-terminal-accent/50 text-terminal-accent hover:bg-terminal-accent/30' 
+                  : 'bg-background hover:bg-bg-elevated text-foreground hover:text-foreground'
+              }`}
+              title="Watchlist"
+            >
+              <Star className={`w-3.5 h-3.5 ${showWatchlist ? 'fill-terminal-accent' : ''}`} />
+            </Button>
+          )}
         <Button
           variant="outline"
           size="sm"

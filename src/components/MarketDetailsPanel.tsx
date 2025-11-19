@@ -36,9 +36,10 @@ interface MarketDetailsPanelProps {
   onClose: () => void;
   onWatchlistChange?: () => void;
   watchlist?: PredictionNodeData[]; // Pass watchlist to check if market is in it
+  userEmail?: string; // User email for watchlist operations
 }
 
-export const MarketDetailsPanel = ({ market, onClose, onWatchlistChange, watchlist }: MarketDetailsPanelProps) => {
+export const MarketDetailsPanel = ({ market, onClose, onWatchlistChange, watchlist, userEmail }: MarketDetailsPanelProps) => {
   const [isWatched, setIsWatched] = useState(false);
 
   useEffect(() => {
@@ -47,19 +48,19 @@ export const MarketDetailsPanel = ({ market, onClose, onWatchlistChange, watchli
       if (watchlist) {
         setIsWatched(watchlist.some(m => m.id === market.id));
       } else {
-        setIsWatched(isInWatchlist(market.id));
+        setIsWatched(isInWatchlist(market.id, userEmail));
       }
     }
-  }, [market, watchlist]);
+  }, [market, watchlist, userEmail]);
 
   const handleToggleWatchlist = () => {
-    if (!market) return;
+    if (!market || !userEmail) return; // Only allow if logged in
     
     if (isWatched) {
-      removeFromWatchlist(market.id);
+      removeFromWatchlist(market.id, userEmail);
       setIsWatched(false);
     } else {
-      addToWatchlist(market);
+      addToWatchlist(market, userEmail);
       setIsWatched(true);
     }
     

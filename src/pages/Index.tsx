@@ -84,6 +84,8 @@ const Index = () => {
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showWatchlist, setShowWatchlist] = useState(false);
   const [watchlist, setWatchlist] = useState<PredictionNodeData[]>([]);
+  const [userEmail, setUserEmail] = useState<string | undefined>();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [custodialWallet, setCustodialWallet] = useState<{ publicKey: string; privateKey: string } | null>(null);
   // Panel visibility state - both open by default
   const [isPerformanceOpen, setIsPerformanceOpen] = useState(true);
@@ -220,31 +222,77 @@ const Index = () => {
     return () => clearInterval(refreshInterval);
   }, [selectedCategory]); // Only refetch when category changes - search is client-side only
 
-  // Load watchlist from localStorage on mount and when it changes
+  // Load watchlist from localStorage on mount and when userEmail changes
   useEffect(() => {
     const loadWatchlist = () => {
-      const stored = getWatchlist();
+      const stored = getWatchlist(userEmail);
       setWatchlist(stored);
     };
     
-    loadWatchlist();
-    
-    // Listen for storage changes (from other tabs/windows)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'probly_watchlist') {
-        loadWatchlist();
+    // Only load watchlist if user is logged in
+    if (userEmail) {
+      loadWatchlist();
+      
+      // Listen for storage changes (from other tabs/windows)
+      const handleStorageChange = (e: StorageEvent) => {
+        const watchlistKey = `probly_watchlist_${userEmail}`;
+        if (e.key === watchlistKey) {
+          loadWatchlist();
+        }
+      };
+      
+      window.addEventListener('storage', handleStorageChange);
+      
+      // Also check periodically in case localStorage was updated in same tab
+      const interval = setInterval(loadWatchlist, 1000);
+      
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        clearInterval(interval);
+      };
+    } else {
+      // Clear watchlist if not logged in
+      setWatchlist([]);
+    }
+  }, [userEmail]);
+  
+  // Check login status and get userEmail
+  useEffect(() => {
+    const checkAuth = async () => {
+      const storedEmail = localStorage.getItem('userEmail');
+      if (storedEmail) {
+        setIsLoggedIn(true);
+        setUserEmail(storedEmail);
+      } else {
+        // Check OAuth session
+        try {
+          const { API_BASE_URL } = await import('@/lib/apiConfig');
+          const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+            credentials: 'include',
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.authenticated && data.user?.email) {
+              setIsLoggedIn(true);
+              setUserEmail(data.user.email);
+              localStorage.setItem('userEmail', data.user.email);
+            } else {
+              setIsLoggedIn(false);
+              setUserEmail(undefined);
+            }
+          }
+        } catch (error) {
+          console.debug('Auth check failed:', error);
+        }
       }
     };
     
-    window.addEventListener('storage', handleStorageChange);
+    checkAuth();
     
-    // Also check periodically in case localStorage was updated in same tab
-    const interval = setInterval(loadWatchlist, 1000);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
+    // Check periodically
+    const interval = setInterval(checkAuth, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Simulate AI trading activity
@@ -1085,9 +1133,10 @@ const Index = () => {
                   market={selectedPrediction}
                   onClose={handleCloseMarketDetails}
                   onWatchlistChange={() => {
-                    setWatchlist(getWatchlist());
+                    setWatchlist(getWatchlist(userEmail));
                   }}
                   watchlist={watchlist}
+                  userEmail={userEmail}
                 />
               ) : (
                 <PerformanceChart 
@@ -1129,8 +1178,8 @@ const Index = () => {
                     <Watchlist 
                       watchlist={watchlist}
                       onRemove={(id) => {
-                        removeFromWatchlist(id);
-                        setWatchlist(getWatchlist());
+                        removeFromWatchlist(id, userEmail);
+                        setWatchlist(getWatchlist(userEmail));
                       }}
                       onMarketClick={(market) => {
                         setSelectedPrediction(market);

@@ -1,13 +1,23 @@
 import { PredictionNodeData } from "@/components/PredictionNode";
 
-const WATCHLIST_STORAGE_KEY = 'probly_watchlist';
+/**
+ * Get watchlist storage key for a specific user
+ */
+function getWatchlistKey(userEmail?: string): string {
+  if (!userEmail) {
+    // Fallback to global key if no email (shouldn't happen when logged in)
+    return 'probly_watchlist';
+  }
+  return `probly_watchlist_${userEmail}`;
+}
 
 /**
- * Get watchlist from localStorage
+ * Get watchlist from localStorage for a specific user
  */
-export function getWatchlist(): PredictionNodeData[] {
+export function getWatchlist(userEmail?: string): PredictionNodeData[] {
   try {
-    const stored = localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    const key = getWatchlistKey(userEmail);
+    const stored = localStorage.getItem(key);
     if (!stored) return [];
     return JSON.parse(stored);
   } catch (error) {
@@ -17,50 +27,52 @@ export function getWatchlist(): PredictionNodeData[] {
 }
 
 /**
- * Save watchlist to localStorage
+ * Save watchlist to localStorage for a specific user
  */
-export function saveWatchlist(watchlist: PredictionNodeData[]): void {
+export function saveWatchlist(watchlist: PredictionNodeData[], userEmail?: string): void {
   try {
-    localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
+    const key = getWatchlistKey(userEmail);
+    localStorage.setItem(key, JSON.stringify(watchlist));
   } catch (error) {
     console.error('Error saving watchlist:', error);
   }
 }
 
 /**
- * Add market to watchlist
+ * Add market to watchlist for a specific user
  */
-export function addToWatchlist(market: PredictionNodeData): void {
-  const watchlist = getWatchlist();
+export function addToWatchlist(market: PredictionNodeData, userEmail?: string): void {
+  const watchlist = getWatchlist(userEmail);
   // Check if already in watchlist
   if (watchlist.some(m => m.id === market.id)) {
     return; // Already in watchlist
   }
   watchlist.push(market);
-  saveWatchlist(watchlist);
+  saveWatchlist(watchlist, userEmail);
 }
 
 /**
- * Remove market from watchlist
+ * Remove market from watchlist for a specific user
  */
-export function removeFromWatchlist(marketId: string): void {
-  const watchlist = getWatchlist();
+export function removeFromWatchlist(marketId: string, userEmail?: string): void {
+  const watchlist = getWatchlist(userEmail);
   const filtered = watchlist.filter(m => m.id !== marketId);
-  saveWatchlist(filtered);
+  saveWatchlist(filtered, userEmail);
 }
 
 /**
- * Check if market is in watchlist
+ * Check if market is in watchlist for a specific user
  */
-export function isInWatchlist(marketId: string): boolean {
-  const watchlist = getWatchlist();
+export function isInWatchlist(marketId: string, userEmail?: string): boolean {
+  const watchlist = getWatchlist(userEmail);
   return watchlist.some(m => m.id === marketId);
 }
 
 /**
- * Clear entire watchlist
+ * Clear entire watchlist for a specific user
  */
-export function clearWatchlist(): void {
-  localStorage.removeItem(WATCHLIST_STORAGE_KEY);
+export function clearWatchlist(userEmail?: string): void {
+  const key = getWatchlistKey(userEmail);
+  localStorage.removeItem(key);
 }
 
