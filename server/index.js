@@ -153,7 +153,10 @@ app.use(cors({
       if (allowedOrigins.indexOf(origin) !== -1 || isRailwayOrigin) {
         callback(null, true);
       } else {
-        console.warn(`[CORS] Blocked request from origin: ${origin}`);
+        // Only log CORS blocks occasionally (every 100th) to reduce log spam
+        if (Math.random() < 0.01) {
+          console.warn(`[CORS] Blocked request from origin: ${origin} (sampling 1% of blocks)`);
+        }
         callback(new Error('Not allowed by CORS'));
       }
     } else {
@@ -161,7 +164,10 @@ app.use(cors({
       if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
         callback(null, true);
       } else {
-        console.warn(`[CORS] Blocked request from origin: ${origin}`);
+        // Only log CORS blocks occasionally (every 100th) to reduce log spam
+        if (Math.random() < 0.01) {
+          console.warn(`[CORS] Blocked request from origin: ${origin} (sampling 1% of blocks)`);
+        }
         callback(new Error('Not allowed by CORS'));
       }
     }
@@ -448,11 +454,14 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
         predictionsCache.category === category &&
         predictionsCache.timestamp && 
         (cacheNow - predictionsCache.timestamp) < predictionsCache.CACHE_DURATION) {
-      console.log(`[CACHE HIT] Returning cached predictions for category: ${category}`);
+      // Cache hit - don't log to reduce log volume
       return res.json(predictionsCache.data);
     }
     
-    console.log(`[CACHE MISS] Fetching fresh predictions for category: ${category}${isSearching ? ` (search: ${search})` : ''}`);
+    // Only log cache misses occasionally (every 10th miss) to reduce log spam
+    if (Math.random() < 0.1) {
+      console.log(`[CACHE MISS] Fetching fresh predictions for category: ${category}${isSearching ? ` (search: ${search})` : ''}`);
+    }
     
     // Map category to Polymarket category
     let polymarketCategory = null;
@@ -1272,17 +1281,16 @@ if (fs.existsSync(distPath)) {
     // If we reach here, it means express.static didn't find the file
     // So serve index.html for SPA routing
     const indexPath = path.join(distPath, 'index.html');
-    res.sendFile(indexPath, (err) => {
-      if (err) {
-        console.error(`Error serving index.html for ${req.path}: ${err.message}`);
-        res.status(500).json({ 
-          error: 'Internal server error',
-          message: 'Failed to serve frontend'
-        });
-      } else {
-        console.log(`Served index.html for route: ${req.path}`);
-      }
-    });
+          res.sendFile(indexPath, (err) => {
+            if (err) {
+              console.error(`Error serving index.html for ${req.path}: ${err.message}`);
+              res.status(500).json({
+                error: 'Internal server error',
+                message: 'Failed to serve frontend'
+              });
+            }
+            // Don't log successful index.html serves - too frequent, causes log spam
+          });
   });
 } else {
   console.warn(`⚠️  Dist folder not found at ${distPath} - frontend will not be served`);
