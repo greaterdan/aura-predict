@@ -72,7 +72,7 @@ export const SystemStatusBar = ({
           const data = await response.json();
           if (data.authenticated && data.user?.email) {
             // User is logged in via OAuth session
-            setIsLoggedIn(true);
+      setIsLoggedIn(true);
             setUserEmail(data.user.email);
             // Update localStorage to match server session
             localStorage.setItem('userEmail', data.user.email);
@@ -83,12 +83,12 @@ export const SystemStatusBar = ({
             const wallet = await getOrCreateWallet(data.user.email);
             
             // Store as custodial wallet for persistence
-            storeCustodialWallet(wallet);
+        storeCustodialWallet(wallet);
       
-            setCustodialWallet({
-              publicKey: wallet.publicKey,
-              privateKey: wallet.privateKey,
-            });
+      setCustodialWallet({
+        publicKey: wallet.publicKey,
+        privateKey: wallet.privateKey,
+      });
             return; // Exit early if authenticated
           }
         }
@@ -106,15 +106,15 @@ export const SystemStatusBar = ({
         
         // Check if there's a stored custodial wallet (for backwards compatibility)
         // but don't set logged in state
-        const storedCustodialWallet = getCustodialWallet();
-        if (storedCustodialWallet) {
-          setCustodialWallet({
-            publicKey: storedCustodialWallet.publicKey,
-            privateKey: storedCustodialWallet.privateKey,
-          });
+      const storedCustodialWallet = getCustodialWallet();
+      if (storedCustodialWallet) {
+        setCustodialWallet({
+          publicKey: storedCustodialWallet.publicKey,
+          privateKey: storedCustodialWallet.privateKey,
+        });
         } else {
           setCustodialWallet(null);
-        }
+    }
       } catch (error) {
         // Network error or server unavailable
         console.debug('Auth check failed:', error);

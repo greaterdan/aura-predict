@@ -94,7 +94,7 @@ export async function getOrCreateWallet(userId: string): Promise<WalletData> {
     try {
       // FIRST: Check localStorage (fast, no network)
       const localWallet = getStoredWallet(userId);
-      
+  
       // If we have a local wallet, use it (don't check server every time)
       if (localWallet) {
         // Only fetch from server ONCE per session if we haven't already
@@ -141,7 +141,7 @@ export async function getOrCreateWallet(userId: string): Promise<WalletData> {
       
       // No wallet found anywhere - create new one
       const wallet = generateWallet();
-      storeWallet(wallet, userId);
+    storeWallet(wallet, userId);
       
       // Save to server ONCE when created (fire and forget, don't wait)
       try {
@@ -159,9 +159,9 @@ export async function getOrCreateWallet(userId: string): Promise<WalletData> {
         });
       } catch (error) {
         // Silent fail
-      }
-      
-      return wallet;
+  }
+  
+  return wallet;
     } finally {
       // Remove from cache after completion
       walletFetchCache.delete(cacheKey);

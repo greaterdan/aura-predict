@@ -1,4 +1,4 @@
-# Aura Predict - AI-Powered Prediction Market Terminal
+# Probly - AI-Powered Prediction Market Terminal
 
 Real-time AI-powered prediction market interface with live trading analytics and neural network visualizations.
 
