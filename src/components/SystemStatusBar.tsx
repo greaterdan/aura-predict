@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LoginButton } from "./LoginButton";
 import { CustodialWallet } from "./CustodialWallet";
-import { getOrCreateWallet, getCustodialWallet, storeCustodialWallet } from "@/lib/wallet";
+import { getOrCreateWallet, getStoredWallet, getCustodialWallet, storeCustodialWallet } from "@/lib/wallet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Bot, BarChart3, Users, Newspaper, Github, FileText, Mail, Copy, Check } from "lucide-react";
@@ -29,7 +29,6 @@ export const SystemStatusBar = ({
 }: SystemStatusBarProps) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState<string | undefined>();
-  const [walletAddress, setWalletAddress] = useState<string | undefined>();
   const [custodialWallet, setCustodialWallet] = useState<{ publicKey: string; privateKey: string } | null>(null);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
@@ -47,64 +46,98 @@ export const SystemStatusBar = ({
   };
 
   useEffect(() => {
-    // Check if user is already logged in (from localStorage or session)
-    const storedEmail = localStorage.getItem('userEmail');
-    const storedWallet = localStorage.getItem('walletAddress');
-    
-    if (storedEmail || storedWallet) {
-      setIsLoggedIn(true);
-      if (storedEmail) setUserEmail(storedEmail);
-      if (storedWallet) setWalletAddress(storedWallet);
+    // Check if user is already logged in (from localStorage or OAuth session)
+    const checkAuth = async () => {
+      const storedEmail = localStorage.getItem('userEmail');
       
-      // First, try to get existing custodial wallet from storage
-      let wallet = getCustodialWallet();
-      
-      // If no custodial wallet exists, generate or retrieve one based on userId
-      if (!wallet) {
-      const userId = storedEmail || storedWallet || 'default';
-        wallet = getOrCreateWallet(userId);
-        // Store it as the main custodial wallet
+      // First check localStorage for email
+      if (storedEmail) {
+        setIsLoggedIn(true);
+        setUserEmail(storedEmail);
+        
+        // Get or create wallet for this email
+        // This ensures the same email always gets the same wallet
+        let wallet = getStoredWallet(storedEmail);
+        
+        if (!wallet) {
+          wallet = getOrCreateWallet(storedEmail);
+        }
+        
+        // Store as custodial wallet for persistence
         storeCustodialWallet(wallet);
-      }
-      
-      setCustodialWallet({
-        publicKey: wallet.publicKey,
-        privateKey: wallet.privateKey,
-      });
-    } else {
-      // Check if there's a stored custodial wallet even without login
-      // (for backwards compatibility)
-      const storedCustodialWallet = getCustodialWallet();
-      if (storedCustodialWallet) {
+        
         setCustodialWallet({
-          publicKey: storedCustodialWallet.publicKey,
-          privateKey: storedCustodialWallet.privateKey,
+          publicKey: wallet.publicKey,
+          privateKey: wallet.privateKey,
         });
+      } else {
+        // Check for OAuth session (Google login)
+        try {
+          const { API_BASE_URL } = await import('@/lib/apiConfig');
+          const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+            credentials: 'include',
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.authenticated && data.user?.email) {
+              // User is logged in via OAuth
+              setIsLoggedIn(true);
+              setUserEmail(data.user.email);
+              localStorage.setItem('userEmail', data.user.email);
+              
+              // Get or create wallet for this email
+              // This ensures the same email always gets the same wallet
+              let wallet = getStoredWallet(data.user.email);
+              
+              if (!wallet) {
+                wallet = getOrCreateWallet(data.user.email);
+              }
+              
+              // Store as custodial wallet for persistence
+              storeCustodialWallet(wallet);
+              
+              setCustodialWallet({
+                publicKey: wallet.publicKey,
+                privateKey: wallet.privateKey,
+              });
+            }
+          }
+        } catch (error) {
+          // Silently fail - user might not be logged in
+          console.debug('OAuth check failed:', error);
+        }
+        
+        // Check if there's a stored custodial wallet even without login
+        // (for backwards compatibility)
+        const storedCustodialWallet = getCustodialWallet();
+        if (storedCustodialWallet) {
+          setCustodialWallet({
+            publicKey: storedCustodialWallet.publicKey,
+            privateKey: storedCustodialWallet.privateKey,
+          });
+        }
       }
-    }
+    };
+    
+    checkAuth();
   }, []);
 
-  const handleLogin = (method: 'phantom' | 'gmail', data?: { address?: string; email?: string }) => {
+  const handleLogin = (email: string) => {
     setIsLoggedIn(true);
-    const userId = method === 'phantom' ? data?.address : data?.email || 'default';
+    setUserEmail(email);
+    localStorage.setItem('userEmail', email);
     
-    if (method === 'phantom' && data?.address) {
-      setWalletAddress(data.address);
-      localStorage.setItem('walletAddress', data.address);
-    } else if (method === 'gmail' && data?.email) {
-      setUserEmail(data.email);
-      localStorage.setItem('userEmail', data.email);
-    }
+    // Get or create wallet for this email address
+    // This ensures the same email always gets the same wallet
+    let wallet = getStoredWallet(email);
     
-    // First, try to get existing custodial wallet from storage
-    let wallet = getCustodialWallet();
-    
-    // If no custodial wallet exists, generate or retrieve one based on userId
     if (!wallet) {
-      wallet = getOrCreateWallet(userId || 'default');
+      // Create new wallet for this email
+      wallet = getOrCreateWallet(email);
     }
     
-    // Always store the custodial wallet for persistence
+    // Store as custodial wallet for persistence
     storeCustodialWallet(wallet);
     
     setCustodialWallet({
@@ -116,14 +149,12 @@ export const SystemStatusBar = ({
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUserEmail(undefined);
-    setWalletAddress(undefined);
     // Keep custodial wallet in storage even after logout
     // so user can still see their wallet balance if they return
-    // Only clear if they explicitly want to clear everything
+    // The wallet is tied to their email, so it will be restored on next login
     setCustodialWallet(null);
     localStorage.removeItem('userEmail');
-    localStorage.removeItem('walletAddress');
-    // Note: We keep custodialWallet in localStorage for persistence
+    // Note: We keep the wallet in localStorage (keyed by email) for persistence
     // To fully clear, call clearCustodialWallet()
   };
 
@@ -293,7 +324,6 @@ export const SystemStatusBar = ({
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
         userEmail={userEmail}
-        walletAddress={walletAddress}
       />
       </div>
     </div>

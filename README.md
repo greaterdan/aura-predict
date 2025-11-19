@@ -84,6 +84,10 @@ Required:
 Optional:
 - `ALLOWED_ORIGINS` - Comma-separated list of allowed CORS origins
 - `CSRF_SECRET` - Secret for CSRF token generation (recommended for production)
+- `SESSION_SECRET` - Secret for session management (required for Google OAuth, recommended for production)
+- `GOOGLE_CLIENT_ID` - Google OAuth Client ID (required for Google login)
+- `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret (required for Google login)
+- `GOOGLE_CALLBACK_URL` - Google OAuth callback URL (defaults to `https://probly.tech/api/auth/google/callback` in production)
 - `NEWS_API_KEY` - NewsAPI.org API key
 - `NEWSDATA_API_KEY` - NewsData.io API key
 - `GNEWS_API_KEY` - GNews API key
@@ -121,6 +125,31 @@ aura-predict/
 └── dist/               # Production build output
 ```
 
+## Google OAuth Setup
+
+To enable Google login:
+
+1. **Create Google OAuth Credentials:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+   - Enable the Google+ API
+   - Go to "Credentials" → "Create Credentials" → "OAuth client ID"
+   - Choose "Web application"
+   - Add authorized redirect URIs:
+     - Production: `https://probly.tech/api/auth/google/callback`
+     - Development: `http://localhost:3002/api/auth/google/callback`
+
+2. **Set Environment Variables:**
+   ```bash
+   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   SESSION_SECRET=your-session-secret  # Generate with: openssl rand -base64 32
+   ```
+
+3. **Deploy:**
+   - Add these variables to your Railway project settings
+   - The OAuth flow will work automatically once configured
+
 ## Security
 
 The application includes comprehensive security features:
@@ -130,6 +159,8 @@ The application includes comprehensive security features:
 - Security headers (Helmet.js)
 - CORS configuration
 - Error sanitization
+- Google OAuth authentication
+- Secure session management
 
 ## License
 

@@ -12,6 +12,9 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import cookieParser from 'cookie-parser';
 import csrf from 'csrf';
+import session from 'express-session';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { fetchAllMarkets } from './services/polymarketService.js';
 import { transformMarkets } from './services/marketTransformer.js';
 import { mapCategoryToPolymarket } from './utils/categoryMapper.js';
@@ -39,7 +42,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "http:"],
       scriptSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.mainnet-beta.solana.com", "https://gamma-api.polymarket.com", "https://data-api.polymarket.com", "https://clob.polymarket.com", "https://newsapi.org", "https://newsdata.io", "https://gnews.io", "https://my.productfruits.com"],
+      connectSrc: ["'self'", "https://api.mainnet-beta.solana.com", "https://gamma-api.polymarket.com", "https://data-api.polymarket.com", "https://clob.polymarket.com", "https://newsapi.org", "https://newsdata.io", "https://gnews.io", "https://my.productfruits.com", "https://accounts.google.com", "https://www.googleapis.com"],
     },
   },
   crossOriginEmbedderPolicy: false, // Allow external resources
@@ -127,6 +130,88 @@ app.get('/api/csrf-token', (req, res) => {
 
 // Root route removed - will be handled by static file serving for frontend
 
+// Google OAuth Routes
+if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+  // Initiate Google OAuth flow
+  app.get('/api/auth/google', passport.authenticate('google', {
+    scope: ['profile', 'email'],
+  }));
+
+  // Google OAuth callback
+  app.get('/api/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/?auth=error' }),
+    (req, res) => {
+      // Successful authentication - redirect to frontend with success
+      // The user object is stored in req.user via Passport
+      res.redirect('/?auth=success');
+    }
+  );
+
+  // Get current user session
+  app.get('/api/auth/me', (req, res) => {
+    if (req.user) {
+      res.json({
+        authenticated: true,
+        user: req.user,
+      });
+    } else {
+      res.json({
+        authenticated: false,
+        user: null,
+      });
+    }
+  });
+
+  // Logout
+  app.post('/api/auth/logout', (req, res) => {
+    if (req.logout) {
+      req.logout((err) => {
+        if (err) {
+          console.error('Logout error:', err);
+          return res.status(500).json({ error: 'Logout failed' });
+        }
+        req.session.destroy((err) => {
+          if (err) {
+            console.error('Session destroy error:', err);
+            return res.status(500).json({ error: 'Session destroy failed' });
+          }
+          res.clearCookie('connect.sid'); // Clear session cookie
+          res.json({ success: true, message: 'Logged out successfully' });
+        });
+      });
+    } else {
+      // Fallback if logout method doesn't exist
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destroy error:', err);
+          return res.status(500).json({ error: 'Session destroy failed' });
+        }
+        res.clearCookie('connect.sid');
+        res.json({ success: true, message: 'Logged out successfully' });
+      });
+    }
+  });
+} else {
+  // Placeholder routes when OAuth is not configured
+  app.get('/api/auth/google', (req, res) => {
+    res.status(503).json({
+      error: 'Google OAuth not configured',
+      message: 'Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables',
+    });
+  });
+
+  app.get('/api/auth/me', (req, res) => {
+    res.json({
+      authenticated: false,
+      user: null,
+    });
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    res.json({ success: true, message: 'Logged out (OAuth not configured)' });
+  });
+}
+
 // Security: CORS - restrict to specific origins instead of wildcard
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
@@ -192,6 +277,66 @@ app.use('/api/', (req, res, next) => {
 });
 app.use(express.json({ limit: '1mb' })); // Limit request body size
 app.use(cookieParser()); // Parse cookies for CSRF protection
+
+// SECURITY: Session configuration for OAuth
+const sessionSecret = process.env.SESSION_SECRET || 'session-secret-change-in-production-' + Date.now();
+if (isProduction && !process.env.SESSION_SECRET) {
+  console.warn('⚠️  WARNING: SESSION_SECRET not set in production!');
+  console.warn('   Set SESSION_SECRET environment variable for security.');
+  console.warn('   Generate a secure random string: openssl rand -base64 32');
+}
+
+app.use(session({
+  secret: sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: isProduction, // Only send over HTTPS in production
+    httpOnly: true, // Prevent XSS attacks
+    sameSite: 'lax', // CSRF protection
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  },
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Google OAuth Strategy
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || (isProduction ? 'https://probly.tech/api/auth/google/callback' : 'http://localhost:3002/api/auth/google/callback');
+
+if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+  passport.use(new GoogleStrategy({
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    callbackURL: GOOGLE_CALLBACK_URL,
+  }, (accessToken, refreshToken, profile, done) => {
+    // This function is called after Google authentication succeeds
+    // profile contains user information from Google
+    return done(null, {
+      id: profile.id,
+      email: profile.emails?.[0]?.value,
+      name: profile.displayName,
+      picture: profile.photos?.[0]?.value,
+    });
+  }));
+
+  // Serialize user for session
+  passport.serializeUser((user, done) => {
+    done(null, user);
+  });
+
+  // Deserialize user from session
+  passport.deserializeUser((user, done) => {
+    done(null, user);
+  });
+
+  console.log('✅ Google OAuth configured');
+} else {
+  console.warn('⚠️  Google OAuth not configured - set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET');
+}
 
 // SECURITY: Add request ID for logging and tracking
 app.use((req, res, next) => {

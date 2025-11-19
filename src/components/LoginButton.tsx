@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -6,79 +6,85 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Wallet, Mail, LogOut, User } from "lucide-react";
+import { Mail, LogOut, User } from "lucide-react";
+import { API_BASE_URL } from "@/lib/apiConfig";
 
 interface LoginButtonProps {
-  onLogin?: (method: 'phantom' | 'gmail', data?: { address?: string; email?: string }) => void;
+  onLogin?: (email: string) => void;
   onLogout?: () => void;
   isLoggedIn?: boolean;
   userEmail?: string;
-  walletAddress?: string;
 }
 
 export const LoginButton = ({ 
   onLogin, 
   onLogout, 
   isLoggedIn = false,
-  userEmail,
-  walletAddress 
+  userEmail
 }: LoginButtonProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const handlePhantomLogin = async () => {
-    setIsConnecting(true);
-    try {
-      // Check if Phantom wallet is installed
-      const provider = (window as any).solana;
-      if (!provider || !provider.isPhantom) {
-        alert('Phantom wallet not found. Please install Phantom extension.');
-        setIsConnecting(false);
-        return;
-      }
-
-      // Connect to Phantom wallet
-      const response = await provider.connect();
-      const address = response.publicKey.toString();
-      
-      onLogin?.('phantom', { address });
-    } catch (error: any) {
-      if (error.code === 4001) {
-        alert('Connection rejected by user');
-      } else {
-        alert('Failed to connect to Phantom wallet');
-      }
-    } finally {
-      setIsConnecting(false);
-    }
+  const handleGoogleLogin = () => {
+    // Redirect to Google OAuth endpoint - this will redirect to Google
+    window.location.href = `${API_BASE_URL}/api/auth/google`;
   };
 
-  const handleGmailLogin = async () => {
-    setIsConnecting(true);
+  const handleLogout = async () => {
     try {
-      // Google OAuth login
-      // This is a placeholder - you'll need to implement actual Google OAuth
-      const response = await fetch('/api/auth/google', {
+      // Call logout endpoint to clear OAuth session
+      const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
+        credentials: 'include',
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        onLogin?.('gmail', { email: data.email });
-      } else {
-        // For now, simulate Gmail login
-        onLogin?.('gmail', { email: 'user@gmail.com' });
+      if (!response.ok) {
+        console.error('Logout failed');
       }
+      onLogout?.();
     } catch (error) {
-      // For demo purposes, still call onLogin
-      onLogin?.('gmail', { email: 'user@gmail.com' });
-    } finally {
-      setIsConnecting(false);
+      console.error('Logout error:', error);
+      onLogout?.(); // Still call onLogout to clear local state
     }
   };
 
-  const handleLogout = () => {
-    onLogout?.();
-  };
+  // Check for OAuth session on mount and after auth redirect
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated && data.user?.email) {
+            // User is logged in via OAuth
+            onLogin?.(data.user.email);
+          }
+        }
+      } catch (error) {
+        // Silently fail - user might not be logged in
+        console.debug('Auth check failed:', error);
+      }
+    };
+
+    // Check URL params for auth success/error
+    const urlParams = new URLSearchParams(window.location.search);
+    const authStatus = urlParams.get('auth');
+    
+    if (authStatus === 'success') {
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Check auth status
+      checkAuth();
+    } else if (authStatus === 'error') {
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      alert('Authentication failed. Please try again.');
+    } else {
+      // Check on mount if already logged in
+      checkAuth();
+    }
+  }, [onLogin]);
 
   if (isLoggedIn) {
     return (
@@ -90,21 +96,13 @@ export const LoginButton = ({
             className="h-7 px-2.5 text-xs font-mono border-border bg-background hover:bg-bg-elevated rounded-full"
           >
             <User className="w-2.5 h-2.5 mr-1.5" />
-            {walletAddress 
-              ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`
-              : userEmail?.split('@')[0] || 'Logged In'
-            }
+            {userEmail?.split('@')[0] || 'Logged In'}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56 bg-background border-border">
           {userEmail && (
             <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border">
               {userEmail}
-            </div>
-          )}
-          {walletAddress && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border font-mono">
-              {walletAddress}
             </div>
           )}
           <DropdownMenuItem
@@ -133,20 +131,12 @@ export const LoginButton = ({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48 bg-background border-border">
         <DropdownMenuItem
-          onClick={handlePhantomLogin}
-          className="text-xs cursor-pointer flex items-center gap-2"
-          disabled={isConnecting}
-        >
-          <Wallet className="w-4 h-4" />
-          <span>Login with Phantom</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={handleGmailLogin}
+          onClick={handleGoogleLogin}
           className="text-xs cursor-pointer flex items-center gap-2"
           disabled={isConnecting}
         >
           <Mail className="w-4 h-4" />
-          <span>Login with Gmail</span>
+          <span>Login with Google</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
