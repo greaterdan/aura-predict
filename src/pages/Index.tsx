@@ -1402,10 +1402,12 @@ const Index = () => {
                       trades={agentTrades[selectedAgent] || []}
                       onClose={handleCloseAgentTrades}
                       onTradeClick={(marketName, predictionId) => {
+                        console.log('[TradeClick] Clicked trade:', { marketName, predictionId, totalPredictions: predictions.length });
                         // Always use predictionId - trades are generated from actual predictions
                         if (predictionId) {
                           const matchingPrediction = predictions.find(p => p.id === predictionId);
                           if (matchingPrediction) {
+                            console.log('[TradeClick] Found matching prediction:', matchingPrediction.id);
                             setSelectedPrediction(matchingPrediction);
                             setSelectedNode(matchingPrediction.id);
                             if (!isPerformanceOpen) {
@@ -1413,10 +1415,22 @@ const Index = () => {
                               setLeftPanelSize(30);
                             }
                           } else {
-                            console.warn('Prediction not found for ID:', predictionId);
+                            console.warn('[TradeClick] Prediction not found for ID:', predictionId);
+                            console.warn('[TradeClick] Available prediction IDs (first 10):', predictions.slice(0, 10).map(p => p.id));
+                            // Try to find by market name as fallback
+                            const byName = predictions.find(p => p.question?.toLowerCase().includes(marketName.toLowerCase()));
+                            if (byName) {
+                              console.log('[TradeClick] Found by name fallback:', byName.id);
+                              setSelectedPrediction(byName);
+                              setSelectedNode(byName.id);
+                              if (!isPerformanceOpen) {
+                                setIsPerformanceOpen(true);
+                                setLeftPanelSize(30);
+                              }
+                            }
                           }
                         } else {
-                          console.warn('No prediction ID provided for trade:', marketName);
+                          console.warn('[TradeClick] No prediction ID provided for trade:', marketName);
                         }
                       }}
                     />

@@ -163,10 +163,38 @@ export async function generateTradeForMarket(
   side = personalityResult.side;
   confidence = personalityResult.confidence;
   
-  // Calculate investment amount based on personality-adjusted size
-  // Starting capital is $3000, use personality-adjusted size
+  // Calculate sophisticated position size based on multiple factors
   const STARTING_CAPITAL = 3000;
-  const investmentUsd = personalityResult.sizeUsd;
+  
+  // Base risk budget by agent risk level
+  const RISK_BUDGET: Record<'LOW' | 'MEDIUM' | 'HIGH', number> = {
+    LOW: 50,
+    MEDIUM: 100,
+    HIGH: 150,
+  };
+  
+  const baseRisk = RISK_BUDGET[agent.risk];
+  
+  // Confidence multiplier (0.5x to 1.5x) - higher confidence = larger position
+  const confidenceMultiplier = Math.max(0.5, Math.min(1.5, confidence));
+  
+  // Score multiplier (0.8x to 1.2x) - higher market score = larger position
+  const scoreMultiplier = Math.max(0.8, Math.min(1.2, scored.score / 50)); // Normalize score to 0-1 range
+  
+  // Calculate base size
+  let investmentUsd = baseRisk * confidenceMultiplier * scoreMultiplier;
+  
+  // Apply personality adjustments (personality rules can boost/reduce)
+  const personalitySizeMultiplier = personalityResult.sizeUsd / baseSizeUsd;
+  investmentUsd = investmentUsd * personalitySizeMultiplier;
+  
+  // Apply hard caps and floors
+  const MIN_INVESTMENT = 30; // Minimum $30 per trade
+  const MAX_INVESTMENT = STARTING_CAPITAL * 0.20; // 20% max per market ($600)
+  investmentUsd = Math.max(MIN_INVESTMENT, Math.min(investmentUsd, MAX_INVESTMENT));
+  
+  // Round to nearest $5 for cleaner display
+  const finalInvestment = Math.round(investmentUsd / 5) * 5;
   
   // Determine trade status (simplified - all new trades are OPEN)
   const status: 'OPEN' | 'CLOSED' = 'OPEN';
@@ -189,7 +217,7 @@ export async function generateTradeForMarket(
     reasoning,
     status,
     pnl: null, // OPEN trades have no PnL yet
-    investmentUsd, // Amount invested in this trade
+    investmentUsd: finalInvestment, // Amount invested in this trade
     openedAt,
     summaryDecision,
     seed,

@@ -203,9 +203,16 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    onTradeClick?.(trade.market, trade.predictionId);
+                    // Use predictionId if available, otherwise try to find by market name
+                    if (trade.predictionId) {
+                      onTradeClick?.(trade.market, trade.predictionId);
+                    } else {
+                      console.warn('No predictionId for trade:', trade.id, trade.market);
+                      // Still try to call with market name - parent can try to find it
+                      onTradeClick?.(trade.market, undefined);
+                    }
                   }}
-                  style={{ pointerEvents: 'auto' }}
+                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
                 >
                   <div className="flex items-start justify-between mb-2" style={{ pointerEvents: 'none' }}>
                     <div className="flex-1 min-w-0" style={{ pointerEvents: 'none' }}>
