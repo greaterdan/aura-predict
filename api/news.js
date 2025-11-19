@@ -1,11 +1,13 @@
 // Vercel serverless function for /api/news
+// SECURITY: All API keys must be in environment variables - never hardcode
 import nodemailer from 'nodemailer';
 
-const NEWS_API_KEY = '245568e9eb38441fbe7f2e48527932d8';
+// SECURITY: Get API keys from environment variables only
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const NEWS_API_URL = 'https://newsapi.org/v2/everything';
-const NEWSDATA_API_KEY = 'pub_c8c2a4c6f89848319fc7c5798cd1c287';
+const NEWSDATA_API_KEY = process.env.NEWSDATA_API_KEY;
 const NEWSDATA_API_URL = 'https://newsdata.io/api/1/news';
-const GNEWS_API_KEY = process.env.GNEWS_API_KEY || 'ff4c132f93616db0e87009c771ea52db';
+const GNEWS_API_KEY = process.env.GNEWS_API_KEY;
 const GNEWS_API_URL = 'https://gnews.io/api/v4/search';
 
 let newsCache = {
@@ -65,6 +67,12 @@ const deduplicateArticles = (articles) => {
 };
 
 const fetchNewsAPI = async () => {
+  // SECURITY: Check if API key is configured
+  if (!NEWS_API_KEY) {
+    console.warn('NEWS_API_KEY not configured, skipping NewsAPI');
+    return [];
+  }
+  
   const fromDate = new Date();
   fromDate.setHours(fromDate.getHours() - 24);
   const fromDateStr = fromDate.toISOString();
@@ -129,6 +137,12 @@ const fetchNewsAPI = async () => {
 };
 
 const fetchNewsData = async () => {
+  // SECURITY: Check if API key is configured
+  if (!NEWSDATA_API_KEY) {
+    console.warn('NEWSDATA_API_KEY not configured, skipping NewsData.io');
+    return [];
+  }
+  
   const fromDate = new Date();
   fromDate.setHours(fromDate.getHours() - 24);
   const fromDateStr = fromDate.toISOString().split('T')[0];
@@ -204,7 +218,9 @@ const fetchNewsData = async () => {
 };
 
 const fetchGNews = async () => {
+  // SECURITY: Check if API key is configured
   if (!GNEWS_API_KEY) {
+    console.warn('GNEWS_API_KEY not configured, skipping GNews');
     return [];
   }
   
@@ -284,9 +300,18 @@ const fetchGNews = async () => {
 };
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // SECURITY: CORS - restrict to specific origins instead of wildcard
+  const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:5173', 'http://localhost:3000', 'https://probly.tech'];
+  
+  const origin = req.headers.origin;
+  if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
