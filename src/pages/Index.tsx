@@ -479,6 +479,12 @@ const Index = () => {
   }, [agents.length]);
 
   const handleAgentClick = async (agentId: string) => {
+    // Exclude Qwen from showing trades
+    if (agentId.toLowerCase() === 'qwen') {
+      console.log('[AgentClick] Qwen is excluded from trades view');
+      return;
+    }
+    
     if (selectedAgent === agentId) {
       // Clicking the same agent - close trades view
       setSelectedAgent(null);
@@ -1339,10 +1345,11 @@ const Index = () => {
                   userEmail={userEmail}
                 />
               ) : (
-                <PerformanceChart 
-                  predictions={predictions}
-                  selectedMarketId={selectedNode}
-                />
+              <PerformanceChart
+                predictions={predictions}
+                selectedMarketId={selectedNode}
+                selectedAgentId={selectedAgent} // Pass selected agent to update chart
+              />
               )}
             </ResizablePanel>
             <ResizableHandle withHandle style={{ pointerEvents: 'auto', zIndex: 50 }} />

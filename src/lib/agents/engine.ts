@@ -208,11 +208,37 @@ export async function generateTradeForMarket(
   // Round to nearest $10 for cleaner display (was $5, but $10 gives more variety)
   const finalInvestment = Math.round(investmentUsd / 10) * 10;
   
-  // Determine trade status (simplified - all new trades are OPEN)
-  const status: 'OPEN' | 'CLOSED' = 'OPEN';
+  // Determine trade status - close some trades to show history
+  // Close trades deterministically based on market ID hash (so same market = same status)
+  const marketHash = scored.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const shouldClose = (marketHash % 3) === 0; // Close ~33% of trades
+  const status: 'OPEN' | 'CLOSED' = shouldClose ? 'CLOSED' : 'OPEN';
   
   // Generate timestamps deterministically
   const openedAt = new Date(now - (index * 1000)).toISOString(); // Stagger by 1 second per market
+  const closedAt = shouldClose ? new Date(now - (index * 1000) + (Math.abs(marketHash % 3600000))).toISOString() : undefined;
+  
+  // Calculate PnL for closed trades (mock calculation based on confidence and score)
+  // Higher confidence + better score = more likely to win
+  let pnl: number | null = null;
+  if (shouldClose) {
+    // Deterministic PnL calculation based on confidence, score, and market hash
+    const winProbability = Math.min(0.95, confidence * 0.8 + (scored.score / 100) * 0.2);
+    const isWin = (marketHash % 100) < (winProbability * 100);
+    
+    if (isWin) {
+      // Win: PnL is positive, based on confidence and investment
+      const winMultiplier = 0.3 + (confidence * 0.4) + ((scored.score / 100) * 0.3); // 0.3 to 1.0
+      pnl = finalInvestment * winMultiplier;
+    } else {
+      // Loss: PnL is negative, lose part of investment
+      const lossMultiplier = 0.2 + (confidence * 0.3); // Lose 20-50% of investment
+      pnl = -finalInvestment * lossMultiplier;
+    }
+    
+    // Round to 2 decimal places
+    pnl = Math.round(pnl * 100) / 100;
+  }
   
   // Generate summary decision
   const summaryDecision = `${agent.displayName} decided to trade ${side} on "${scored.question}" with ${Math.round(confidence * 100)}% confidence based on ${reasoning.length} key factors.`;
@@ -228,9 +254,10 @@ export async function generateTradeForMarket(
     score: scored.score,
     reasoning,
     status,
-    pnl: null, // OPEN trades have no PnL yet
+    pnl, // PnL for closed trades, null for open
     investmentUsd: finalInvestment, // Amount invested in this trade
     openedAt,
+    closedAt, // Only for closed trades
     summaryDecision,
     seed,
   };

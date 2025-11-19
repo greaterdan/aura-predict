@@ -258,10 +258,30 @@ const createLineEndpoints = (selectedAgent: string | null, chartData: ChartDataP
 interface PerformanceChartProps {
   predictions?: Array<{ id: string; agentName?: string }>;
   selectedMarketId?: string | null;
+  selectedAgentId?: string | null; // Agent selected from bottom navbar
 }
 
-export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: PerformanceChartProps = {}) => {
+export const PerformanceChart = ({ predictions = [], selectedMarketId = null, selectedAgentId = null }: PerformanceChartProps = {}) => {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  
+  // Update selectedAgent when selectedAgentId prop changes (from bottom navbar)
+  useEffect(() => {
+    if (selectedAgentId !== null) {
+      // Map frontend agent IDs to chart agent IDs
+      const agentIdMap: Record<string, string> = {
+        'grok': 'GROK',
+        'gpt5': 'GPT5',
+        'deepseek': 'DEEPSEEK',
+        'gemini': 'GEMINI',
+        'claude': 'CLAUDE',
+        'qwen': 'QWEN',
+      };
+      const chartAgentId = agentIdMap[selectedAgentId.toLowerCase()] || selectedAgentId.toUpperCase();
+      setSelectedAgent(chartAgentId);
+    } else {
+      setSelectedAgent(null);
+    }
+  }, [selectedAgentId]);
   const [viewMode, setViewMode] = useState<"chart" | "technical">("chart");
   const [zoomLevel, setZoomLevel] = useState(1); // 1 = normal, >1 = zoomed in, <1 = zoomed out
   const [chartData, setChartData] = useState<ChartDataPoint[]>(getInitialChartData());
