@@ -52,9 +52,19 @@ const Index = () => {
   // Removed zoom/pan - bubbles now fill full screen and can only be dragged individually
   const [selectedCategory, setSelectedCategory] = useState<string>("All Markets");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [predictions, setPredictions] = useState<PredictionNodeData[]>([]);
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [bubbleLimit, setBubbleLimit] = useState<number>(100);
+  
+  // Debounce search query to prevent glitching during typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300); // 300ms delay after user stops typing
+    
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   
   // Filter state
   const [filters, setFilters] = useState({
@@ -368,9 +378,9 @@ const Index = () => {
   const filteredPredictions = useMemo(() => {
     let filtered = predictions;
     
-    // Apply search query filter - search across multiple fields
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Apply search query filter - search across multiple fields (use debounced query)
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       const queryWords = query.split(/\s+/).filter(w => w.length > 0); // Split into words for better matching
       
       filtered = filtered.filter(prediction => {
@@ -494,7 +504,7 @@ const Index = () => {
     }
     
     return filtered;
-  }, [predictions, searchQuery, filters]);
+  }, [predictions, debouncedSearchQuery, filters]);
 
   // Apply bubble limit to filtered predictions
   const limitedPredictions = useMemo(() => {
