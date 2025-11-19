@@ -226,7 +226,14 @@ app.use(passport.session());
 // Google OAuth Strategy
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+// Determine callback URL - use environment variable if set, otherwise construct from current request
+// In production, default to probly.tech, but allow override for Railway deployments
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || (isProduction ? 'https://probly.tech/api/auth/google/callback' : 'http://localhost:3002/api/auth/google/callback');
+
+// Log the callback URL for debugging
+if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+  console.log(`🔐 Google OAuth callback URL: ${GOOGLE_CALLBACK_URL}`);
+}
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(new GoogleStrategy({
