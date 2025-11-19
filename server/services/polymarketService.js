@@ -126,25 +126,26 @@ export async function fetchMarketsFromPolymarket({
 
   const data = await response.json();
   
-  // DEBUG: Log sample market to see actual structure and categories
-  if (data.results && data.results.length > 0) {
-    const sample = data.results[0];
-    console.log('=== SAMPLE MARKET FROM API ===');
-    console.log('Sample keys:', Object.keys(sample));
-    console.log('Sample category:', sample.category);
-    console.log('Sample tags:', sample.tags);
-    console.log('Sample topic:', sample.topic);
-    console.log('Sample question:', sample.question || sample.title);
-    if (sample.market) {
-      console.log('Sample market.category:', sample.market.category);
-      console.log('Sample market.tags:', sample.market.tags);
-    }
-    if (sample.markets && sample.markets.length > 0) {
-      console.log('Sample markets[0].category:', sample.markets[0].category);
-      console.log('Sample markets[0].tags:', sample.markets[0].tags);
-    }
-    console.log('=== END SAMPLE ===');
-  }
+  // DEBUG: Log sample market (sampled at 1% to reduce log spam)
+  // Removed verbose logging - only log very occasionally for debugging
+  // if (data.results && data.results.length > 0 && Math.random() < 0.01) {
+  //   const sample = data.results[0];
+  //   console.log('=== SAMPLE MARKET FROM API ===');
+  //   console.log('Sample keys:', Object.keys(sample));
+  //   console.log('Sample category:', sample.category);
+  //   console.log('Sample tags:', sample.tags);
+  //   console.log('Sample topic:', sample.topic);
+  //   console.log('Sample question:', sample.question || sample.title);
+  //   if (sample.market) {
+  //     console.log('Sample market.category:', sample.market.category);
+  //     console.log('Sample market.tags:', sample.market.tags);
+  //   }
+  //   if (sample.markets && sample.markets.length > 0) {
+  //     console.log('Sample markets[0].category:', sample.markets[0].category);
+  //     console.log('Sample markets[0].tags:', sample.markets[0].tags);
+  //   }
+  //   console.log('=== END SAMPLE ===');
+  // }
   
   // Extract markets from response (handle different structures)
   let markets = [];

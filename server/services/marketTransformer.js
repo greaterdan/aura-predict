@@ -242,11 +242,11 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
   if (conditionIdStr && pricesMap[conditionIdStr]) {
     const marketPrices = pricesMap[conditionIdStr];
     
-    // DEBUG: Log what we're processing
-    if (index === 0 || index < 3) {
-      console.log(`\n[Market ${index}] Processing prices for conditionId: ${conditionIdStr}`);
-      console.log(`  Available price data:`, Object.keys(marketPrices));
-    }
+    // DEBUG: Log what we're processing (removed to reduce log spam)
+    // if (index === 0 || index < 3) {
+    //   console.log(`\n[Market ${index}] Processing prices for conditionId: ${conditionIdStr}`);
+    //   console.log(`  Available price data:`, Object.keys(marketPrices));
+    // }
     
     // Extract ALL outcomes with their prices
     // For negative risk markets, show all named outcomes
@@ -304,9 +304,10 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
           }
         }
         
-        if (index === 0 || index < 3) {
-          console.log(`  ✅ Extracted price for ${outcomeName}: $${priceInfo.price.toFixed(3)} (${(priceInfo.price * 100).toFixed(1)}%)`);
-        }
+        // DEBUG: Log extracted prices (removed to reduce log spam)
+        // if (index === 0 || index < 3) {
+        //   console.log(`  ✅ Extracted price for ${outcomeName}: $${priceInfo.price.toFixed(3)} (${(priceInfo.price * 100).toFixed(1)}%)`);
+        // }
       } else {
         if (index === 0 || index < 3) {
           console.log(`  ⚠️  Failed to extract valid price for ${outcomeName} from:`, priceData);
@@ -317,14 +318,16 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
     // Sort outcomes by probability (highest first)
     allOutcomes.sort((a, b) => b.probability - a.probability);
     
-    if (index === 0 || index < 3) {
-      console.log(`  Final outcomes count: ${allOutcomes.length}`);
-    }
+    // DEBUG: Log outcomes count (removed to reduce log spam)
+    // if (index === 0 || index < 3) {
+    //   console.log(`  Final outcomes count: ${allOutcomes.length}`);
+    // }
   } else {
-    if (index === 0 || index < 3) {
-      console.log(`\n[Market ${index}] ⚠️  NO PRICES FOUND for conditionId: ${conditionIdStr}`);
-      console.log(`  Available conditionIds in pricesMap:`, Object.keys(pricesMap).slice(0, 5));
-    }
+    // DEBUG: Log missing prices (removed to reduce log spam - only log very occasionally)
+    // if (index === 0 && Math.random() < 0.01) {
+    //   console.log(`\n[Market ${index}] ⚠️  NO PRICES FOUND for conditionId: ${conditionIdStr}`);
+    //   console.log(`  Available conditionIds in pricesMap:`, Object.keys(pricesMap).slice(0, 5));
+    // }
   }
   
   // If we didn't get outcomes from prices endpoint, try to extract from outcomePrices
@@ -647,17 +650,18 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
                    market.imageUrl ||
                    market.thumbnail;
   
-  // Detect category - log for debugging
+  // Detect category
   const category = detectCategoryFromMarket(actualMarket);
   
-  // DEBUG: Log category detection for Earnings, Geopolitics, Elections
-  const debugCategories = ['Earnings', 'Geopolitics', 'Elections'];
-  if (debugCategories.includes(category)) {
-    console.log(`[${category}] Market: "${question.substring(0, 50)}..."`);
-    console.log(`  - API category: ${actualMarket.category || 'none'}`);
-    console.log(`  - API tags: ${JSON.stringify(actualMarket.tags || [])}`);
-    console.log(`  - Detected as: ${category}`);
-  }
+  // DEBUG: Log category detection for Earnings, Geopolitics, Elections (sampled at 0.1% to reduce log spam)
+  // Removed verbose logging - only log very occasionally for debugging
+  // const debugCategories = ['Earnings', 'Geopolitics', 'Elections'];
+  // if (debugCategories.includes(category) && Math.random() < 0.001) {
+  //   console.log(`[${category}] Market: "${question.substring(0, 50)}..."`);
+  //   console.log(`  - API category: ${actualMarket.category || 'none'}`);
+  //   console.log(`  - API tags: ${JSON.stringify(actualMarket.tags || [])}`);
+  //   console.log(`  - Detected as: ${category}`);
+  // }
   
   // Extract volume and liquidity data - using actual Polymarket API field names
   const volume = actualMarket.volume || 
@@ -828,7 +832,8 @@ export async function transformMarkets(markets) {
     }
   }
   
-  console.log(`Flattened ${markets.length} items into ${flattenedMarkets.length} actual markets (events excluded)`);
+  // DEBUG: Log flattened markets (removed to reduce log spam)
+  // console.log(`Flattened ${markets.length} items into ${flattenedMarkets.length} actual markets (events excluded)`);
   
   for (let i = 0; i < flattenedMarkets.length; i++) {
     const market = flattenedMarkets[i];
@@ -955,10 +960,10 @@ export async function transformMarkets(markets) {
     }
   }
   
-  // Debug: log token extraction
-  console.log(`\n=== TOKEN EXTRACTION DEBUG ===`);
-  console.log(`Extracted ${allTokenIds.size} unique token_ids from ${flattenedMarkets.length} markets`);
-  console.log(`Markets with token maps: ${marketTokenMap.size}`);
+  // Debug: log token extraction (removed to reduce log spam)
+  // console.log(`\n=== TOKEN EXTRACTION DEBUG ===`);
+  // console.log(`Extracted ${allTokenIds.size} unique token_ids from ${flattenedMarkets.length} markets`);
+  // console.log(`Markets with token maps: ${marketTokenMap.size}`);
   
   // Debug: Check first few markets to see their structure
   if (flattenedMarkets.length > 0) {
@@ -1073,9 +1078,10 @@ export async function transformMarkets(markets) {
       
       const marketsWithPrices = Object.keys(pricesMap).length;
       const totalOutcomesWithPrices = Object.values(pricesMap).reduce((sum, tokens) => sum + Object.keys(tokens).length, 0);
-      console.log(`\n=== PRICE MATCHING RESULTS ===`);
-      console.log(`Markets with prices: ${marketsWithPrices}/${marketTokenMap.size}`);
-      console.log(`Outcomes matched: ${matchedCount}, unmatched: ${unmatchedCount}`);
+      // DEBUG: Log price matching results (removed to reduce log spam)
+      // console.log(`\n=== PRICE MATCHING RESULTS ===`);
+      // console.log(`Markets with prices: ${marketsWithPrices}/${marketTokenMap.size}`);
+      // console.log(`Outcomes matched: ${matchedCount}, unmatched: ${unmatchedCount}`);
       
       if (marketsWithPrices > 0) {
         // Log first market's prices in detail
@@ -1176,15 +1182,15 @@ export async function transformMarkets(markets) {
       continue;
     }
     
-    // DEBUG: Log if we have outcomes/prices
-    if (i < 3) {
-      console.log(`\n[Transform ${i}] Market: ${prediction.question.substring(0, 50)}...`);
-      console.log(`  Has outcomes: ${prediction.outcomes ? prediction.outcomes.length : 0}`);
-      console.log(`  yesPrice: ${prediction.yesPrice}, noPrice: ${prediction.noPrice}`);
-      if (prediction.outcomes && prediction.outcomes.length > 0) {
-        console.log(`  Outcomes:`, prediction.outcomes.map(o => `${o.name}: $${o.price.toFixed(3)}`));
-      }
-    }
+    // DEBUG: Log if we have outcomes/prices (removed to reduce log spam)
+    // if (i < 3) {
+    //   console.log(`\n[Transform ${i}] Market: ${prediction.question.substring(0, 50)}...`);
+    //   console.log(`  Has outcomes: ${prediction.outcomes ? prediction.outcomes.length : 0}`);
+    //   console.log(`  yesPrice: ${prediction.yesPrice}, noPrice: ${prediction.noPrice}`);
+    //   if (prediction.outcomes && prediction.outcomes.length > 0) {
+    //     console.log(`  Outcomes:`, prediction.outcomes.map(o => `${o.name}: $${o.price.toFixed(3)}`));
+    //   }
+    // }
     
     // Check for duplicates
     if (seenIds.has(prediction.id)) {

@@ -567,17 +567,22 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
                category.includes(searchLower) || 
                description.includes(searchLower);
       });
-      console.log(`Search "${search}" filtered ${predictions.length} predictions down to ${searchFilteredPredictions.length}`);
+      // Only log search results occasionally (every 10th) to reduce log spam
+      if (Math.random() < 0.1) {
+        console.log(`Search "${search}" filtered ${predictions.length} predictions down to ${searchFilteredPredictions.length}`);
+      }
     }
     
-    // DEBUG: Log category distribution
-    const categoryCounts = {};
-    predictions.forEach(p => {
-      const cat = p.category || 'World';
-      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-    });
-    console.log(`Category distribution:`, categoryCounts);
-    console.log(`Total predictions: ${predictions.length}`);
+    // DEBUG: Log category distribution (removed to reduce log spam - only log occasionally)
+    // const categoryCounts = {};
+    // predictions.forEach(p => {
+    //   const cat = p.category || 'World';
+    //   categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    // });
+    // if (Math.random() < 0.1) {
+    //   console.log(`Category distribution:`, categoryCounts);
+    //   console.log(`Total predictions: ${predictions.length}`);
+    // }
     
     // Filter by category if needed (client-side category filtering)
     // Use search-filtered predictions if search was applied
@@ -608,7 +613,10 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
         }
         return false;
       });
-      console.log(`Filtered ${filteredPredictions.length} predictions for category: ${category}`);
+      // Only log category filtering occasionally (every 10th) to reduce log spam
+      if (Math.random() < 0.1) {
+        console.log(`Filtered ${filteredPredictions.length} predictions for category: ${category}`);
+      }
       if (filteredPredictions.length > 0) {
         console.log(`Sample filtered prediction:`, {
           question: filteredPredictions[0].question?.substring(0, 50),
