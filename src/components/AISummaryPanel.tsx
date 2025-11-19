@@ -23,7 +23,9 @@ interface AIDecision {
   marketId?: string; // Add marketId for finding the prediction
   decision: "YES" | "NO";
   confidence: number;
-  reasoning: string;
+  reasoning: string; // Truncated for display
+  fullReasoning?: string[]; // Full reasoning for expansion
+  investmentUsd?: number; // Investment amount
   decisionHistory?: Array<{
     id: string;
     timestamp: Date;
@@ -336,7 +338,7 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                 }
                 
                 newDecisions.push({
-                  id: `${agentId}-${trade.id}-${index}`, // Unique ID per trade
+                  id: trade.id, // Use trade.id as stable ID (not index-based)
                   agentName: agent?.displayName || agentId,
                   agentEmoji: agent?.avatar || '🤖',
                   timestamp: new Date(trade.openedAt),
@@ -346,6 +348,8 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                   decision: trade.side,
                   confidence: Math.round(trade.confidence * 100),
                   reasoning: reasoningText,
+                  fullReasoning: Array.isArray(trade.reasoning) ? trade.reasoning : (trade.reasoning ? [trade.reasoning] : []), // Store full reasoning for expansion
+                  investmentUsd: trade.investmentUsd || 0, // Store investment amount
                   decisionHistory: [], // Don't show nested history to avoid clutter
                 });
               });
@@ -354,7 +358,24 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
           
           // Sort by timestamp (most recent first)
           newDecisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-          setDecisions(newDecisions);
+          
+          // Merge with existing decisions to preserve expanded state
+          setDecisions(prev => {
+            const prevMap = new Map(prev.map(d => [d.id, d]));
+            const newMap = new Map(newDecisions.map(d => [d.id, d]));
+            
+            // Preserve expanded state for decisions that still exist
+            const merged = newDecisions.map(decision => {
+              const prevDecision = prevMap.get(decision.id);
+              if (prevDecision && expandedId === prevDecision.id) {
+                // Keep expanded state if this decision was expanded
+                return decision;
+              }
+              return decision;
+            });
+            
+            return merged;
+          });
         }
       } catch (error) {
         console.error('Failed to fetch agent summary:', error);
@@ -430,18 +451,13 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                 transition={{ delay: index * 0.1 }}
                 className="bg-bg-elevated border border-border rounded-xl overflow-hidden hover:border-terminal-accent/50 transition-colors"
               >
-                {/* Clickable Header */}
+                {/* Clickable Header - Always expandable to show decision details */}
                 <div
                   onClick={(e) => {
-                    if (hasHistory) {
-                      toggleExpand(decision.id);
-                    } else if (decision.marketId && onTradeClick) {
-                      // Click to open market details
-                      e.stopPropagation();
-                      onTradeClick(decision.marketId);
-                    }
+                    // Always allow expansion to show decision details
+                    toggleExpand(decision.id);
                   }}
-                  className={`p-3 ${hasHistory || decision.marketId ? 'cursor-pointer' : ''}`}
+                  className="p-3 cursor-pointer hover:bg-muted/30 transition-colors"
                 >
                   {/* Agent Header */}
                   <div className="flex items-center justify-between mb-2">
@@ -524,60 +540,61 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                 </div>
               )}
 
-                  {/* Reasoning */}
+                  {/* Reasoning (truncated) */}
                   <div className="text-[12px] text-text-secondary leading-relaxed" style={{ fontWeight: 400 }}>
                     {decision.reasoning}
                   </div>
                 </div>
 
-                {/* Expanded Decision History */}
+                {/* Expanded Decision Details */}
                 <AnimatePresence>
-                  {isExpanded && hasHistory && (
+                  {isExpanded && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
+                      className="overflow-hidden border-t border-border"
                     >
-                      <div className="px-3 pb-3 border-t border-border mt-2 pt-3">
-                        <div className="text-[13px] text-muted-foreground font-mono uppercase mb-2" style={{ fontWeight: 600 }}>
-                          Decision History
-                        </div>
-                        <div className="space-y-2">
-                          {decision.decisionHistory!.map((historyItem, historyIndex) => (
-                            <div
-                              key={historyItem.id}
-                              className="bg-background border border-border rounded-lg p-2.5"
-                            >
-                              <div className="flex items-center justify-between mb-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[13px] font-mono text-foreground" style={{ fontWeight: 600 }}>
-                                    {historyItem.market}
-                                  </span>
-                                  <div className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
-                                    historyItem.decision === "YES"
-                                      ? "bg-trade-yes/20 text-trade-yes border border-trade-yes/30"
-                                      : "bg-trade-no/20 text-trade-no border border-trade-no/30"
-                                  }`}>
-                                    {historyItem.decision}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[12px] text-muted-foreground font-mono">
-                                    {formatTimeAgo(historyItem.timestamp)}
-                                  </span>
-                                  <span className="text-[12px] font-mono text-terminal-accent" style={{ fontWeight: 600 }}>
-                                    {historyItem.confidence}%
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-[13px] text-text-secondary leading-relaxed" style={{ fontWeight: 400 }}>
-                                {historyItem.reasoning}
-                              </div>
+                      <div className="px-3 pb-3 pt-3 space-y-3">
+                        {/* Full Reasoning */}
+                        {decision.fullReasoning && decision.fullReasoning.length > 0 && (
+                          <div>
+                            <div className="text-[11px] text-muted-foreground font-mono uppercase mb-2" style={{ fontWeight: 600 }}>
+                              Full Analysis
                             </div>
-                          ))}
-                        </div>
+                            <div className="space-y-1.5">
+                              {decision.fullReasoning.map((reason, idx) => (
+                                <div key={idx} className="text-[12px] text-text-secondary leading-relaxed pl-2 border-l-2 border-terminal-accent/30">
+                                  {reason}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Investment Amount */}
+                        {decision.investmentUsd !== undefined && decision.investmentUsd > 0 && (
+                          <div className="flex items-center justify-between py-2 border-t border-border/50">
+                            <span className="text-[11px] text-muted-foreground font-mono uppercase">Investment</span>
+                            <span className="text-[13px] font-mono text-foreground" style={{ fontWeight: 600 }}>
+                              ${decision.investmentUsd.toFixed(0)}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Market Details Link */}
+                        {decision.marketId && onTradeClick && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTradeClick(decision.marketId!);
+                            }}
+                            className="w-full px-3 py-2 bg-terminal-accent/10 hover:bg-terminal-accent/20 text-terminal-accent rounded-lg transition-colors text-[11px] font-mono border border-terminal-accent/30"
+                          >
+                            View Market Details →
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   )}
