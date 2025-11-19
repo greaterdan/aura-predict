@@ -125,7 +125,17 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    onTradeClick?.(trade.market, trade.predictionId);
+                    console.log('[AgentTradesPanel] Trade clicked:', {
+                      market: trade.market,
+                      predictionId: trade.predictionId,
+                      tradeId: trade.id,
+                      hasOnTradeClick: !!onTradeClick
+                    });
+                    if (onTradeClick && trade.predictionId) {
+                      onTradeClick(trade.market, trade.predictionId);
+                    } else {
+                      console.warn('[AgentTradesPanel] Cannot click - missing predictionId or onTradeClick handler');
+                    }
                   }}
                   style={{ pointerEvents: 'auto' }}
                 >
