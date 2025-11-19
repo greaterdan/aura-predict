@@ -83,15 +83,19 @@ let agentsModuleLoaded = false;
     return `${agent.displayName} has ${trades.length} trades.`;
   }
   
-  function computeSummaryStats(tradesByAgent) {
-    return {
-      totalPnl: 0,
-      openTradesCount: 0,
-      closedTradesCount: 0,
-      bestAgentByPnl: null,
-    };
-  }
-  
+    function computeSummaryStats(tradesByAgent) {
+      return {
+        totalPnl: 0,
+        openTradesCount: 0,
+        closedTradesCount: 0,
+        bestAgentByPnl: null,
+      };
+    }
+    
+    function calculateAllAgentStats(tradesByAgent) {
+      return [];
+    }
+    
     ALL_AGENT_IDS = Object.keys(AGENT_PROFILES);
     agentsModuleLoaded = true;
   } finally {
