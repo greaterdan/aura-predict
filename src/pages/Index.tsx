@@ -56,7 +56,7 @@ const Index = () => {
   const [predictions, setPredictions] = useState<PredictionNodeData[]>([]);
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-  const [bubbleLimit, setBubbleLimit] = useState<number>(50);
+  const [bubbleLimit, setBubbleLimit] = useState<number>(100);
   
   // Filter state
   const [filters, setFilters] = useState({
@@ -133,7 +133,7 @@ const Index = () => {
       try {
         // Call server endpoint - server handles ALL fetching, filtering, and transformation
         // Request ALL markets - no limit
-        const response = await fetch(`http://localhost:3002/api/predictions?category=${encodeURIComponent(selectedCategory)}&limit=100000`, {
+        const response = await fetch(`http://localhost:3002/api/predictions?category=${encodeURIComponent(selectedCategory)}&limit=500`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -508,8 +508,8 @@ const Index = () => {
       }
     };
     checkWallet();
-    // Check periodically
-    const interval = setInterval(checkWallet, 1000);
+    // Check periodically - reduced frequency to prevent performance issues
+    const interval = setInterval(checkWallet, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -659,7 +659,7 @@ const Index = () => {
     setTimeout(() => {
       setIsTransitioning(false);
       isTransitioningRef.current = false; // Clear ref after transition
-    }, 200); // Faster transition - 200ms instead of 400ms
+    }, 150); // Faster transition - 150ms for better responsiveness
   };
 
   const handleToggleSummary = () => {
@@ -676,7 +676,7 @@ const Index = () => {
       setTimeout(() => {
         setIsTransitioning(false);
         isTransitioningRef.current = false;
-      }, 200); // Faster transition
+      }, 150); // Faster transition for better responsiveness
       return;
     }
     
@@ -699,7 +699,7 @@ const Index = () => {
       setTimeout(() => {
         setIsTransitioning(false);
         isTransitioningRef.current = false;
-      }, 200); // Faster transition
+      }, 150); // Faster transition for better responsiveness
   };
 
   const handleToggleAgentBuilder = () => {
@@ -719,7 +719,7 @@ const Index = () => {
       setTimeout(() => {
         setIsTransitioning(false);
         isTransitioningRef.current = false;
-      }, 200); // Faster transition
+      }, 150); // Faster transition for better responsiveness
       return;
     }
     
@@ -742,7 +742,7 @@ const Index = () => {
       setTimeout(() => {
         setIsTransitioning(false);
         isTransitioningRef.current = false;
-      }, 200); // Faster transition
+      }, 150); // Faster transition for better responsiveness
   };
 
   const handleToggleNewsFeed = () => {
@@ -763,7 +763,7 @@ const Index = () => {
       setTimeout(() => {
         setIsTransitioning(false);
         isTransitioningRef.current = false;
-      }, 200); // Faster transition
+      }, 150); // Faster transition for better responsiveness
       return;
     }
     
@@ -786,7 +786,7 @@ const Index = () => {
       setTimeout(() => {
         setIsTransitioning(false);
         isTransitioningRef.current = false;
-      }, 200); // Faster transition
+      }, 150); // Faster transition for better responsiveness
   };
 
   return (
@@ -839,12 +839,14 @@ const Index = () => {
               }
               isDirectlyResizingLeftRef.current = true;
               
-              // OPTIMIZATION: Throttle updates using requestAnimationFrame
+              // OPTIMIZATION: Throttle updates using requestAnimationFrame with debouncing
               pendingResizeUpdateRef.current = { type: 'left', size };
               
-              if (resizeRAFRef.current === null) {
-                resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
+              // Cancel any pending RAF to prevent stacking
+              if (resizeRAFRef.current !== null) {
+                cancelAnimationFrame(resizeRAFRef.current);
               }
+              resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               
               // Clear resizing flag after a short delay
               if (resizeTimeoutRef.current) {
@@ -856,7 +858,7 @@ const Index = () => {
                   setIsResizing(false);
                   isDirectlyResizingLeftRef.current = false;
                 }
-              }, 150);
+              }, 100);
             }}
             minSize={15} 
             maxSize={30} 
@@ -874,12 +876,12 @@ const Index = () => {
               {isPerformanceOpen && leftPanelSize >= 10 && (
                 <motion.div
                   key="performance-content"
-                  initial={{ x: -30, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -30, opacity: 0 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   transition={{
-                    duration: 0.35,
-                    ease: [0.4, 0, 0.2, 1],
+                    duration: 0.15,
+                    ease: 'easeOut',
                   }}
                   className="h-full w-full"
                   style={{
@@ -926,12 +928,14 @@ const Index = () => {
                 setIsResizing(true);
               }
               
-              // OPTIMIZATION: Throttle updates using requestAnimationFrame
+              // OPTIMIZATION: Throttle updates using requestAnimationFrame with debouncing
               pendingResizeUpdateRef.current = { type: 'middle', size };
               
-              if (resizeRAFRef.current === null) {
-                resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
+              // Cancel any pending RAF to prevent stacking
+              if (resizeRAFRef.current !== null) {
+                cancelAnimationFrame(resizeRAFRef.current);
               }
+              resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               
               // Clear resizing flag after a delay
               if (resizeTimeoutRef.current) {
@@ -943,7 +947,7 @@ const Index = () => {
                   isResizingRef.current = false;
                   setIsResizing(false);
                 }
-              }, 200);
+              }, 100);
             }}
             minSize={20} 
             maxSize={100}
@@ -1211,65 +1215,6 @@ const Index = () => {
                     className="h-8 pl-9 pr-3 text-xs bg-background border-border focus:border-terminal-accent transition-colors rounded-full"
                   />
                 </div>
-                
-                {/* Bubble Limit Slider */}
-                <div className="flex items-center gap-2 px-3 py-1 h-8 bg-background border border-border rounded-full min-w-[180px]">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap min-w-[35px]">
-                    {bubbleLimit === 0 ? 'All' : `${bubbleLimit}`}
-                  </span>
-                  <div className="flex-1 relative">
-                    <input
-                      type="range"
-                      min="50"
-                      max="1000"
-                      step="50"
-                      value={bubbleLimit === 0 ? 1000 : bubbleLimit}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        setBubbleLimit(value === 1000 ? 0 : value);
-                      }}
-                      className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer"
-                      style={{
-                        background: `linear-gradient(to right, hsl(var(--terminal-accent)) 0%, hsl(var(--terminal-accent)) ${((bubbleLimit === 0 ? 1000 : bubbleLimit) - 50) / (1000 - 50) * 100}%, hsl(var(--muted)) ${((bubbleLimit === 0 ? 1000 : bubbleLimit) - 50) / (1000 - 50) * 100}%, hsl(var(--muted)) 100%)`
-                      }}
-                    />
-                    <style>{`
-                      input[type="range"]::-webkit-slider-thumb {
-                        appearance: none;
-                        width: 12px;
-                        height: 12px;
-                        border-radius: 50%;
-                        background: hsl(var(--terminal-accent));
-                        cursor: pointer;
-                        border: 2px solid hsl(var(--background));
-                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-                      }
-                      input[type="range"]::-moz-range-thumb {
-                        width: 12px;
-                        height: 12px;
-                        border-radius: 50%;
-                        background: hsl(var(--terminal-accent));
-                        cursor: pointer;
-                        border: 2px solid hsl(var(--background));
-                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-                      }
-                      input[type="range"]:hover::-webkit-slider-thumb {
-                        transform: scale(1.1);
-                        transition: transform 0.2s;
-                      }
-                      input[type="range"]:hover::-moz-range-thumb {
-                        transform: scale(1.1);
-                        transition: transform 0.2s;
-                      }
-                    `}</style>
-                  </div>
-                  <button
-                    onClick={() => setBubbleLimit(bubbleLimit === 0 ? 150 : 0)}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted/50 whitespace-nowrap"
-                  >
-                    {bubbleLimit === 0 ? 'Limit' : 'All'}
-                  </button>
-                </div>
               </div>
               <span className="text-xs text-muted-foreground font-mono ml-3">
                 {filteredPredictions.length} {filteredPredictions.length === 1 ? 'Market' : 'Markets'}
@@ -1341,12 +1286,14 @@ const Index = () => {
               }
               isDirectlyResizingRightRef.current = true;
               
-              // OPTIMIZATION: Throttle updates using requestAnimationFrame
+              // OPTIMIZATION: Throttle updates using requestAnimationFrame with debouncing
               pendingResizeUpdateRef.current = { type: 'right', size };
               
-              if (resizeRAFRef.current === null) {
-                resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
+              // Cancel any pending RAF to prevent stacking
+              if (resizeRAFRef.current !== null) {
+                cancelAnimationFrame(resizeRAFRef.current);
               }
+              resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               
               // Clear resizing flag after a delay
               if (resizeTimeoutRef.current) {
@@ -1358,7 +1305,7 @@ const Index = () => {
                   setIsResizing(false);
                   isDirectlyResizingRightRef.current = false;
                 }
-              }, 150);
+              }, 100);
             }}
             minSize={15} 
             maxSize={30} 
@@ -1376,12 +1323,12 @@ const Index = () => {
               {isSummaryOpen && rightPanelSize >= 10 && (
                 <motion.div
                   key="summary-content"
-                  initial={{ x: 30, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 30, opacity: 0 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   transition={{
-                    duration: 0.35,
-                    ease: [0.4, 0, 0.2, 1],
+                    duration: 0.15,
+                    ease: 'easeOut',
                   }}
                   className="h-full w-full"
                   style={{
