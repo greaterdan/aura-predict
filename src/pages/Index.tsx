@@ -648,6 +648,7 @@ const Index = () => {
     
     // Opening Waitlist - switch to Waitlist view (close other views)
     setShowNewsFeed(false);
+    setShowWatchlist(false); // Close watchlist when opening waitlist
     setShowWaitlist(true);
     setIsSummaryOpen(true); // Always open summary panel when showing waitlist
     const defaultSize = 30;
@@ -712,6 +713,7 @@ const Index = () => {
     // Opening News Feed - switch to News Feed view (close other views)
     setShowNewsFeed(true);
     setShowWaitlist(false);
+    setShowWatchlist(false); // Close watchlist when opening news feed
     setIsSummaryOpen(true); // Always open summary panel when showing news feed
     const defaultSize = 30;
     setRightPanelSize(defaultSize);
