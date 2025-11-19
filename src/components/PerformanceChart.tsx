@@ -405,11 +405,32 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
     setZoomLevel(prev => Math.max(prev / 1.5, 0.5)); // Min 0.5x zoom (zoom out)
   };
 
-  // Generate Y-axis ticks
+  // Generate Y-axis ticks (ensure unique values)
   const yAxisTicks = useMemo(() => {
     const numTicks = 5;
+    
+    // Handle edge case where min === max (all values same)
+    if (minValue === maxValue) {
+      // Return a few ticks around the single value
+      return [Math.max(0, minValue - 100), minValue, minValue + 100];
+    }
+    
     const step = (maxValue - minValue) / (numTicks - 1);
-    return Array.from({ length: numTicks }, (_, i) => minValue + step * i);
+    const ticks = Array.from({ length: numTicks }, (_, i) => {
+      const value = minValue + step * i;
+      // Round to avoid floating point precision issues
+      return Math.round(value * 100) / 100;
+    });
+    
+    // Deduplicate ticks (in case of rounding creating duplicates)
+    const uniqueTicks = Array.from(new Set(ticks));
+    
+    // Ensure we have at least 2 ticks
+    if (uniqueTicks.length < 2) {
+      return [minValue, maxValue];
+    }
+    
+    return uniqueTicks;
   }, [minValue, maxValue]);
   
   // Store domain values for LineEndpoints
