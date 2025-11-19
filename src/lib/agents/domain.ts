@@ -96,6 +96,7 @@ export interface AgentTrade {
   id: string; // Deterministic: `${agentId}:${marketId}`
   agentId: AgentId;
   marketId: string;
+  marketQuestion: string; // Market question/title for display
   side: TradeSide;
   confidence: number; // 0-1
   score: number; // 0-100 from scoring engine

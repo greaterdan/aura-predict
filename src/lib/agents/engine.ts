@@ -171,6 +171,7 @@ export async function generateTradeForMarket(
     id: `${agent.id}:${scored.id}`,
     agentId: agent.id,
     marketId: scored.id,
+    marketQuestion: scored.question, // Include market question for display
     side,
     confidence,
     score: scored.score,

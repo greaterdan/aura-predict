@@ -82,7 +82,7 @@ const fetchAgentTrades = async (agentId: string): Promise<Trade[]> => {
     return (data.trades || []).map((trade: any) => ({
       id: trade.id,
       timestamp: new Date(trade.timestamp || trade.openedAt),
-      market: trade.market || trade.marketId,
+      market: trade.marketQuestion || trade.market || trade.marketId, // Use marketQuestion if available
       marketSlug: trade.marketSlug,
       conditionId: trade.conditionId,
       decision: trade.decision || trade.side,
