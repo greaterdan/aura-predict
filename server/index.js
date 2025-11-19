@@ -1028,7 +1028,8 @@ const fetchNewsAPI = async () => {
     'blockchain',
     'stock market OR economy',
     'technology OR AI',
-    'sports OR climate'
+    'sports', // Dedicated sports query
+    'climate'
   ];
   
   const fetchPromises = queries.map(async (query) => {
@@ -1472,14 +1473,25 @@ const fetchMediastack = async () => {
   
   // Mediastack queries - try multiple topics
   // Using fewer queries since limit is 100 per request (more efficient)
+  // Also use category parameter for better sports coverage
   const queries = [
     'prediction OR election',
     'cryptocurrency OR bitcoin OR ethereum',
     'blockchain OR crypto OR defi',
     'stock market OR economy OR finance',
     'technology OR trading OR markets',
-    'sports OR climate OR politics',
+    'sports', // Dedicated sports query
+    'climate OR politics',
     'solana OR nft OR web3'
+  ];
+  
+  // Also fetch by category for sports (Mediastack supports categories parameter)
+  const categoryQueries = [
+    { categories: 'sports', keywords: '' },
+    { categories: 'business', keywords: '' },
+    { categories: 'technology', keywords: '' },
+    { categories: 'entertainment', keywords: '' },
+    { categories: 'general', keywords: '' },
   ];
   
   // Fetch from multiple queries and combine results
@@ -1533,8 +1545,62 @@ const fetchMediastack = async () => {
     }
   });
   
-  const results = await Promise.all(fetchPromises);
-  const allArticles = results.flat();
+  // Also fetch by category for better sports coverage
+  const categoryPromises = categoryQueries.map(async ({ categories, keywords }) => {
+    try {
+      // Mediastack supports categories parameter - use it for sports
+      let url = `${MEDIASTACK_API_URL}?access_key=${MEDIASTACK_API_KEY}&categories=${categories}&languages=en&date=${fromDateStr},${new Date().toISOString().split('T')[0]}&limit=100&sort=published_desc`;
+      if (keywords) {
+        url += `&keywords=${encodeURIComponent(keywords)}`;
+      }
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        // ALWAYS log API errors for debugging
+        try {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error(`[NEWS] ❌ Mediastack HTTP error ${response.status} for category "${categories}":`, errorText.substring(0, 500));
+        } catch (e) {
+          console.error(`[NEWS] ❌ Mediastack HTTP error ${response.status} for category "${categories}":`, e.message);
+        }
+        return [];
+      }
+      
+      const data = await response.json();
+      
+      // ALWAYS log API responses for debugging
+      if (data.data && Array.isArray(data.data)) {
+        console.log(`[NEWS] Mediastack response for category "${categories}": articles=${data.data.length}, total=${data.pagination?.total || 'N/A'}`);
+        
+        // Filter to only articles from last 7 days (double-check)
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const filtered = data.data.filter(article => {
+          if (!article.published_at) return false;
+          const publishedDate = new Date(article.published_at);
+          return publishedDate >= sevenDaysAgo;
+        });
+        console.log(`[NEWS] Mediastack category "${categories}": ${data.data.length} articles, ${filtered.length} after 7-day filter`);
+        return filtered;
+      }
+      
+      // ALWAYS log API errors
+      if (data.error) {
+        console.error(`[NEWS] ❌ Mediastack error for category "${categories}":`, JSON.stringify(data.error));
+      }
+      
+      return [];
+    } catch (error) {
+      // ALWAYS log fetch errors
+      console.error(`[NEWS] ❌ Mediastack fetch error for category "${categories}":`, error.message, error.stack);
+      return [];
+    }
+  });
+  
+  const keywordResults = await Promise.all(fetchPromises);
+  const categoryResults = await Promise.all(categoryPromises);
+  const allArticles = [...keywordResults, ...categoryResults].flat();
   
   // Remove duplicates based on url
   const uniqueArticles = [];
@@ -1658,7 +1724,7 @@ app.get('/api/news', async (req, res) => {
       status: 'ok',
       totalResults: allArticles.length,
       articles: allArticles,
-        sources: {
+      sources: {
         newsapi: allArticles.filter(a => a.sourceApi === 'newsapi').length,
         newsdata: allArticles.filter(a => a.sourceApi === 'newsdata').length,
         gnews: allArticles.filter(a => a.sourceApi === 'gnews').length,
@@ -1714,7 +1780,7 @@ app.get('/api/news', async (req, res) => {
       return res.json({
         status: 'ok',
         totalResults: 0,
-        articles: [],
+      articles: [],
         sources: { newsapi: 0, newsdata: 0, gnews: 0, worldnews: 0, mediastack: 0 },
       });
     }
