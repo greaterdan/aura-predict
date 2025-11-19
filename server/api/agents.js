@@ -12,16 +12,40 @@ let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAg
 try {
   // Try to import via tsx bridge
   const bridge = await import('./agents-bridge.mjs');
+  
+  // Validate all required exports exist and are functions
+  if (typeof bridge.generateAgentTrades !== 'function') {
+    throw new Error('generateAgentTrades is not a function in bridge');
+  }
+  if (typeof bridge.getAgentProfile !== 'function') {
+    throw new Error('getAgentProfile is not a function in bridge');
+  }
+  if (typeof bridge.isValidAgentId !== 'function') {
+    throw new Error('isValidAgentId is not a function in bridge');
+  }
+  if (!bridge.ALL_AGENT_IDS || !Array.isArray(bridge.ALL_AGENT_IDS)) {
+    throw new Error('ALL_AGENT_IDS is not an array in bridge');
+  }
+  if (typeof bridge.buildAgentSummary !== 'function') {
+    throw new Error('buildAgentSummary is not a function in bridge');
+  }
+  if (typeof bridge.computeSummaryStats !== 'function') {
+    throw new Error('computeSummaryStats is not a function in bridge');
+  }
+  
   generateAgentTrades = bridge.generateAgentTrades;
   getAgentProfile = bridge.getAgentProfile;
   isValidAgentId = bridge.isValidAgentId;
   ALL_AGENT_IDS = bridge.ALL_AGENT_IDS;
   buildAgentSummary = bridge.buildAgentSummary;
   computeSummaryStats = bridge.computeSummaryStats;
+  
+  console.log('[API] ✅ TypeScript modules loaded successfully');
 } catch (error) {
-  console.warn('[API] TypeScript modules not available. Using fallback.');
+  console.warn('[API] ⚠️ TypeScript modules not available. Using fallback.');
   console.warn('[API] Error:', error.message);
-  console.warn('[API] Make sure tsx is installed and server is run with: node --loader tsx server/index.js');
+  console.warn('[API] Stack:', error.stack);
+  console.warn('[API] Make sure tsx is installed and server is run with: node --import tsx server/index.js');
   
   // Fallback: Return placeholder data until TS is compiled
   const AGENT_PROFILES = {
