@@ -130,88 +130,6 @@ app.get('/api/csrf-token', (req, res) => {
 
 // Root route removed - will be handled by static file serving for frontend
 
-// Google OAuth Routes
-if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
-  // Initiate Google OAuth flow
-  app.get('/api/auth/google', passport.authenticate('google', {
-    scope: ['profile', 'email'],
-  }));
-
-  // Google OAuth callback
-  app.get('/api/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/?auth=error' }),
-    (req, res) => {
-      // Successful authentication - redirect to frontend with success
-      // The user object is stored in req.user via Passport
-      res.redirect('/?auth=success');
-    }
-  );
-
-  // Get current user session
-  app.get('/api/auth/me', (req, res) => {
-    if (req.user) {
-      res.json({
-        authenticated: true,
-        user: req.user,
-      });
-    } else {
-      res.json({
-        authenticated: false,
-        user: null,
-      });
-    }
-  });
-
-  // Logout
-  app.post('/api/auth/logout', (req, res) => {
-    if (req.logout) {
-      req.logout((err) => {
-        if (err) {
-          console.error('Logout error:', err);
-          return res.status(500).json({ error: 'Logout failed' });
-        }
-        req.session.destroy((err) => {
-          if (err) {
-            console.error('Session destroy error:', err);
-            return res.status(500).json({ error: 'Session destroy failed' });
-          }
-          res.clearCookie('connect.sid'); // Clear session cookie
-          res.json({ success: true, message: 'Logged out successfully' });
-        });
-      });
-    } else {
-      // Fallback if logout method doesn't exist
-      req.session.destroy((err) => {
-        if (err) {
-          console.error('Session destroy error:', err);
-          return res.status(500).json({ error: 'Session destroy failed' });
-        }
-        res.clearCookie('connect.sid');
-        res.json({ success: true, message: 'Logged out successfully' });
-      });
-    }
-  });
-} else {
-  // Placeholder routes when OAuth is not configured
-  app.get('/api/auth/google', (req, res) => {
-    res.status(503).json({
-      error: 'Google OAuth not configured',
-      message: 'Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables',
-    });
-  });
-
-  app.get('/api/auth/me', (req, res) => {
-    res.json({
-      authenticated: false,
-      user: null,
-    });
-  });
-
-  app.post('/api/auth/logout', (req, res) => {
-    res.json({ success: true, message: 'Logged out (OAuth not configured)' });
-  });
-}
-
 // Security: CORS - restrict to specific origins instead of wildcard
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
@@ -334,8 +252,88 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   });
 
   console.log('✅ Google OAuth configured');
+  
+  // Google OAuth Routes
+  // Initiate Google OAuth flow
+  app.get('/api/auth/google', passport.authenticate('google', {
+    scope: ['profile', 'email'],
+  }));
+
+  // Google OAuth callback
+  app.get('/api/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/?auth=error' }),
+    (req, res) => {
+      // Successful authentication - redirect to frontend with success
+      // The user object is stored in req.user via Passport
+      res.redirect('/?auth=success');
+    }
+  );
+
+  // Get current user session
+  app.get('/api/auth/me', (req, res) => {
+    if (req.user) {
+      res.json({
+        authenticated: true,
+        user: req.user,
+      });
+    } else {
+      res.json({
+        authenticated: false,
+        user: null,
+      });
+    }
+  });
+
+  // Logout
+  app.post('/api/auth/logout', (req, res) => {
+    if (req.logout) {
+      req.logout((err) => {
+        if (err) {
+          console.error('Logout error:', err);
+          return res.status(500).json({ error: 'Logout failed' });
+        }
+        req.session.destroy((err) => {
+          if (err) {
+            console.error('Session destroy error:', err);
+            return res.status(500).json({ error: 'Session destroy failed' });
+          }
+          res.clearCookie('connect.sid'); // Clear session cookie
+          res.json({ success: true, message: 'Logged out successfully' });
+        });
+      });
+    } else {
+      // Fallback if logout method doesn't exist
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destroy error:', err);
+          return res.status(500).json({ error: 'Session destroy failed' });
+        }
+        res.clearCookie('connect.sid');
+        res.json({ success: true, message: 'Logged out successfully' });
+      });
+    }
+  });
 } else {
   console.warn('⚠️  Google OAuth not configured - set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET');
+  
+  // Placeholder routes when OAuth is not configured
+  app.get('/api/auth/google', (req, res) => {
+    res.status(503).json({
+      error: 'Google OAuth not configured',
+      message: 'Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables',
+    });
+  });
+
+  app.get('/api/auth/me', (req, res) => {
+    res.json({
+      authenticated: false,
+      user: null,
+    });
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    res.json({ success: true, message: 'Logged out (OAuth not configured)' });
+  });
 }
 
 // SECURITY: Add request ID for logging and tracking
