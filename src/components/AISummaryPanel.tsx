@@ -359,22 +359,25 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
           // Sort by timestamp (most recent first)
           newDecisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
           
-          // Merge with existing decisions to preserve expanded state
+          // Only update if decisions actually changed (prevent unnecessary re-renders)
           setDecisions(prev => {
-            const prevMap = new Map(prev.map(d => [d.id, d]));
-            const newMap = new Map(newDecisions.map(d => [d.id, d]));
+            // Check if decisions actually changed
+            const prevIds = new Set(prev.map(d => d.id));
+            const newIds = new Set(newDecisions.map(d => d.id));
             
-            // Preserve expanded state for decisions that still exist
-            const merged = newDecisions.map(decision => {
-              const prevDecision = prevMap.get(decision.id);
-              if (prevDecision && expandedId === prevDecision.id) {
-                // Keep expanded state if this decision was expanded
+            // If same IDs, just update data without causing re-render
+            if (prevIds.size === newIds.size && [...prevIds].every(id => newIds.has(id))) {
+              // Same decisions, just update their data
+              const prevMap = new Map(prev.map(d => [d.id, d]));
+              return newDecisions.map(decision => {
+                const prevDecision = prevMap.get(decision.id);
+                // Keep expanded state
                 return decision;
-              }
-              return decision;
-            });
+              });
+            }
             
-            return merged;
+            // New decisions added/removed - update but preserve expanded state
+            return newDecisions;
           });
         }
       } catch (error) {
@@ -387,8 +390,8 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
     };
     
     loadSummary();
-    // Refresh every 10 seconds for more live updates
-    const interval = setInterval(loadSummary, 10 * 1000);
+    // Refresh every 30 seconds (less frequent to prevent flickering)
+    const interval = setInterval(loadSummary, 30 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -557,21 +560,43 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                       className="overflow-hidden border-t border-border"
                     >
                       <div className="px-3 pb-3 pt-3 space-y-3">
-                        {/* Full Reasoning */}
-                        {decision.fullReasoning && decision.fullReasoning.length > 0 && (
-                          <div>
-                            <div className="text-[11px] text-muted-foreground font-mono uppercase mb-2" style={{ fontWeight: 600 }}>
-                              Full Analysis
+                        {/* Decision - Whether to take the trade */}
+                        <div>
+                          <div className="text-[11px] text-muted-foreground font-mono uppercase mb-2" style={{ fontWeight: 600 }}>
+                            Decision
+                          </div>
+                          <div className="bg-bg-elevated border border-terminal-accent/30 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className={`px-2 py-1 rounded-lg text-[12px] font-mono font-bold ${
+                                decision.decision === "YES"
+                                  ? "bg-trade-yes/20 text-trade-yes border border-trade-yes/30"
+                                  : "bg-trade-no/20 text-trade-no border border-trade-no/30"
+                              }`}>
+                                {decision.decision === "YES" ? (
+                                  <TrendingUp className="w-3 h-3 inline mr-1" />
+                                ) : (
+                                  <TrendingDown className="w-3 h-3 inline mr-1" />
+                                )}
+                                {decision.decision} @ {decision.confidence}% confidence
+                              </div>
                             </div>
-                            <div className="space-y-1.5">
-                              {decision.fullReasoning.map((reason, idx) => (
-                                <div key={idx} className="text-[12px] text-text-secondary leading-relaxed pl-2 border-l-2 border-terminal-accent/30">
-                                  {reason}
+                            <div className="text-[12px] text-text-secondary leading-relaxed">
+                              {decision.fullReasoning && decision.fullReasoning.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {decision.fullReasoning.map((reason, idx) => (
+                                    <div key={idx} className="pl-2 border-l-2 border-terminal-accent/30">
+                                      {reason}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              ) : (
+                                <div className="text-muted-foreground italic">
+                                  {decision.reasoning || 'Analysis based on market data'}
+                                </div>
+                              )}
                             </div>
                           </div>
-                        )}
+                        </div>
                         
                         {/* Investment Amount */}
                         {decision.investmentUsd !== undefined && decision.investmentUsd > 0 && (
