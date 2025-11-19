@@ -10,6 +10,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import cookieParser from 'cookie-parser';
+import csrf from 'csrf';
 import { fetchAllMarkets } from './services/polymarketService.js';
 import { transformMarkets } from './services/marketTransformer.js';
 import { mapCategoryToPolymarket } from './utils/categoryMapper.js';
@@ -83,6 +85,34 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// SECURITY: CSRF token endpoint - clients can fetch CSRF token here
+app.get('/api/csrf-token', (req, res) => {
+  try {
+    // Generate CSRF token
+    const token = csrfProtection.create(csrfSecret);
+    
+    // Set token in httpOnly cookie for additional security
+    res.cookie('XSRF-TOKEN', token, {
+      httpOnly: false, // Must be false so JavaScript can read it
+      secure: isProduction, // Only send over HTTPS in production
+      sameSite: 'strict', // Prevent CSRF attacks
+      maxAge: 3600000, // 1 hour
+    });
+    
+    // Also return token in response body for clients that prefer header-based approach
+    res.json({ 
+      csrfToken: token,
+      message: 'CSRF token generated successfully'
+    });
+  } catch (error) {
+    console.error(`[${req.id}] Error generating CSRF token:`, error);
+    res.status(500).json({ 
+      error: 'Failed to generate CSRF token',
+      message: isProduction ? undefined : error.message 
+    });
+  }
+});
+
 app.get('/', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Polymarket proxy server is running' });
 });
@@ -151,6 +181,19 @@ app.use('/api/', (req, res, next) => {
   apiLimiter(req, res, next);
 });
 app.use(express.json({ limit: '1mb' })); // Limit request body size
+app.use(cookieParser()); // Parse cookies for CSRF protection
+
+// SECURITY: CSRF Protection
+// Generate a secret for CSRF tokens (use environment variable or generate one)
+const csrfSecret = process.env.CSRF_SECRET || 'csrf-secret-change-in-production-' + Date.now();
+const csrfProtection = new csrf({ secret: csrfSecret });
+
+// Warn if using default secret in production
+if (isProduction && !process.env.CSRF_SECRET) {
+  console.warn('⚠️  WARNING: CSRF_SECRET not set in production!');
+  console.warn('   Set CSRF_SECRET environment variable for security.');
+  console.warn('   Generate a secure random string: openssl rand -base64 32');
+}
 
 // SECURITY: Add request ID for logging and tracking
 app.use((req, res, next) => {
@@ -848,8 +891,30 @@ app.get('/api/news', async (req, res) => {
 });
 
 // Waitlist endpoint - sends email notification
-// SECURITY: Apply rate limiting and input sanitization
-app.post('/api/waitlist', waitlistLimiter, async (req, res) => {
+// SECURITY: Apply rate limiting, CSRF protection, and input sanitization
+app.post('/api/waitlist', waitlistLimiter, (req, res, next) => {
+  // CSRF protection middleware
+  // Token can be sent in header (X-CSRF-Token) or body (_csrf) or query (_csrf)
+  const token = req.headers['x-csrf-token'] || req.body._csrf || req.query._csrf;
+  
+  // Verify CSRF token
+  if (!token) {
+    return res.status(403).json({ 
+      error: 'CSRF token missing',
+      message: 'CSRF token is required. Please refresh the page and try again.'
+    });
+  }
+  
+  if (!csrfProtection.verify(csrfSecret, token)) {
+    console.warn(`[${req.id}] Invalid CSRF token attempt`);
+    return res.status(403).json({ 
+      error: 'Invalid CSRF token',
+      message: 'CSRF token is invalid. Please refresh the page and try again.'
+    });
+  }
+  
+  next();
+}, async (req, res) => {
   try {
     const { email } = req.body;
 
