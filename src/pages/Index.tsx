@@ -9,11 +9,10 @@ import { MarketDetailsModal } from "@/components/MarketDetailsModal";
 import { MarketDetailsPanel } from "@/components/MarketDetailsPanel";
 import { AISummaryPanel } from "@/components/AISummaryPanel";
 import { NewsFeed } from "@/components/NewsFeed";
-import { AgentBuilder } from "@/components/AgentBuilder";
+import { Waitlist } from "@/components/Waitlist";
 import { getOrCreateWallet } from "@/lib/wallet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ChevronDown, Search, ExternalLink, Filter, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -55,7 +54,6 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [predictions, setPredictions] = useState<PredictionNodeData[]>([]);
   const [loadingMarkets, setLoadingMarkets] = useState(false);
-  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [bubbleLimit, setBubbleLimit] = useState<number>(100);
   
   // Filter state
@@ -71,7 +69,7 @@ const Index = () => {
     sortBy: 'volume' as 'volume' | 'liquidity' | 'price' | 'probability' | 'none',
     sortOrder: 'desc' as 'asc' | 'desc',
   });
-  const [showAgentBuilder, setShowAgentBuilder] = useState(false);
+  const [showWaitlist, setShowWaitlist] = useState(false);
   const [custodialWallet, setCustodialWallet] = useState<{ publicKey: string; privateKey: string } | null>(null);
   // Panel visibility state - both open by default
   const [isPerformanceOpen, setIsPerformanceOpen] = useState(true);
@@ -132,8 +130,9 @@ const Index = () => {
       setLoadingMarkets(true);
       try {
         // Call server endpoint - server handles ALL fetching, filtering, and transformation
-        // Request ALL markets - no limit
-        const response = await fetch(`http://localhost:3002/api/predictions?category=${encodeURIComponent(selectedCategory)}&limit=500`, {
+        // Request markets with reasonable limit for performance
+        // Search is handled client-side only to prevent glitching on every keystroke
+        const response = await fetch(`http://localhost:3002/api/predictions?category=${encodeURIComponent(selectedCategory)}&limit=5000`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -203,7 +202,7 @@ const Index = () => {
     }, 5 * 60 * 1000); // 5 minutes (matches server cache)
 
     return () => clearInterval(refreshInterval);
-  }, [selectedCategory]);
+  }, [selectedCategory]); // Only refetch when category changes - search is client-side only
 
   // Simulate AI trading activity
   useEffect(() => {
@@ -367,14 +366,28 @@ const Index = () => {
   const filteredPredictions = useMemo(() => {
     let filtered = predictions;
     
-    // Apply search query filter
+    // Apply search query filter - search across multiple fields
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(prediction => 
-        prediction.question.toLowerCase().includes(query) ||
-        prediction.category?.toLowerCase().includes(query) ||
-        prediction.agentName?.toLowerCase().includes(query)
-      );
+      const queryWords = query.split(/\s+/).filter(w => w.length > 0); // Split into words for better matching
+      
+      filtered = filtered.filter(prediction => {
+        const question = (prediction.question || '').toLowerCase();
+        const category = (prediction.category || '').toLowerCase();
+        const agentName = (prediction.agentName || '').toLowerCase();
+        const id = (prediction.id || '').toLowerCase();
+        const marketSlug = (prediction.marketSlug || '').toLowerCase();
+        
+        // Check if all query words appear in any field (AND logic for multi-word searches)
+        // For single word, match if it appears in any field
+        return queryWords.every(word => 
+          question.includes(word) ||
+          category.includes(word) ||
+          agentName.includes(word) ||
+          id.includes(word) ||
+          marketSlug.includes(word)
+        );
+      });
     }
     
     // Apply volume filters
@@ -665,7 +678,7 @@ const Index = () => {
   const handleToggleSummary = () => {
     setIsTransitioning(true);
     // If Summary is already showing (and no other view is active), close the panel
-    if (isSummaryOpen && !showNewsFeed && !showAgentBuilder) {
+    if (isSummaryOpen && !showNewsFeed && !showWaitlist) {
       setIsSummaryOpen(false);
       setRightPanelSize(0);
       rightPanelRef.current.size = 0;
@@ -682,7 +695,7 @@ const Index = () => {
     
     // Opening Summary - switch to Summary view (close other views)
     setShowNewsFeed(false);
-    setShowAgentBuilder(false);
+    setShowWaitlist(false);
     setIsSummaryOpen(true);
     const defaultSize = 30;
     setRightPanelSize(defaultSize);
@@ -702,11 +715,11 @@ const Index = () => {
       }, 150); // Faster transition for better responsiveness
   };
 
-  const handleToggleAgentBuilder = () => {
+  const handleToggleWaitlist = () => {
     setIsTransitioning(true);
-    // If Agent Builder is already showing, close the panel
-    if (showAgentBuilder && isSummaryOpen && !showNewsFeed) {
-      setShowAgentBuilder(false);
+    // If Waitlist is already showing, close the panel
+    if (showWaitlist && isSummaryOpen && !showNewsFeed) {
+      setShowWaitlist(false);
       setIsSummaryOpen(false);
       setRightPanelSize(0);
       if (rightPanelRef.current) {
@@ -723,10 +736,10 @@ const Index = () => {
       return;
     }
     
-    // Opening Agent Builder - switch to Agent Builder view (close other views)
+    // Opening Waitlist - switch to Waitlist view (close other views)
     setShowNewsFeed(false);
-    setShowAgentBuilder(true);
-    setIsSummaryOpen(true); // Always open summary panel when showing agent builder
+    setShowWaitlist(true);
+    setIsSummaryOpen(true); // Always open summary panel when showing waitlist
     const defaultSize = 30;
     setRightPanelSize(defaultSize);
     setSavedRightPanelSize(defaultSize);
@@ -751,7 +764,7 @@ const Index = () => {
     if (showNewsFeed && isSummaryOpen) {
       setIsSummaryOpen(false);
       setShowNewsFeed(false);
-      setShowAgentBuilder(false);
+      setShowWaitlist(false);
       setRightPanelSize(0);
       if (rightPanelRef.current) {
         rightPanelRef.current.size = 0;
@@ -769,7 +782,7 @@ const Index = () => {
     
     // Opening News Feed - switch to News Feed view (close other views)
     setShowNewsFeed(true);
-    setShowAgentBuilder(false);
+    setShowWaitlist(false);
     setIsSummaryOpen(true); // Always open summary panel when showing news feed
     const defaultSize = 30;
     setRightPanelSize(defaultSize);
@@ -802,14 +815,14 @@ const Index = () => {
       `}</style>
       {/* Top Status Bar */}
       <SystemStatusBar 
-        onToggleAgentBuilder={handleToggleAgentBuilder}
+        onToggleWaitlist={handleToggleWaitlist}
         onTogglePerformance={handleTogglePerformance}
         onToggleSummary={handleToggleSummary}
         onToggleNewsFeed={handleToggleNewsFeed}
         isPerformanceOpen={isPerformanceOpen}
         isSummaryOpen={isSummaryOpen}
         showNewsFeed={showNewsFeed}
-        showAgentBuilder={showAgentBuilder}
+        showWaitlist={showWaitlist}
       />
 
       {/* Main Content Area */}
@@ -992,188 +1005,176 @@ const Index = () => {
                 </DropdownMenu>
                 
                 {/* Filter Button */}
-                <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
-                  <DialogTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button 
-                      variant="outline" 
+                      variant="ghost" 
                       size="sm"
-                      className="flex items-center gap-2 px-3 py-1 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors border border-border bg-background rounded-full h-8"
+                      className="flex items-center gap-1.5 px-2.5 py-1 h-8 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                     >
-                      <Filter className="h-3 w-3" />
-                      Filters
+                      <Filter className="h-3.5 w-3.5" />
+                      <span>Filters</span>
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-background border-border">
-                    <DialogHeader>
-                      <DialogTitle className="text-lg font-bold">Market Filters</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-6 py-4">
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent 
+                    align="start" 
+                    className="w-[320px] max-h-[85vh] overflow-y-auto p-2"
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                  >
+                    <div className="space-y-2">
                       {/* Volume Filters */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Volume</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Min Volume ($)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Volume</Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div>
                             <Input
                               type="number"
-                              placeholder="0"
+                              placeholder="Min $"
                               value={filters.minVolume}
                               onChange={(e) => setFilters({...filters, minVolume: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Max Volume ($)</Label>
+                          <div>
                             <Input
                               type="number"
-                              placeholder="No limit"
+                              placeholder="Max $"
                               value={filters.maxVolume}
                               onChange={(e) => setFilters({...filters, maxVolume: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
                         </div>
                       </div>
                       
                       {/* Liquidity Filters */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Liquidity</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Min Liquidity ($)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Liquidity</Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div>
                             <Input
                               type="number"
-                              placeholder="0"
+                              placeholder="Min $"
                               value={filters.minLiquidity}
                               onChange={(e) => setFilters({...filters, minLiquidity: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Max Liquidity ($)</Label>
+                          <div>
                             <Input
                               type="number"
-                              placeholder="No limit"
+                              placeholder="Max $"
                               value={filters.maxLiquidity}
                               onChange={(e) => setFilters({...filters, maxLiquidity: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
                         </div>
                       </div>
                       
                       {/* Price Filters */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Price</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Min Price ($)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Price</Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div>
                             <Input
                               type="number"
                               step="0.01"
                               min="0"
                               max="1"
-                              placeholder="0.00"
+                              placeholder="Min 0.00"
                               value={filters.minPrice}
                               onChange={(e) => setFilters({...filters, minPrice: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Max Price ($)</Label>
+                          <div>
                             <Input
                               type="number"
                               step="0.01"
                               min="0"
                               max="1"
-                              placeholder="1.00"
+                              placeholder="Max 1.00"
                               value={filters.maxPrice}
                               onChange={(e) => setFilters({...filters, maxPrice: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
                         </div>
                       </div>
                       
                       {/* Probability Filters */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Probability</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Min Probability (%)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Probability</Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div>
                             <Input
                               type="number"
                               step="1"
                               min="0"
                               max="100"
-                              placeholder="0"
+                              placeholder="Min %"
                               value={filters.minProbability}
                               onChange={(e) => setFilters({...filters, minProbability: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Max Probability (%)</Label>
+                          <div>
                             <Input
                               type="number"
                               step="1"
                               min="0"
                               max="100"
-                              placeholder="100"
+                              placeholder="Max %"
                               value={filters.maxProbability}
                               onChange={(e) => setFilters({...filters, maxProbability: e.target.value})}
-                              className="h-8 text-xs"
+                              className="h-7 text-xs"
                             />
                           </div>
                         </div>
                       </div>
                       
                       {/* Sort Options */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Sort By</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Sort Field</Label>
-                            <Select
-                              value={filters.sortBy}
-                              onValueChange={(value: any) => setFilters({...filters, sortBy: value})}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">None</SelectItem>
-                                <SelectItem value="volume">Volume</SelectItem>
-                                <SelectItem value="liquidity">Liquidity</SelectItem>
-                                <SelectItem value="price">Price</SelectItem>
-                                <SelectItem value="probability">Probability</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Order</Label>
-                            <Select
-                              value={filters.sortOrder}
-                              onValueChange={(value: any) => setFilters({...filters, sortOrder: value})}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="desc">Descending</SelectItem>
-                                <SelectItem value="asc">Ascending</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Sort</Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <Select
+                            value={filters.sortBy}
+                            onValueChange={(value: any) => setFilters({...filters, sortBy: value})}
+                          >
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue placeholder="Field" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="volume">Volume</SelectItem>
+                              <SelectItem value="liquidity">Liquidity</SelectItem>
+                              <SelectItem value="price">Price</SelectItem>
+                              <SelectItem value="probability">Probability</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={filters.sortOrder}
+                            onValueChange={(value: any) => setFilters({...filters, sortOrder: value})}
+                          >
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue placeholder="Order" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="desc">Desc</SelectItem>
+                              <SelectItem value="asc">Asc</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                       
-                      {/* Action Buttons */}
-                      <div className="flex items-center justify-between pt-4 border-t border-border">
+                      {/* Action Button */}
+                      <div className="pt-0.5">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setFilters({
                               minVolume: '',
                               maxVolume: '',
@@ -1187,22 +1188,15 @@ const Index = () => {
                               sortOrder: 'desc',
                             });
                           }}
-                          className="text-xs"
+                          className="w-full h-7 text-xs text-muted-foreground hover:text-foreground"
                         >
                           <X className="h-3 w-3 mr-1" />
-                          Clear All
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => setFilterDialogOpen(false)}
-                          className="text-xs"
-                        >
-                          Apply Filters
+                          Clear
                         </Button>
                       </div>
                     </div>
-                  </DialogContent>
-                </Dialog>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 
                 {/* Search Bar */}
                 <div className="relative flex-1 max-w-xs">
@@ -1337,25 +1331,8 @@ const Index = () => {
                     willChange: 'auto',
                   }}
                 >
-                  {showAgentBuilder ? (
-                    custodialWallet ? (
-                      <AgentBuilder
-                        walletAddress={custodialWallet.publicKey}
-                        privateKey={custodialWallet.privateKey}
-                        onDeploy={() => {
-                          // Refresh or show success message
-                          setShowAgentBuilder(false);
-                        }}
-                      />
-                    ) : (
-                      <AgentBuilder
-                        walletAddress=""
-                        privateKey=""
-                        onDeploy={() => {
-                          setShowAgentBuilder(false);
-                        }}
-                      />
-                    )
+                  {showWaitlist ? (
+                    <Waitlist />
                   ) : showNewsFeed ? (
                     <NewsFeed />
                   ) : (
