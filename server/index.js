@@ -52,6 +52,7 @@ console.log(`📋 Process PID: ${process.pid}`);
 console.log(`📋 Railway PORT env: ${process.env.PORT || 'NOT SET'}`);
 
 // Check if dist folder exists (frontend build)
+// Define distPath early so it's available for static file serving later
 const distPath = path.join(__dirname, '..', 'dist');
 try {
   const distExists = fs.existsSync(distPath);
@@ -59,10 +60,12 @@ try {
     console.log(`✅ Frontend build found at: ${distPath}`);
   } else {
     console.warn(`⚠️  Frontend build not found at: ${distPath}`);
-    console.warn(`   Run "npm run build" to build the frontend`);
+    console.warn(`   This is OK - server will still start, but frontend won't be served`);
+    console.warn(`   Make sure 'npm run build' runs before 'npm run server'`);
   }
 } catch (err) {
   console.warn(`⚠️  Could not check for frontend build: ${err.message}`);
+  // Don't fail startup if we can't check for dist folder
 }
 
 // CRITICAL: Define healthcheck endpoints FIRST, before any middleware
@@ -976,36 +979,49 @@ Timestamp: ${timestamp}
 // This must come AFTER all API routes
 // distPath is already defined above, reuse it
 
-// Serve static assets (JS, CSS, images, etc.)
-app.use(express.static(distPath, {
-  maxAge: '1y', // Cache static assets for 1 year
-  etag: true,
-}));
-
-// Handle React Router - serve index.html for all non-API routes
-// This allows client-side routing to work
-app.get('*', (req, res, next) => {
-  // Don't serve index.html for API routes
-  if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
-    return next();
-  }
+// Only serve static files if dist folder exists
+if (fs.existsSync(distPath)) {
+  console.log(`📁 Serving static files from: ${distPath}`);
   
-  // Serve index.html for all other routes (SPA routing)
-  res.sendFile(path.join(distPath, 'index.html'), (err) => {
-    if (err) {
-      console.error(`Error serving index.html: ${err.message}`);
-      // If dist folder doesn't exist, return a helpful message
-      if (err.code === 'ENOENT') {
-        res.status(500).json({
-          error: 'Frontend not built',
-          message: 'Please run "npm run build" to build the frontend',
-        });
-      } else {
+  // Serve static assets (JS, CSS, images, etc.)
+  app.use(express.static(distPath, {
+    maxAge: '1y', // Cache static assets for 1 year
+    etag: true,
+  }));
+
+  // Handle React Router - serve index.html for all non-API routes
+  // This allows client-side routing to work
+  app.get('*', (req, res, next) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
+      return next();
+    }
+    
+    // Serve index.html for all other routes (SPA routing)
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+      if (err) {
+        console.error(`Error serving index.html: ${err.message}`);
         res.status(500).json({ error: 'Internal server error' });
       }
-    }
+    });
   });
-});
+} else {
+  console.warn(`⚠️  Dist folder not found at ${distPath} - frontend will not be served`);
+  console.warn(`   API endpoints will still work, but frontend routes will return 404`);
+  
+  // If dist doesn't exist, at least return a helpful message for root route
+  app.get('/', (req, res) => {
+    res.status(503).json({
+      error: 'Frontend not available',
+      message: 'Frontend build not found. Please ensure "npm run build" completed successfully.',
+      api: {
+        health: '/api/health',
+        predictions: '/api/predictions',
+        news: '/api/news',
+      }
+    });
+  });
+}
 
 // Export app for serverless functions (Railway, etc.)
 export default app;
@@ -1014,7 +1030,9 @@ export default app;
 // Serverless platforms (like AWS Lambda) don't need app.listen
 // Railway needs app.listen on 0.0.0.0 to be accessible
 if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  console.log('🔧 Starting server on Railway...');
+  console.log('🔧 Starting server...');
+  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔧 Railway PORT env: ${process.env.PORT || 'NOT SET'}`);
   console.log(`🔧 Attempting to listen on 0.0.0.0:${PORT}...`);
   
   try {
