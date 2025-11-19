@@ -14,7 +14,7 @@ import cookieParser from 'cookie-parser';
 import csrf from 'csrf';
 import session from 'express-session';
 import { createClient } from 'redis';
-import connectRedis from 'connect-redis';
+import { RedisStore } from 'connect-redis';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { fetchAllMarkets } from './services/polymarketService.js';
@@ -252,7 +252,6 @@ if (redisUrl) {
     
     // Create RedisStore (will work even if not connected yet - Redis client handles reconnection)
     try {
-      const RedisStore = connectRedis(session);
       sessionStore = new RedisStore({
         client: redisClient,
         prefix: 'probly:sess:',
