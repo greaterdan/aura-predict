@@ -58,11 +58,28 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
   
   // Filter candidate markets
   console.log(`[Agent:${agentId}] 🔍 Filtering candidate markets (minVolume: $${agent.minVolume}, minLiquidity: $${agent.minLiquidity})...`);
+  
+  // Log market statistics before filtering
+  const totalMarkets = markets.length;
+  const marketsWithVolume = markets.filter(m => m.volumeUsd >= agent.minVolume).length;
+  const marketsWithLiquidity = markets.filter(m => m.liquidityUsd >= agent.minLiquidity).length;
+  const marketsWithBoth = markets.filter(m => m.volumeUsd >= agent.minVolume && m.liquidityUsd >= agent.minLiquidity).length;
+  console.log(`[Agent:${agentId}] 📊 Market stats: ${totalMarkets} total, ${marketsWithVolume} meet volume, ${marketsWithLiquidity} meet liquidity, ${marketsWithBoth} meet both`);
+  
   const candidates = filterCandidateMarkets(agent, markets);
   console.log(`[Agent:${agentId}] ✅ Found ${candidates.length} candidate markets`);
   
-  if (candidates.length === 0) {
-    console.warn(`[Agent:${agentId}] ⚠️ No candidate markets found - returning empty array`);
+  // Log sample candidate markets for visibility
+  if (candidates.length > 0) {
+    const sampleMarkets = candidates.slice(0, 3);
+    console.log(`[Agent:${agentId}] 📋 Sample candidates:`);
+    sampleMarkets.forEach((m, idx) => {
+      console.log(`[Agent:${agentId}]   ${idx + 1}. "${m.question.substring(0, 60)}..." (Vol: $${(m.volumeUsd / 1000).toFixed(1)}k, Liq: $${(m.liquidityUsd / 1000).toFixed(1)}k, Cat: ${m.category})`);
+    });
+  } else {
+    console.warn(`[Agent:${agentId}] ⚠️ No candidate markets found!`);
+    console.warn(`[Agent:${agentId}] ⚠️ This means no markets meet: volume >= $${agent.minVolume} AND liquidity >= $${agent.minLiquidity}`);
+    console.warn(`[Agent:${agentId}] ⚠️ Consider lowering minVolume or minLiquidity if markets are too strict`);
     return [];
   }
   
@@ -76,7 +93,19 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
   
   // Sort by weighted score descending
   scoredMarkets.sort((a, b) => b.score - a.score);
-  console.log(`[Agent:${agentId}] ✅ Scoring complete. Top score: ${scoredMarkets[0]?.score.toFixed(1) || 'N/A'}`);
+  const topScore = scoredMarkets[0]?.score || 0;
+  const avgScore = scoredMarkets.length > 0 
+    ? scoredMarkets.reduce((sum, m) => sum + m.score, 0) / scoredMarkets.length 
+    : 0;
+  console.log(`[Agent:${agentId}] ✅ Scoring complete. Top: ${topScore.toFixed(1)}, Avg: ${avgScore.toFixed(1)}, Count: ${scoredMarkets.length}`);
+  
+  // Log top 5 scored markets for visibility
+  const top5 = scoredMarkets.slice(0, 5);
+  console.log(`[Agent:${agentId}] 🏆 Top 5 scored markets:`);
+  top5.forEach((m, idx) => {
+    console.log(`[Agent:${agentId}]   ${idx + 1}. Score: ${m.score.toFixed(1)} - "${m.question.substring(0, 50)}..."`);
+    console.log(`[Agent:${agentId}]      Components: Vol:${m.components.volumeScore.toFixed(1)} Liq:${m.components.liquidityScore.toFixed(1)} News:${m.components.newsScore.toFixed(1)} Prob:${m.components.probScore.toFixed(1)}`);
+  });
   
   // Take top markets (2x maxTrades for safety, then filter)
   const topMarkets = scoredMarkets.slice(0, agent.maxTrades * 2);

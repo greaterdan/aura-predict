@@ -217,20 +217,29 @@ export async function getAgentsSummary(req, res) {
     
     const agents = agentIds.map(agentId => {
       const agent = getAgentProfile(agentId);
-      const trades = tradesByAgent[agentId];
+      const trades = tradesByAgent[agentId] || [];
       const openTrades = trades.filter(t => t.status === 'OPEN');
       const closedTrades = trades.filter(t => t.status === 'CLOSED');
       const totalPnl = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
       const lastTrade = trades.length > 0 ? trades[0] : null;
       
+      // Generate status message based on activity
+      let statusMessage = 'Analyzing markets...';
+      if (trades.length > 0) {
+        statusMessage = lastTrade ? `${lastTrade.side} on market @ ${(lastTrade.confidence * 100).toFixed(0)}% confidence` : `${trades.length} trades active`;
+      } else {
+        statusMessage = `Researching ${agent.focusCategories.join(', ')} markets...`;
+      }
+      
       return {
         id: frontendAgentIdMap[agentId] || agentId.toLowerCase(),
         name: agent.displayName,
         emoji: agent.avatar,
-        isActive: false, // Will be set by frontend based on activity
+        isActive: trades.length > 0, // Active if has trades
         pnl: totalPnl,
         openMarkets: openTrades.length,
-        lastTrade: lastTrade ? `${lastTrade.side} on ${lastTrade.marketId} @ $${(lastTrade.confidence * 100).toFixed(0)}%` : 'No trades',
+        lastTrade: lastTrade ? `${lastTrade.side} on ${lastTrade.marketId} @ $${(lastTrade.confidence * 100).toFixed(0)}%` : statusMessage,
+        status: statusMessage, // Add status field for UI
       };
     });
     

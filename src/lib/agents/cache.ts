@@ -66,6 +66,14 @@ export function getCachedAgentTrades(
   }
   
   // Cache hit - return cached trades
+  // BUT: Don't return cached empty array if it's been less than 30 seconds (might be a transient issue)
+  const ageSeconds = age / 1000;
+  if (entry.trades.length === 0 && ageSeconds < 30) {
+    console.log(`[Cache:${agentId}] ⚠️ Cache has 0 trades but age is only ${ageSeconds.toFixed(1)}s - invalidating to retry`);
+    agentCache.delete(agentId);
+    return null; // Force regeneration
+  }
+  
   return entry.trades;
 }
 
@@ -81,11 +89,14 @@ export function setCachedAgentTrades(
   trades: AgentTrade[],
   marketIds: string[]
 ): void {
+  // Only cache if we have trades OR if we explicitly want to cache empty (after full analysis)
+  // For now, always cache (even 0 trades) to prevent repeated expensive computations
   agentCache.set(agentId, {
     trades,
     generatedAt: Date.now(),
     marketIds: [...marketIds], // Copy array
   });
+  console.log(`[Cache:${agentId}] 💾 Cached ${trades.length} trades for ${marketIds.length} markets`);
 }
 
 /**

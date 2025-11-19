@@ -230,7 +230,9 @@ export async function fetchLatestNews(): Promise<NewsArticle[]> {
   console.log(`[News] 📡 Found ${providers.length} news providers: ${providers.map(p => p.name).join(', ')}`);
   
   if (providers.length === 0) {
-    console.warn('[News] ⚠️ No news providers configured');
+    console.warn('[News] ⚠️ No news providers configured - check environment variables:');
+    console.warn('[News]    NEWS_API_KEY, NEWSDATA_API_KEY, GNEWS_API_KEY, WORLD_NEWS_API_KEY, MEDIASTACK_API_KEY');
+    // Don't cache empty array if no providers - return empty but don't cache
     return newsCache?.articles || [];
   }
   
@@ -256,10 +258,18 @@ export async function fetchLatestNews(): Promise<NewsArticle[]> {
   const uniqueArticles = deduplicateArticles(allArticles);
   console.log(`[News] ✅ Fetched ${allArticles.length} articles, ${uniqueArticles.length} unique after deduplication`);
   
-  newsCache = {
-    articles: uniqueArticles,
-    cachedAt: Date.now(),
-  };
+  // Only cache if we got articles (don't cache empty array from failed fetches)
+  if (uniqueArticles.length > 0) {
+    newsCache = {
+      articles: uniqueArticles,
+      cachedAt: Date.now(),
+    };
+    console.log(`[News] 💾 Cached ${uniqueArticles.length} articles`);
+  } else {
+    console.warn(`[News] ⚠️ No articles fetched - not caching empty result. Will retry on next call.`);
+    // Return stale cache if available, otherwise empty
+    return newsCache?.articles || [];
+  }
   
   return uniqueArticles;
 }
