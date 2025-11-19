@@ -1122,10 +1122,14 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
 // Memoize component to prevent unnecessary re-renders when props haven't actually changed
 // React.memo: return true = props are equal (skip re-render), false = props changed (allow re-render)
 export const PredictionBubbleField = React.memo(PredictionBubbleFieldComponent, (prevProps, nextProps) => {
-  // Always allow re-render if transitioning/resizing state changes
-  if (prevProps.isTransitioning !== nextProps.isTransitioning || prevProps.isResizing !== nextProps.isResizing) {
+  // CRITICAL: Ignore isResizing state changes during drag - prevents glitching
+  // The component uses refs internally to handle resizing, so state changes are not needed
+  // Only care about transitioning state changes (panel open/close)
+  if (prevProps.isTransitioning !== nextProps.isTransitioning) {
     return false; // Props changed, allow re-render
   }
+  
+  // IGNORE isResizing changes - component handles resizing via refs without re-rendering
   
   // Compare markets array length and IDs - if same markets, skip expensive re-render
   if (prevProps.markets.length !== nextProps.markets.length) {

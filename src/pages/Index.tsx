@@ -582,8 +582,19 @@ const Index = () => {
   }, [rightPanelSize]);
   
   // Batch resize updates to prevent excessive re-renders
+  // CRITICAL: Throttle updates heavily to prevent glitching
+  const lastUpdateTimeRef = useRef<number>(0);
   const applyResizeUpdate = () => {
     if (pendingResizeUpdateRef.current) {
+      const now = performance.now();
+      // Throttle to max 30fps (33ms) - prevents excessive state updates
+      if (now - lastUpdateTimeRef.current < 33) {
+        // Too soon, reschedule for next frame
+        resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
+        return;
+      }
+      lastUpdateTimeRef.current = now;
+      
       const { type, size } = pendingResizeUpdateRef.current;
       
       if (type === 'left' && isPerformanceOpen && size >= 10) {
@@ -869,8 +880,10 @@ const Index = () => {
             defaultSize={isPerformanceOpen ? 30 : 0}
             onResize={(size) => {
               // Mark as resizing IMMEDIATELY to prevent any interference
+              // CRITICAL: Only use refs, DO NOT update state during resize to prevent glitching
               if (!isResizingRef.current) {
                 isResizingRef.current = true;
+                // Only set state once at start - not during every resize event
                 setIsResizing(true);
               }
               isDirectlyResizingLeftRef.current = true;
@@ -884,17 +897,18 @@ const Index = () => {
               }
               resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               
-              // Clear resizing flag after a short delay
+              // Clear resizing flag after resize completes - longer delay to batch all updates
               if (resizeTimeoutRef.current) {
                 clearTimeout(resizeTimeoutRef.current);
               }
               resizeTimeoutRef.current = setTimeout(() => {
                 if (isDirectlyResizingLeftRef.current) {
-                  isResizingRef.current = false;
-                  setIsResizing(false);
                   isDirectlyResizingLeftRef.current = false;
+                  isResizingRef.current = false;
+                  // Only update state once at end - batch all state updates
+                  setIsResizing(false);
                 }
-              }, 100);
+              }, 150); // Longer delay to batch updates and prevent state spam
             }}
             minSize={15} 
             maxSize={30} 
@@ -958,9 +972,11 @@ const Index = () => {
               }
               
               // Only process middle panel resize when manually dragging middle panel handle
+              // CRITICAL: Only use refs, DO NOT update state during resize to prevent glitching
               // Mark as resizing
               if (!isResizingRef.current) {
                 isResizingRef.current = true;
+                // Only set state once at start - not during every resize event
                 setIsResizing(true);
               }
               
@@ -973,7 +989,7 @@ const Index = () => {
               }
               resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               
-              // Clear resizing flag after a delay
+              // Clear resizing flag after resize completes - longer delay to batch all updates
               if (resizeTimeoutRef.current) {
                 clearTimeout(resizeTimeoutRef.current);
               }
@@ -981,9 +997,10 @@ const Index = () => {
                 // Only clear if no side panels are being dragged
                 if (!isDirectlyResizingLeftRef.current && !isDirectlyResizingRightRef.current) {
                   isResizingRef.current = false;
+                  // Only update state once at end - batch all state updates
                   setIsResizing(false);
                 }
-              }, 100);
+              }, 150); // Longer delay to batch updates and prevent state spam
             }}
             minSize={20} 
             maxSize={100}
@@ -1294,8 +1311,10 @@ const Index = () => {
             defaultSize={isSummaryOpen ? 30 : 0}
             onResize={(size) => {
               // Mark as resizing IMMEDIATELY to prevent interference
+              // CRITICAL: Only use refs, DO NOT update state during resize to prevent glitching
               if (!isResizingRef.current) {
                 isResizingRef.current = true;
+                // Only set state once at start - not during every resize event
                 setIsResizing(true);
               }
               isDirectlyResizingRightRef.current = true;
@@ -1309,17 +1328,18 @@ const Index = () => {
               }
               resizeRAFRef.current = requestAnimationFrame(applyResizeUpdate);
               
-              // Clear resizing flag after a delay
+              // Clear resizing flag after resize completes - longer delay to batch all updates
               if (resizeTimeoutRef.current) {
                 clearTimeout(resizeTimeoutRef.current);
               }
               resizeTimeoutRef.current = setTimeout(() => {
                 if (isDirectlyResizingRightRef.current) {
-                  isResizingRef.current = false;
-                  setIsResizing(false);
                   isDirectlyResizingRightRef.current = false;
+                  isResizingRef.current = false;
+                  // Only update state once at end - batch all state updates
+                  setIsResizing(false);
                 }
-              }, 100);
+              }, 150); // Longer delay to batch updates and prevent state spam
             }}
             minSize={15} 
             maxSize={30} 
