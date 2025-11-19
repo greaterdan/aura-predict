@@ -359,13 +359,14 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
           // Sort by timestamp (most recent first - newest at top)
           newDecisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
           
-          // Merge new decisions with existing ones - new items appear at top, scroll down naturally
+          // Merge new decisions with existing ones - NEVER clear, only add/update
           setDecisions(prev => {
-            const prevMap = new Map(prev.map(d => [d.id, d]));
-            const newMap = new Map(newDecisions.map(d => [d.id, d]));
+            // If no new decisions, keep existing ones (don't clear)
+            if (newDecisions.length === 0) {
+              return prev; // Keep existing decisions
+            }
             
-            // Preserve expanded state for existing decisions
-            const preservedExpanded = expandedId;
+            const prevMap = new Map(prev.map(d => [d.id, d]));
             
             // Merge: new decisions first (top), then existing ones that aren't in new list
             const merged: AIDecision[] = [];
@@ -375,11 +376,8 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
             for (const decision of newDecisions) {
               const prevDecision = prevMap.get(decision.id);
               if (prevDecision) {
-                // Existing decision - preserve expanded state
-                merged.push({
-                  ...decision,
-                  // Keep any additional state from prev if needed
-                });
+                // Existing decision - update but preserve any UI state
+                merged.push(decision);
               } else {
                 // Brand new decision - add at top
                 merged.push(decision);
@@ -388,19 +386,12 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
             }
             
             // Add existing decisions that aren't in new list (keep old ones visible)
-            for (const prevDecision of prev) {
-              if (!seenIds.has(prevDecision.id)) {
-                merged.push(prevDecision);
-              }
-            }
+            // Limit to last 50 to prevent memory issues
+            const oldDecisions = prev.filter(d => !seenIds.has(d.id)).slice(0, 50);
+            merged.push(...oldDecisions);
             
             // Sort by timestamp again (newest first)
             merged.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-            
-            // Restore expanded state
-            if (preservedExpanded && merged.some(d => d.id === preservedExpanded)) {
-              // Expanded state will be managed by expandedId state
-            }
             
             return merged;
           });

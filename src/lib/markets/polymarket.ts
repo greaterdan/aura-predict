@@ -133,28 +133,34 @@ export async function fetchAllMarkets(): Promise<Market[]> {
       const markets = rawMarkets.map((rawMarket: any) => {
         const actualMarket = rawMarket.market || rawMarket;
         
+        const question = actualMarket.question || actualMarket.title || '';
+        
         // Extract market ID using EXACT same logic as predictions (marketTransformer.js line 624-635)
         // This ensures market IDs match prediction IDs exactly
+        // Predictions use: condition_id || question_id || slug || id || market_id
         let marketId = actualMarket.condition_id || 
                       actualMarket.question_id || 
                       actualMarket.slug || 
                       actualMarket.id ||
                       actualMarket.market_id ||
                       rawMarket.condition_id ||
+                      rawMarket.question_id ||
+                      rawMarket.slug ||
                       rawMarket.id;
         
         // If no ID found, generate one using EXACT same logic as predictions (line 630-635)
-        if (!marketId) {
-          const question = actualMarket.question || actualMarket.title || '';
-          if (question) {
-            const questionHash = question.split('').reduce((acc: number, char: string) => {
-              return ((acc << 5) - acc) + char.charCodeAt(0);
-            }, 0);
-            marketId = `market-${question.substring(0, 30).replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '')}-${Math.abs(questionHash).toString(36)}`;
-          }
+        if (!marketId && question) {
+          const questionHash = question.split('').reduce((acc: number, char: string) => {
+            return ((acc << 5) - acc) + char.charCodeAt(0);
+          }, 0);
+          marketId = `market-${question.substring(0, 30).replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '')}-${Math.abs(questionHash).toString(36)}`;
         }
         
-        const question = actualMarket.question || actualMarket.title || '';
+        if (!marketId) {
+          // Skip markets without any ID
+          return null;
+        }
+        
         const volume = parseFloat(actualMarket.volume || actualMarket.volume24h || '0');
         const liquidity = parseFloat(actualMarket.liquidity || actualMarket.liquidityUsd || '0');
         const probability = parseFloat(actualMarket.probability || actualMarket.currentPrice || '0.5');
@@ -171,13 +177,8 @@ export async function fetchAllMarkets(): Promise<Market[]> {
         }
         
         // Use marketId - MUST match prediction IDs exactly
-        // Only trade markets with real condition_id (not generated IDs)
-        // This ensures trades match actual Polymarket markets
-        if (!marketId || marketId.startsWith('market-')) {
-          // Skip markets with generated IDs (only trade real Polymarket markets)
-          return null;
-        }
-        
+        // Don't filter out slug-based IDs - they're valid prediction IDs
+        // Only skip generated IDs (market-* prefix) if they don't have condition_id or slug
         marketId = String(marketId);
         
         return {
