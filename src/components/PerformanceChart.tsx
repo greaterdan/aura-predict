@@ -22,8 +22,7 @@ const STARTING_CAPITAL = 3000;
 // This will be replaced with real data from the API
 const getInitialChartData = (): ChartDataPoint[] => {
   const now = new Date();
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const timeStr = `${monthNames[now.getMonth()]} ${now.getDate()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   
   return [
     { 
@@ -280,9 +279,7 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
           
           // Build chart data from agent portfolios
           const now = new Date();
-          // Format as "Nov 6 04:23" to match the reference image
-          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          const timeStr = `${monthNames[now.getMonth()]} ${now.getDate()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+          const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
           
           const newDataPoint: ChartDataPoint = {
             time: timeStr,
@@ -341,9 +338,9 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
               updated = [...prev, newDataPoint];
             }
             
-            // Sort by timestamp and keep last 100 points (for multi-day historical view)
+            // Sort by timestamp and keep last 20 points for clean chart view
             updated.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-            return updated.slice(-100);
+            return updated.slice(-20);
           });
         } else {
           console.error('Failed to fetch agent summary:', response.status, response.statusText);
@@ -541,27 +538,6 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
       {/* Content Area */}
       {viewMode === "chart" ? (
         <div className="flex-1 relative" style={{ backgroundColor: "#050608" }}>
-          {/* Money Watermark */}
-          <div
-            className="absolute inset-0 pointer-events-none z-0 flex items-center justify-center"
-            style={{
-              opacity: 0.03,
-            }}
-          >
-            <span
-              style={{
-                fontSize: "200px",
-                fontWeight: 900,
-                color: "#D4AF37",
-                fontFamily: "system-ui, -apple-system, sans-serif",
-                letterSpacing: "0.05em",
-                transform: "rotate(-45deg)",
-              }}
-            >
-              MONEY
-            </span>
-          </div>
-          
           {/* Lower Band Gradient Overlay */}
           <div
             className="absolute bottom-0 left-0 right-0 pointer-events-none z-0"
@@ -614,9 +590,6 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
                   fontSize: 11,
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
-                angle={-45}
-                textAnchor="end"
-                height={60}
               />
               
               <YAxis
@@ -630,15 +603,6 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
                 tickFormatter={(value) => `$${value.toFixed(0)}`}
-              />
-              
-              {/* Baseline Reference Line at Starting Capital */}
-              <ReferenceLine
-                y={STARTING_CAPITAL}
-                stroke="#C6CBD9"
-                strokeDasharray="3 3"
-                strokeWidth={1}
-                opacity={0.5}
               />
               
               <Tooltip
