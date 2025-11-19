@@ -134,12 +134,20 @@ export const mapPolymarketCategory = (category: string | undefined, tags: string
 };
 
 // Use local proxy server to avoid CORS issues
-const PROXY_BASE = 'http://localhost:3002';
+// In production, use relative URLs; in development, use localhost
+const getProxyBase = async (): Promise<string> => {
+  const { API_BASE_URL } = await import('./apiConfig');
+  return API_BASE_URL;
+};
+
+// For backwards compatibility, export a function that gets the base URL
+export const getProxyBaseUrl = getProxyBase;
 
 // Check if proxy server is running
 export const checkServerHealth = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${PROXY_BASE}/api/health`, {
+    const proxyBase = await getProxyBaseUrl();
+    const response = await fetch(`${proxyBase}/api/health`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -160,10 +168,11 @@ export const fetchPolymarketMarkets = async (
   offset: number = 0 // Add offset for pagination
 ): Promise<PolymarketMarketsResponse> => {
   try {
+    const proxyBase = await getProxyBaseUrl();
     // Check if server is running first
     const isServerRunning = await checkServerHealth();
     if (!isServerRunning) {
-      throw new Error(`Proxy server is not running at ${PROXY_BASE}. Please start it with: npm run server`);
+      throw new Error(`Proxy server is not running at ${proxyBase}. Please start it with: npm run server`);
     }
     const params = new URLSearchParams({
       limit: limit.toString(),
@@ -174,7 +183,7 @@ export const fetchPolymarketMarkets = async (
     });
 
     // Call our proxy server
-    const response = await fetch(`${PROXY_BASE}/api/polymarket/markets?${params.toString()}`, {
+    const response = await fetch(`${proxyBase}/api/polymarket/markets?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -213,7 +222,8 @@ export const fetchPolymarketMarkets = async (
 // Fetch featured/trending markets via proxy
 export const fetchFeaturedMarkets = async (): Promise<PolymarketMarket[]> => {
   try {
-    const response = await fetch(`${PROXY_BASE}/api/polymarket/markets?featured=true&limit=20&active=true`, {
+    const proxyBase = await getProxyBaseUrl();
+    const response = await fetch(`${proxyBase}/api/polymarket/markets?featured=true&limit=20&active=true`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -240,9 +250,10 @@ export const fetchMarketsByCategory = async (category: string): Promise<Polymark
     const limitPerPage = 1000;
     const maxPages = 20; // Fetch up to 20,000 markets for category
     
+    const proxyBase = await getProxyBaseUrl();
     for (let page = 0; page < maxPages; page++) {
       const offset = page * limitPerPage;
-      const response = await fetch(`${PROXY_BASE}/api/polymarket/markets?category=${encodeURIComponent(category)}&limit=${limitPerPage}&active=true&offset=${offset}`, {
+      const response = await fetch(`${proxyBase}/api/polymarket/markets?category=${encodeURIComponent(category)}&limit=${limitPerPage}&active=true&offset=${offset}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

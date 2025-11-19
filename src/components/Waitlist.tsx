@@ -24,7 +24,9 @@ export const Waitlist = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:3002/api/waitlist", {
+      const { API_BASE_URL } = await import('@/lib/apiConfig');
+      const apiUrl = `${API_BASE_URL}/api/waitlist`;
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

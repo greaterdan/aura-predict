@@ -132,7 +132,9 @@ const Index = () => {
         // Call server endpoint - server handles ALL fetching, filtering, and transformation
         // Request markets with reasonable limit for performance
         // Search is handled client-side only to prevent glitching on every keystroke
-        const response = await fetch(`http://localhost:3002/api/predictions?category=${encodeURIComponent(selectedCategory)}&limit=5000`, {
+        const { API_BASE_URL } = await import('@/lib/apiConfig');
+        const apiUrl = `${API_BASE_URL}/api/predictions?category=${encodeURIComponent(selectedCategory)}&limit=5000`;
+        const response = await fetch(apiUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',

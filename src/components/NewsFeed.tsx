@@ -74,7 +74,9 @@ export const NewsFeed = () => {
       setLoading(true);
       
       // Use server proxy to avoid CORS and respect rate limits - always fetch from all sources
-      const response = await fetch('http://localhost:3002/api/news?source=all');
+      const { API_BASE_URL } = await import('@/lib/apiConfig');
+      const apiUrl = `${API_BASE_URL}/api/news?source=all`;
+      const response = await fetch(apiUrl);
       
       if (!response.ok) {
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
