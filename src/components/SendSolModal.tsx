@@ -41,10 +41,10 @@ export const SendSolModal = ({ open, onOpenChange, walletAddress, privateKey, on
       for (const endpoint of rpcEndpoints) {
         try {
           const connection = new Connection(endpoint, "confirmed");
-          const publicKey = new PublicKey(walletAddress);
-          const balanceLamports = await connection.getBalance(publicKey);
-          const balanceSol = balanceLamports / 1_000_000_000;
-          setBalance(balanceSol);
+      const publicKey = new PublicKey(walletAddress);
+      const balanceLamports = await connection.getBalance(publicKey);
+      const balanceSol = balanceLamports / 1_000_000_000;
+      setBalance(balanceSol);
           return; // Success, exit
         } catch (error: any) {
           lastError = error;

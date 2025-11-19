@@ -11,6 +11,7 @@ type Props = {
   selectedNodeId?: string | null;
   selectedAgent?: string | null;
   agents?: Array<{ id: string; name: string }>;
+  agentTradeMarkets?: string[]; // Market names/IDs that the selected agent has traded
   isTransitioning?: boolean; // CRITICAL: Prevent recalculations during panel transitions
   isResizing?: boolean; // CRITICAL: Prevent recalculations during panel resize
 };
@@ -21,6 +22,7 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
   selectedNodeId,
   selectedAgent,
   agents = [],
+  agentTradeMarkets = [],
   isTransitioning = false,
   isResizing = false,
 }) => {
@@ -993,18 +995,31 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
     >
       {isSizeReady && visibleBubbles.length > 0 && (() => {
         // CRITICAL: Pre-calculate expensive lookups ONCE, not for every bubble
-        const selectedAgentName = selectedAgent ? agents.find((a) => a.id === selectedAgent)?.name : null;
+        // Check if bubble matches agent's trades by comparing market names
+        const isBubbleInAgentTrades = (bubble: typeof visibleBubbles[0]) => {
+          if (!selectedAgent || agentTradeMarkets.length === 0) return false;
+          // Match by market name (question) - check if trade market name matches bubble question
+          return agentTradeMarkets.some(tradeMarket => {
+            const tradeMarketLower = tradeMarket.toLowerCase();
+            const bubbleQuestionLower = bubble.data.question.toLowerCase();
+            // Check if trade market name is contained in bubble question or vice versa
+            return bubbleQuestionLower.includes(tradeMarketLower) || 
+                   tradeMarketLower.includes(bubbleQuestionLower) ||
+                   // Also check for exact match or close match
+                   bubbleQuestionLower === tradeMarketLower;
+          });
+        };
         
         return visibleBubbles.map((bubble) => {
           // CRITICAL: Use pre-calculated values to prevent expensive lookups in loop
-          const isSelected =
-            selectedNodeId === bubble.id ||
-            (selectedAgentName && bubble.data.agentName === selectedAgentName);
-          const isHighlighted = isSelected || hoveredBubbleId === bubble.id;
+          const isSelected = selectedNodeId === bubble.id;
+          const isInAgentTrades = isBubbleInAgentTrades(bubble);
+          // Highlight if selected OR if it's in the agent's trades
+          const isHighlighted = isSelected || isInAgentTrades || hoveredBubbleId === bubble.id;
           const isDragging = draggedBubbleId === bubble.id;
           
           // When agent is selected, dim non-matching bubbles but keep same size/styling
-          const opacity = selectedAgent && !isSelected ? 0.4 : 1;
+          const opacity = selectedAgent && !isInAgentTrades ? 0.4 : 1;
         
         // Note: visibleBubbles useMemo already filters by viewport correctly
         // No need for expensive getBoundingClientRect calls here
@@ -1146,7 +1161,8 @@ export const PredictionBubbleField = React.memo(PredictionBubbleFieldComponent, 
   if (prevIds.size === nextIds.size && [...prevIds].every(id => nextIds.has(id))) {
     // Same markets - only re-render if selection changed
     if (prevProps.selectedNodeId === nextProps.selectedNodeId && 
-        prevProps.selectedAgent === nextProps.selectedAgent) {
+        prevProps.selectedAgent === nextProps.selectedAgent &&
+        JSON.stringify(prevProps.agentTradeMarkets || []) === JSON.stringify(nextProps.agentTradeMarkets || [])) {
       return true; // Props are equal (same markets, same selection), skip re-render
     }
   }

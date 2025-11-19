@@ -11,6 +11,7 @@ import { AISummaryPanel } from "@/components/AISummaryPanel";
 import { NewsFeed } from "@/components/NewsFeed";
 import { Waitlist } from "@/components/Waitlist";
 import { Watchlist } from "@/components/Watchlist";
+import { AgentTradesPanel } from "@/components/AgentTradesPanel";
 import { getOrCreateWallet, getCustodialWallet, storeCustodialWallet } from "@/lib/wallet";
 import { getWatchlist, removeFromWatchlist } from "@/lib/watchlist";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -41,6 +42,305 @@ const mockAgents: Agent[] = [
   { id: "qwen", name: "QWEN 2.5", emoji: "🤖", isActive: false, pnl: 7.9, openMarkets: 219, lastTrade: "NO on Trump 2028 @ $0.34" },
 ];
 
+// Agent trading system - generates trades from actual predictions
+interface Trade {
+  id: string;
+  timestamp: Date;
+  market: string;
+  marketSlug?: string;
+  conditionId?: string;
+  decision: "YES" | "NO";
+  confidence: number;
+  reasoning: string;
+  pnl?: number;
+  status: "OPEN" | "CLOSED" | "PENDING";
+  predictionId: string; // Always link to actual prediction ID
+}
+
+interface NewsArticle {
+  title: string;
+  description?: string;
+  content?: string;
+  publishedAt: string;
+  url: string;
+  sourceApi?: string;
+}
+
+// Generate trades for agents based on actual predictions, news, volume, and metrics
+const generateAgentTrades = (
+  agentId: string,
+  predictions: PredictionNodeData[],
+  newsArticles: NewsArticle[] = []
+): Trade[] => {
+  if (predictions.length === 0) return [];
+  
+  const trades: Trade[] = [];
+  const now = Date.now();
+  
+  // Agent-specific trading strategies
+  const agentStrategies: Record<string, {
+    minVolume: number;
+    minLiquidity: number;
+    maxTrades: number;
+    riskTolerance: 'low' | 'medium' | 'high';
+    focusCategories?: string[];
+  }> = {
+    grok: {
+      minVolume: 50000,
+      minLiquidity: 10000,
+      maxTrades: 5,
+      riskTolerance: 'high',
+      focusCategories: ['Crypto', 'Tech', 'Politics'],
+    },
+    gpt5: {
+      minVolume: 100000,
+      minLiquidity: 20000,
+      maxTrades: 4,
+      riskTolerance: 'medium',
+      focusCategories: ['Tech', 'Finance', 'Crypto'],
+    },
+    deepseek: {
+      minVolume: 75000,
+      minLiquidity: 15000,
+      maxTrades: 6,
+      riskTolerance: 'medium',
+      focusCategories: ['Crypto', 'Finance', 'Elections'],
+    },
+    gemini: {
+      minVolume: 30000,
+      minLiquidity: 5000,
+      maxTrades: 7,
+      riskTolerance: 'high',
+      focusCategories: ['Sports', 'Entertainment', 'World'],
+    },
+    claude: {
+      minVolume: 80000,
+      minLiquidity: 18000,
+      maxTrades: 5,
+      riskTolerance: 'low',
+      focusCategories: ['Finance', 'Politics', 'Elections'],
+    },
+    qwen: {
+      minVolume: 60000,
+      minLiquidity: 12000,
+      maxTrades: 6,
+      riskTolerance: 'medium',
+      focusCategories: ['Finance', 'Geopolitics', 'World'],
+    },
+  };
+  
+  const strategy = agentStrategies[agentId] || agentStrategies.grok;
+  
+  // Filter predictions based on agent strategy
+  let candidatePredictions = predictions.filter(p => {
+    const volume = typeof p.volume === 'string' ? parseFloat(p.volume) : (p.volume || 0);
+    const liquidity = typeof p.liquidity === 'string' ? parseFloat(p.liquidity) : (p.liquidity || 0);
+    
+    // Volume and liquidity filters
+    if (volume < strategy.minVolume || liquidity < strategy.minLiquidity) {
+      return false;
+    }
+    
+    // Category filter if specified
+    if (strategy.focusCategories && p.category) {
+      const categoryMap: Record<string, string> = {
+        'Crypto': 'Crypto',
+        'Finance': 'Finance',
+        'Tech': 'Tech',
+        'Politics': 'Politics',
+        'Elections': 'Elections',
+        'Sports': 'Sports',
+        'Entertainment': 'Entertainment',
+        'World': 'World',
+        'Geopolitics': 'Geopolitics',
+      };
+      const mappedCategory = categoryMap[p.category] || p.category;
+      if (!strategy.focusCategories.includes(mappedCategory)) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+  
+  // Score predictions based on multiple factors
+  const scoredPredictions = candidatePredictions.map(prediction => {
+    let score = 0;
+    
+    // Volume score (higher volume = higher score)
+    const volume = typeof prediction.volume === 'string' ? parseFloat(prediction.volume) : (prediction.volume || 0);
+    score += Math.min(volume / 100000, 1) * 30; // Max 30 points
+    
+    // Liquidity score
+    const liquidity = typeof prediction.liquidity === 'string' ? parseFloat(prediction.liquidity) : (prediction.liquidity || 0);
+    score += Math.min(liquidity / 50000, 1) * 20; // Max 20 points
+    
+    // Price movement score (recent price changes indicate activity)
+    const priceChange = Math.abs(prediction.change || 0);
+    score += Math.min(priceChange * 10, 1) * 15; // Max 15 points
+    
+    // News relevance score
+    const predictionLower = prediction.question.toLowerCase();
+    const relevantNews = newsArticles.filter(article => {
+      const title = (article.title || '').toLowerCase();
+      const description = (article.description || '').toLowerCase();
+      const content = (article.content || '').toLowerCase();
+      const combined = `${title} ${description} ${content}`;
+      
+      // Extract key terms from prediction
+      const keyTerms = predictionLower
+        .split(/[\s\-_]+/)
+        .filter(w => w.length > 3 && !['will', 'the', 'that', 'this', 'with', 'from'].includes(w));
+      
+      // Check if any key term appears in news
+      return keyTerms.some(term => combined.includes(term));
+    });
+    score += Math.min(relevantNews.length * 5, 1) * 25; // Max 25 points (5 news = max)
+    
+    // Probability score (markets near 50% are more interesting for trading)
+    const prob = prediction.probability || 0.5;
+    const probScore = 1 - Math.abs(prob - 0.5) * 2; // Closer to 50% = higher score
+    score += probScore * 10; // Max 10 points
+    
+    return { prediction, score };
+  });
+  
+  // Sort by score and take top predictions
+  scoredPredictions.sort((a, b) => b.score - a.score);
+  const topPredictions = scoredPredictions.slice(0, strategy.maxTrades);
+  
+  // Generate trades for top predictions
+  // Use deterministic approach to ensure stable trades
+  topPredictions.forEach(({ prediction }, index) => {
+    // Use prediction ID hash for deterministic randomness
+    const predictionHash = prediction.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    
+    // Determine decision based on probability and agent strategy
+    const prob = prediction.probability || 0.5;
+    let decision: "YES" | "NO";
+    let confidence: number;
+    
+    // Deterministic decision based on prediction ID and probability
+    const decisionSeed = (predictionHash + agentId.charCodeAt(0)) % 100;
+    if (prob > 0.6) {
+      decision = "YES";
+      confidence = Math.min(prob * 100 + (decisionSeed % 10 - 5), 95);
+    } else if (prob < 0.4) {
+      decision = "NO";
+      confidence = Math.min((1 - prob) * 100 + (decisionSeed % 10 - 5), 95);
+    } else {
+      // Near 50% - agent makes a call based on other factors
+      const volume = typeof prediction.volume === 'string' ? parseFloat(prediction.volume) : (prediction.volume || 0);
+      decision = volume > strategy.minVolume * 1.5 ? "YES" : "NO";
+      confidence = 50 + (decisionSeed % 20 - 10); // 40-60% confidence
+    }
+    
+    // Generate reasoning based on metrics
+    const volume = typeof prediction.volume === 'string' ? parseFloat(prediction.volume) : (prediction.volume || 0);
+    const liquidity = typeof prediction.liquidity === 'string' ? parseFloat(prediction.liquidity) : (prediction.liquidity || 0);
+    const priceChange = prediction.change || 0;
+    
+    let reasoning = "";
+    if (volume > strategy.minVolume * 2) {
+      reasoning += `High trading volume (${(volume / 1000).toFixed(0)}k) indicates strong market interest. `;
+    }
+    if (liquidity > strategy.minLiquidity * 1.5) {
+      reasoning += `Strong liquidity (${(liquidity / 1000).toFixed(0)}k) supports active trading. `;
+    }
+    if (Math.abs(priceChange) > 0.05) {
+      reasoning += `Recent price movement (${(priceChange * 100).toFixed(1)}%) suggests momentum shift. `;
+    }
+    
+    // Add news-based reasoning if available
+    const relevantNews = newsArticles.filter(article => {
+      const title = (article.title || '').toLowerCase();
+      const description = (article.description || '').toLowerCase();
+      const predictionLower = prediction.question.toLowerCase();
+      const keyTerms = predictionLower.split(/[\s\-_]+/).filter(w => w.length > 3);
+      return keyTerms.some(term => title.includes(term) || description.includes(term));
+    });
+    
+    if (relevantNews.length > 0) {
+      reasoning += `${relevantNews.length} recent news article${relevantNews.length > 1 ? 's' : ''} related to this market. `;
+    }
+    
+    if (!reasoning) {
+      reasoning = `Market analysis based on current probability (${(prob * 100).toFixed(0)}%) and trading metrics.`;
+    }
+    
+    // Determine status (mix of open and closed trades) - deterministic based on index
+    const isRecent = index < Math.ceil(strategy.maxTrades * 0.4); // 40% are recent/open
+    const status: "OPEN" | "CLOSED" = isRecent ? "OPEN" : "CLOSED";
+    
+    // Generate PnL for closed trades - deterministic
+    let pnl: number | undefined;
+    if (status === "CLOSED") {
+      const pnlSeed = (predictionHash * 7 + agentId.charCodeAt(0) * 3) % 1000;
+      const basePnL = (confidence / 100) * ((pnlSeed / 1000) * 5 + 1);
+      pnl = decision === "YES" && prob > 0.5 ? basePnL : -basePnL * 0.7;
+      pnl = parseFloat(pnl.toFixed(4));
+    }
+    
+    // Generate timestamp - deterministic based on prediction ID
+    const timeSeed = (predictionHash + index * 1000) % 10000;
+    const timestamp = isRecent
+      ? new Date(now - (timeSeed * 360 + 60000)) // 1 min to 1 hour ago (deterministic)
+      : new Date(now - (timeSeed * 720 + 1800000)); // 30 min to 2 hours ago (deterministic)
+    
+    trades.push({
+      id: `${agentId}-${prediction.id}`, // Stable ID based on agent + prediction (no index)
+      timestamp,
+      market: prediction.question,
+      marketSlug: prediction.marketSlug,
+      conditionId: prediction.conditionId,
+      decision,
+      confidence: Math.round(confidence),
+      reasoning: reasoning.trim(),
+      pnl,
+      status,
+      predictionId: prediction.id, // Always use actual prediction ID
+    });
+  });
+  
+  return trades.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+};
+
+// Cache for agent trades to prevent regeneration on every render
+const agentTradesCache = new Map<string, { trades: Trade[]; timestamp: number; predictionIds: Set<string> }>();
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+// Get trades for a specific agent (uses cached trades if available)
+const getAgentTrades = (agentId: string, predictions: PredictionNodeData[], newsArticles: NewsArticle[] = []): Trade[] => {
+  const cacheKey = agentId;
+  const now = Date.now();
+  const cached = agentTradesCache.get(cacheKey);
+  
+  // Check if cache is valid
+  if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+    // Check if prediction IDs changed (if so, regenerate)
+    const currentPredictionIds = new Set(predictions.map(p => p.id));
+    const idsMatch = cached.predictionIds.size === currentPredictionIds.size &&
+                     [...cached.predictionIds].every(id => currentPredictionIds.has(id));
+    
+    if (idsMatch) {
+      return cached.trades; // Return cached trades
+    }
+  }
+  
+  // Generate new trades
+  const trades = generateAgentTrades(agentId, predictions, newsArticles);
+  const predictionIds = new Set(predictions.map(p => p.id));
+  
+  // Cache the trades
+  agentTradesCache.set(cacheKey, {
+    trades,
+    timestamp: now,
+    predictionIds,
+  });
+  
+  return trades;
+};
+
 // Mock predictions removed - all data comes from server
 
 const Index = () => {
@@ -58,6 +358,7 @@ const Index = () => {
   const [predictions, setPredictions] = useState<PredictionNodeData[]>([]);
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [bubbleLimit, setBubbleLimit] = useState<number>(100);
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   
   // Debounce search query to prevent glitching during typing
   useEffect(() => {
@@ -83,6 +384,7 @@ const Index = () => {
   });
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showWatchlist, setShowWatchlist] = useState(false);
+  const [showAgentTrades, setShowAgentTrades] = useState(false);
   const [watchlist, setWatchlist] = useState<PredictionNodeData[]>([]);
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -139,6 +441,37 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('savedRightPanelSize', savedRightPanelSize.toString());
   }, [savedRightPanelSize]);
+
+  // Fetch news articles for agent trading decisions
+  useEffect(() => {
+    const loadNews = async () => {
+      try {
+        const { API_BASE_URL } = await import('@/lib/apiConfig');
+        const response = await fetch(`${API_BASE_URL}/api/news?source=all`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'ok' && data.articles) {
+            const articles: NewsArticle[] = data.articles.map((article: any) => ({
+              title: article.title || '',
+              description: article.description || undefined,
+              content: article.content || undefined,
+              publishedAt: article.publishedAt || new Date().toISOString(),
+              url: article.url || '',
+              sourceApi: article.sourceApi || undefined,
+            }));
+            setNewsArticles(articles);
+          }
+        }
+      } catch (error) {
+        console.debug('Failed to fetch news for trading:', error);
+      }
+    };
+    
+    loadNews();
+    // Refresh news every 5 minutes for trading decisions
+    const newsInterval = setInterval(loadNews, 5 * 60 * 1000);
+    return () => clearInterval(newsInterval);
+  }, []);
 
   // Fetch predictions from server (all processing is server-side)
   useEffect(() => {
@@ -317,7 +650,28 @@ const Index = () => {
   }, []);
 
   const handleAgentClick = (agentId: string) => {
-    setSelectedAgent(selectedAgent === agentId ? null : agentId);
+    if (selectedAgent === agentId) {
+      // Clicking the same agent - close trades view
+      setSelectedAgent(null);
+      setShowAgentTrades(false);
+    } else {
+      // Clicking a different agent - show their trades
+      setSelectedAgent(agentId);
+      setShowAgentTrades(true);
+      // Close other views when showing agent trades
+      setShowWaitlist(false);
+      setShowWatchlist(false);
+      setShowNewsFeed(false);
+      // Ensure summary panel is open
+      if (!isSummaryOpen) {
+        setIsSummaryOpen(true);
+      }
+    }
+  };
+
+  const handleCloseAgentTrades = () => {
+    setShowAgentTrades(false);
+    setSelectedAgent(null);
   };
 
   const handleNodeClick = (nodeId: string) => {
@@ -654,7 +1008,7 @@ const Index = () => {
   const handleToggleSummary = () => {
     setIsTransitioning(true);
     // If Summary is already showing (and no other view is active), close the panel
-    if (isSummaryOpen && !showNewsFeed && !showWaitlist && !showWatchlist) {
+    if (isSummaryOpen && !showNewsFeed && !showWaitlist && !showWatchlist && !showAgentTrades) {
       setIsSummaryOpen(false);
       setRightPanelSize(0);
       // Dashboard stays 100% - no size updates needed
@@ -669,6 +1023,8 @@ const Index = () => {
     setShowNewsFeed(false);
     setShowWaitlist(false);
     setShowWatchlist(false); // Close watchlist when opening summary
+    setShowAgentTrades(false); // Close agent trades when opening summary
+    setSelectedAgent(null); // Deselect agent
     setIsSummaryOpen(true);
     const defaultSize = 30;
     setRightPanelSize(defaultSize);
@@ -685,7 +1041,7 @@ const Index = () => {
   const handleToggleWaitlist = () => {
     setIsTransitioning(true);
     // If Waitlist is already showing, close the panel
-    if (showWaitlist && isSummaryOpen && !showNewsFeed) {
+    if (showWaitlist && isSummaryOpen && !showNewsFeed && !showAgentTrades) {
       setShowWaitlist(false);
       setIsSummaryOpen(false);
       setRightPanelSize(0);
@@ -700,6 +1056,8 @@ const Index = () => {
     // Opening Waitlist - switch to Waitlist view (close other views)
     setShowNewsFeed(false);
     setShowWatchlist(false); // Close watchlist when opening waitlist
+    setShowAgentTrades(false); // Close agent trades when opening waitlist
+    setSelectedAgent(null); // Deselect agent
     setShowWaitlist(true);
     setIsSummaryOpen(true); // Always open summary panel when showing waitlist
     const defaultSize = 30;
@@ -717,7 +1075,7 @@ const Index = () => {
   const handleToggleWatchlist = () => {
     setIsTransitioning(true);
     // If Watchlist is already showing, close the panel
-    if (showWatchlist && isSummaryOpen && !showNewsFeed && !showWaitlist) {
+    if (showWatchlist && isSummaryOpen && !showNewsFeed && !showWaitlist && !showAgentTrades) {
       setShowWatchlist(false);
       setIsSummaryOpen(false);
       setRightPanelSize(0);
@@ -731,6 +1089,8 @@ const Index = () => {
     // Opening Watchlist - switch to Watchlist view (close other views)
     setShowNewsFeed(false);
     setShowWaitlist(false);
+    setShowAgentTrades(false); // Close agent trades when opening watchlist
+    setSelectedAgent(null); // Deselect agent
     setShowWatchlist(true);
     setIsSummaryOpen(true); // Always open summary panel when showing watchlist
     const defaultSize = 30;
@@ -747,7 +1107,7 @@ const Index = () => {
   const handleToggleNewsFeed = () => {
     setIsTransitioning(true);
     // If News Feed is already showing and panel is open, close it
-    if (showNewsFeed && isSummaryOpen) {
+    if (showNewsFeed && isSummaryOpen && !showAgentTrades) {
       setIsSummaryOpen(false);
       setShowNewsFeed(false);
       setShowWaitlist(false);
@@ -1103,6 +1463,7 @@ const Index = () => {
                 selectedNodeId={selectedNode}
                 selectedAgent={selectedAgent}
                 agents={mockAgents}
+                agentTradeMarkets={selectedAgent ? getAgentTrades(selectedAgent, predictions, newsArticles).map(t => t.market) : []}
                 isTransitioning={isTransitioning}
                 isResizing={false}
               />
@@ -1196,6 +1557,32 @@ const Index = () => {
                     />
                   ) : showNewsFeed ? (
                     <NewsFeed />
+                  ) : showAgentTrades && selectedAgent ? (
+                    <AgentTradesPanel
+                      agentId={selectedAgent}
+                      agentName={agents.find(a => a.id === selectedAgent)?.name || 'Unknown'}
+                      agentEmoji={agents.find(a => a.id === selectedAgent)?.emoji || '🤖'}
+                      trades={getAgentTrades(selectedAgent, predictions, newsArticles)}
+                      onClose={handleCloseAgentTrades}
+                      onTradeClick={(marketName, predictionId) => {
+                        // Always use predictionId - trades are generated from actual predictions
+                        if (predictionId) {
+                          const matchingPrediction = predictions.find(p => p.id === predictionId);
+                          if (matchingPrediction) {
+                            setSelectedPrediction(matchingPrediction);
+                            setSelectedNode(matchingPrediction.id);
+                            if (!isPerformanceOpen) {
+                              setIsPerformanceOpen(true);
+                              setLeftPanelSize(30);
+                            }
+                          } else {
+                            console.warn('Prediction not found for ID:', predictionId);
+                          }
+                        } else {
+                          console.warn('No prediction ID provided for trade:', marketName);
+                        }
+                      }}
+                    />
                   ) : (
                     <AISummaryPanel />
                   )}

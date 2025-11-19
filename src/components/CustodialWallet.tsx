@@ -43,17 +43,17 @@ export const CustodialWallet = ({ walletAddress, privateKey }: CustodialWalletPr
       for (const endpoint of rpcEndpoints) {
         try {
           const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'getBalance',
-              params: [walletAddress],
-            }),
-          });
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getBalance',
+          params: [walletAddress],
+        }),
+      });
 
           if (!response.ok) {
             // If 403 or rate limit, try next endpoint
@@ -63,11 +63,11 @@ export const CustodialWallet = ({ walletAddress, privateKey }: CustodialWalletPr
             throw new Error(`HTTP ${response.status}`);
           }
 
-          const data = await response.json();
-          if (data.result) {
-            // Convert lamports to SOL (1 SOL = 1,000,000,000 lamports)
-            const solBalance = data.result.value / 1_000_000_000;
-            setBalance(solBalance.toFixed(4));
+      const data = await response.json();
+      if (data.result) {
+        // Convert lamports to SOL (1 SOL = 1,000,000,000 lamports)
+        const solBalance = data.result.value / 1_000_000_000;
+        setBalance(solBalance.toFixed(4));
             return; // Success, exit
           }
         } catch (error: any) {
