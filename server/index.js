@@ -125,9 +125,7 @@ app.get('/api/csrf-token', (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Polymarket proxy server is running' });
-});
+// Root route removed - will be handled by static file serving for frontend
 
 // Security: CORS - restrict to specific origins instead of wildcard
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -1048,7 +1046,8 @@ Timestamp: ${timestamp}
 if (fs.existsSync(distPath)) {
   console.log(`📁 Serving static files from: ${distPath}`);
   
-  // Serve static assets (JS, CSS, images, etc.)
+  // Serve static assets (JS, CSS, images, etc.) FIRST
+  // This must come before the catch-all middleware
   app.use(express.static(distPath, {
     maxAge: '1y', // Cache static assets for 1 year
     etag: true,
@@ -1057,22 +1056,26 @@ if (fs.existsSync(distPath)) {
   // Handle React Router - serve index.html for all non-API routes
   // This allows client-side routing to work
   // Express 5.x doesn't support '*' pattern, so use a catch-all middleware
+  // This MUST be last, after all other routes
   app.use((req, res, next) => {
-    // Don't serve index.html for API routes or health checks
+    // Skip API routes and health checks - they should have been handled already
     if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
-      return next();
+      return res.status(404).json({ error: 'Not found' });
     }
     
-    // Don't serve index.html for static assets (they're already handled by express.static)
-    if (req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
-      return next();
-    }
-    
-    // Serve index.html for all other routes (SPA routing)
-    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+    // Skip static assets - express.static should have handled these
+    // If we reach here, it means express.static didn't find the file
+    // So serve index.html for SPA routing
+    const indexPath = path.join(distPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
       if (err) {
-        console.error(`Error serving index.html: ${err.message}`);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error(`Error serving index.html for ${req.path}: ${err.message}`);
+        res.status(500).json({ 
+          error: 'Internal server error',
+          message: 'Failed to serve frontend'
+        });
+      } else {
+        console.log(`Served index.html for route: ${req.path}`);
       }
     });
   });
