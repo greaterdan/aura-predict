@@ -923,12 +923,16 @@ const NEWSDATA_API_URL = 'https://newsdata.io/api/1/news';
 // GNews API - Get your free API key from https://gnews.io/register
 const GNEWS_API_KEY = process.env.GNEWS_API_KEY;
 const GNEWS_API_URL = 'https://gnews.io/api/v4/search';
+// World News API - Get your free API key from https://worldnewsapi.com/
+const WORLD_NEWS_API_KEY = process.env.WORLD_NEWS_API_KEY;
+const WORLD_NEWS_API_URL = 'https://api.worldnewsapi.com/search-news';
 
 // Log API key status on startup
 console.log('[NEWS] 📰 News API Configuration:');
 console.log(`[NEWS]   NewsAPI: ${NEWS_API_KEY ? `✅ Configured (${NEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 console.log(`[NEWS]   NewsData.io: ${NEWSDATA_API_KEY ? `✅ Configured (${NEWSDATA_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 console.log(`[NEWS]   GNews: ${GNEWS_API_KEY ? `✅ Configured (${GNEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
+console.log(`[NEWS]   World News API: ${WORLD_NEWS_API_KEY ? `✅ Configured (${WORLD_NEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 
 // Simple in-memory cache (refresh every 5 minutes)
 let newsCache = {
@@ -1324,8 +1328,132 @@ const fetchGNews = async () => {
   }));
 };
 
+// Fetch news from World News API
+const fetchWorldNews = async () => {
+  console.log('[NEWS] 🔄 Starting World News API fetch...');
+  // SECURITY: Check if API key is configured
+  if (!WORLD_NEWS_API_KEY) {
+    console.error('[NEWS] ❌ WORLD_NEWS_API_KEY not configured, skipping World News API');
+    return [];
+  }
+  
+  // Get date from last 7 days
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - 7);
+  const fromDateStr = fromDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  
+  // World News API queries - try multiple topics
+  const queries = [
+    'prediction',
+    'election',
+    'cryptocurrency',
+    'bitcoin',
+    'ethereum',
+    'blockchain',
+    'stock market',
+    'economy',
+    'technology',
+    'sports',
+    'climate',
+    'politics',
+    'finance',
+    'trading',
+    'crypto',
+    'solana',
+    'defi',
+    'nft',
+    'web3',
+    'markets'
+  ];
+  
+  // Fetch from multiple queries and combine results
+  const fetchPromises = queries.map(async (query) => {
+    try {
+      // World News API uses x-api-key header
+      const url = `${WORLD_NEWS_API_URL}?text=${encodeURIComponent(query)}&language=en&number=10&earliest-publish-date=${fromDateStr}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'x-api-key': WORLD_NEWS_API_KEY,
+        },
+      });
+      
+      if (!response.ok) {
+        // ALWAYS log API errors for debugging
+        try {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error(`[NEWS] ❌ World News API HTTP error ${response.status} for query "${query}":`, errorText.substring(0, 500));
+        } catch (e) {
+          console.error(`[NEWS] ❌ World News API HTTP error ${response.status} for query "${query}":`, e.message);
+        }
+        return [];
+      }
+      
+      const data = await response.json();
+      
+      // ALWAYS log API responses for debugging
+      console.log(`[NEWS] World News API response for "${query}": articles=${data.news?.length || 0}`);
+      
+      if (data.news && Array.isArray(data.news)) {
+        // Filter to only articles from last 7 days (double-check)
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const filtered = data.news.filter(article => {
+          if (!article.publish_date) return false;
+          const publishedDate = new Date(article.publish_date);
+          return publishedDate >= sevenDaysAgo;
+        });
+        console.log(`[NEWS] World News API "${query}": ${data.news.length} articles, ${filtered.length} after 7-day filter`);
+        return filtered;
+      }
+      
+      // ALWAYS log API errors
+      if (data.error) {
+        console.error(`[NEWS] ❌ World News API error for query "${query}":`, JSON.stringify(data));
+      }
+      
+      return [];
+    } catch (error) {
+      // ALWAYS log fetch errors
+      console.error(`[NEWS] ❌ World News API fetch error for query "${query}":`, error.message, error.stack);
+      return [];
+    }
+  });
+  
+  const results = await Promise.all(fetchPromises);
+  const allArticles = results.flat();
+  
+  // Remove duplicates based on url
+  const uniqueArticles = [];
+  const seenUrls = new Set();
+  
+  for (const article of allArticles) {
+    const url = article.url || article.link;
+    if (url && !seenUrls.has(url)) {
+      seenUrls.add(url);
+      uniqueArticles.push(article);
+    }
+  }
+  
+  // Transform World News API format to match NewsAPI format
+  return uniqueArticles.map(article => ({
+    source: {
+      id: article.source?.id || null,
+      name: article.source?.name || 'Unknown',
+    },
+    author: article.author || null,
+    title: article.title || '',
+    description: article.text || article.summary || null,
+    url: article.url || article.link || '',
+    urlToImage: article.image || null,
+    publishedAt: article.publish_date || new Date().toISOString(),
+    content: article.text || null,
+    sourceApi: 'worldnews',
+  }));
+};
+
 app.get('/api/news', async (req, res) => {
-  const { source = 'all' } = req.query; // 'all', 'newsapi', 'newsdata', or 'gnews'
+  const { source = 'all' } = req.query; // 'all', 'newsapi', 'newsdata', 'gnews', or 'worldnews'
   
   try {
     // Check cache
@@ -1359,6 +1487,10 @@ app.get('/api/news', async (req, res) => {
       fetchPromises.push(fetchGNews().catch(() => []));
     }
     
+    if (source === 'all' || source === 'worldnews') {
+      fetchPromises.push(fetchWorldNews().catch(() => []));
+    }
+    
     const results = await Promise.all(fetchPromises);
     let allArticles = results.flat();
     
@@ -1366,13 +1498,14 @@ app.get('/api/news', async (req, res) => {
     const newsapiCount = allArticles.filter(a => a.sourceApi === 'newsapi').length;
     const newsdataCount = allArticles.filter(a => a.sourceApi === 'newsdata').length;
     const gnewsCount = allArticles.filter(a => a.sourceApi === 'gnews').length;
+    const worldnewsCount = allArticles.filter(a => a.sourceApi === 'worldnews').length;
     
     if (allArticles.length === 0) {
       console.error('[NEWS] ❌❌❌ NO ARTICLES FETCHED FROM ANY API ❌❌❌');
-      console.error(`[NEWS] API keys configured: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}`);
+      console.error(`[NEWS] API keys configured: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}, WorldNews=${!!WORLD_NEWS_API_KEY}`);
       console.error('[NEWS] Check Railway logs above for API errors or rate limit messages');
     } else {
-      console.log(`[NEWS] ✅ Fetched ${allArticles.length} articles (NewsAPI: ${newsapiCount}, NewsData: ${newsdataCount}, GNews: ${gnewsCount})`);
+      console.log(`[NEWS] ✅ Fetched ${allArticles.length} articles (NewsAPI: ${newsapiCount}, NewsData: ${newsdataCount}, GNews: ${gnewsCount}, WorldNews: ${worldnewsCount})`);
     }
     
     // Deduplicate articles
@@ -1411,6 +1544,7 @@ app.get('/api/news', async (req, res) => {
         newsapi: allArticles.filter(a => a.sourceApi === 'newsapi').length,
         newsdata: allArticles.filter(a => a.sourceApi === 'newsdata').length,
         gnews: allArticles.filter(a => a.sourceApi === 'gnews').length,
+        worldnews: allArticles.filter(a => a.sourceApi === 'worldnews').length,
       },
     };
     
@@ -1430,7 +1564,7 @@ app.get('/api/news', async (req, res) => {
     // ALWAYS log final results
     if (allArticles.length === 0) {
       console.error(`[${req.id}] ❌❌❌ FINAL RESULT: NO NEWS ARTICLES FOUND ❌❌❌`);
-      console.error(`[${req.id}] API keys: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}`);
+      console.error(`[${req.id}] API keys: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}, WorldNews=${!!WORLD_NEWS_API_KEY}`);
     } else {
       console.log(`[${req.id}] ✅ Final result: ${allArticles.length} articles after filtering`);
     }
@@ -1462,7 +1596,7 @@ app.get('/api/news', async (req, res) => {
         status: 'ok',
         totalResults: 0,
         articles: [],
-        sources: { newsapi: 0, newsdata: 0, gnews: 0 },
+        sources: { newsapi: 0, newsdata: 0, gnews: 0, worldnews: 0 },
       });
     }
     
