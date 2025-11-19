@@ -82,6 +82,10 @@ Required:
 - `NODE_ENV` - Environment (production/development)
 
 Optional:
+- `REDIS_URL` - Redis connection URL for session storage (highly recommended for production)
+  - **How to get:** Add Redis addon in Railway dashboard → Your Service → "+ New" → "Database" → "Add Redis"
+  - Railway will automatically set this variable when you add the Redis addon
+  - Without Redis, sessions are stored in memory (lost on restart, won't work across multiple instances)
 - `ALLOWED_ORIGINS` - Comma-separated list of allowed CORS origins
 - `CSRF_SECRET` - Secret for CSRF token generation (recommended for production)
 - `SESSION_SECRET` - Secret for session management (required for Google OAuth, recommended for production)

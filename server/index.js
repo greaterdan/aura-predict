@@ -262,8 +262,11 @@ if (redisUrl) {
       console.log('✅ RedisStore created (will connect on first use)');
       
       // Try to connect to Redis in background (non-blocking)
-      redisClient.connect().catch((err) => {
+      redisClient.connect().then(() => {
+        console.log('✅ Redis connection established successfully');
+      }).catch((err) => {
         console.warn('⚠️  Redis connection failed (will retry):', err.message);
+        console.warn('⚠️  Falling back to MemoryStore - sessions will be lost on restart');
       });
     } catch (storeError) {
       console.warn('⚠️  Failed to create RedisStore, using MemoryStore:', storeError.message);
@@ -277,7 +280,8 @@ if (redisUrl) {
 } else {
   if (isProduction) {
     console.warn('⚠️  WARNING: REDIS_URL not set - using MemoryStore (not recommended for production)');
-    console.warn('   Install Railway Redis addon or set REDIS_URL for production session storage');
+    console.warn('   To fix: Add Redis addon in Railway dashboard → Your Service → Add Service → Redis');
+    console.warn('   Railway will automatically set REDIS_URL environment variable');
     console.warn('   Sessions will be lost on server restart and won\'t work across multiple instances');
   } else {
     console.log('ℹ️  Using MemoryStore for development (set REDIS_URL for production)');
