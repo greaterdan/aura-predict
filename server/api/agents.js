@@ -125,18 +125,27 @@ export async function getAgentTrades(req, res) {
     const agent = getAgentProfile(backendAgentId);
     
     // Map trades to frontend format
-    const mappedTrades = trades.map(trade => ({
-      id: trade.id,
-      timestamp: new Date(trade.openedAt),
-      market: trade.marketQuestion || trade.marketId, // Use marketQuestion if available, fallback to marketId
-      decision: trade.side,
-      confidence: Math.round(trade.confidence * 100),
-      reasoning: trade.reasoning.join(' '),
-      pnl: trade.pnl,
-      status: trade.status,
-      investmentUsd: trade.investmentUsd || 0, // Amount invested in this trade
-      predictionId: trade.marketId, // Use marketId as predictionId for matching
-    }));
+    const mappedTrades = trades.map(trade => {
+      const mapped = {
+        id: trade.id,
+        timestamp: new Date(trade.openedAt),
+        market: trade.marketQuestion || trade.marketId, // Use marketQuestion if available, fallback to marketId
+        decision: trade.side,
+        confidence: Math.round(trade.confidence * 100),
+        reasoning: trade.reasoning.join(' '),
+        pnl: trade.pnl,
+        status: trade.status,
+        investmentUsd: trade.investmentUsd || 0, // Amount invested in this trade
+        predictionId: trade.marketId, // Use marketId as predictionId for matching - MUST match prediction IDs
+      };
+      
+      // Log for debugging
+      if (trades.indexOf(trade) < 3) {
+        console.log(`[API:${req.id}] 📋 Trade ${trades.indexOf(trade) + 1}: marketId="${trade.marketId}", marketQuestion="${trade.marketQuestion?.substring(0, 50)}..."`);
+      }
+      
+      return mapped;
+    });
     
     const duration = Date.now() - requestStart;
     console.log(`[API:${req.id}] ✅ Returning ${mappedTrades.length} trades (${duration}ms)`);

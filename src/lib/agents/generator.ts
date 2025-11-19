@@ -49,12 +49,22 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
   
   // Check cache before computing
   const currentMarketIds = markets.map(m => m.id).sort();
+  
+  // Log sample market IDs for debugging
+  if (currentMarketIds.length > 0) {
+    console.log(`[Agent:${agentId}] 📋 Sample market IDs (first 5):`, currentMarketIds.slice(0, 5));
+  }
+  
   const cached = getCachedAgentTrades(agentId, currentMarketIds);
   if (cached !== null) {
     console.log(`[Agent:${agentId}] 💾 Cache hit - returning ${cached.length} cached trades`);
+    // Log sample trade market IDs
+    if (cached.length > 0) {
+      console.log(`[Agent:${agentId}] 📋 Sample trade market IDs:`, cached.slice(0, 3).map(t => t.marketId));
+    }
     return cached;
   }
-  console.log(`[Agent:${agentId}] 💾 Cache miss - generating new trades`);
+  console.log(`[Agent:${agentId}] 💾 Cache miss - generating NEW trades with AI`);
   
   // Filter candidate markets
   console.log(`[Agent:${agentId}] 🔍 Filtering candidate markets (minVolume: $${agent.minVolume}, minLiquidity: $${agent.minLiquidity})...`);

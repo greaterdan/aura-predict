@@ -14,7 +14,7 @@ interface AICacheEntry {
   cachedAt: number;
 }
 
-const AI_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const AI_CACHE_TTL = 30 * 1000; // 30 seconds (much shorter for fresh AI decisions)
 const aiCache = new Map<string, AICacheEntry>();
 
 /**

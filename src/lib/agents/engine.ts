@@ -211,7 +211,7 @@ export async function generateTradeForMarket(
   const trade: AgentTrade = {
     id: `${agent.id}:${scored.id}`,
     agentId: agent.id,
-    marketId: scored.id,
+    marketId: scored.id, // This MUST match prediction IDs
     marketQuestion: scored.question, // Include market question for display
     side,
     confidence,
@@ -224,6 +224,9 @@ export async function generateTradeForMarket(
     summaryDecision,
     seed,
   };
+  
+  // Log trade creation with market ID for debugging
+  console.log(`[Engine:${agent.id}] ✅ Created trade: ${trade.side} on market "${scored.question.substring(0, 50)}..." (ID: ${trade.marketId})`);
   
   return trade;
 }
