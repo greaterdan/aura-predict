@@ -57,11 +57,11 @@ const Index = () => {
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [bubbleLimit, setBubbleLimit] = useState<number>(100);
   
-  // Debounce search query to prevent glitching during typing
+  // CRITICAL: Aggressive debounce for search to prevent glitching
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-    }, 200); // 200ms delay after user stops typing - faster response
+    }, 500); // 500ms delay - prevents glitching from rapid filtering
     
     return () => clearTimeout(timer);
   }, [searchQuery]);

@@ -43,6 +43,8 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
   const isDraggingRef = useRef<boolean>(false);
   // CRITICAL: Track if a drag actually occurred to prevent click after drag
   const hasDraggedRef = useRef<boolean>(false);
+  // CRITICAL: Direct DOM ref for dragged bubble to update via CSS transform (bypass React)
+  const draggedBubbleElementRef = useRef<HTMLElement | null>(null);
   // Store stable positions by market ID to prevent recalculation on price updates
   const stablePositionsRef = useRef<Record<string, { x: number; y: number; radius: number; width?: number; height?: number }>>({});
   const previousMarketIdsRef = useRef<Set<string>>(new Set());
@@ -671,6 +673,17 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
           }
         }
         setDraggedBubbleId(closestBubble.id);
+        
+        // CRITICAL: Find and store DOM element reference for direct manipulation
+        if (containerRef.current) {
+          const element = containerRef.current.querySelector(`[data-bubble-id="${closestBubble.id}"]`) as HTMLElement;
+          if (element) {
+            draggedBubbleElementRef.current = element;
+            // Disable transitions and animations during drag for smooth performance
+            element.style.transition = 'none';
+            element.style.animation = 'none';
+          }
+        }
       }
     }
     
@@ -682,51 +695,61 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
       cancelAnimationFrame(animationFrameRef.current);
     }
     
-    // Much more aggressive throttling - only update every 32ms (~30fps) to prevent glitching
-    const throttleMs = 32; // ~30fps max update rate - reduced from 16ms to prevent glitching
-    
-    const updatePosition = (timestamp: number) => {
-      // Throttle updates to prevent glitching from too many rapid updates
-      if (timestamp - lastUpdateTimeRef.current < throttleMs) {
-        animationFrameRef.current = requestAnimationFrame(updatePosition);
-        return;
-      }
-      lastUpdateTimeRef.current = timestamp;
+    // CRITICAL: Use direct DOM manipulation with CSS transform for ultra-smooth dragging
+    // This bypasses React entirely during drag for maximum performance
+    const updatePosition = () => {
       if (!draggedBubbleId || !dragOffset || !containerRef.current || !isDraggingRef.current) return;
       
       const rect = containerRef.current.getBoundingClientRect();
       let newX = e.clientX - rect.left - dragOffset.x;
       let newY = e.clientY - rect.top - dragOffset.y;
     
-    // CRITICAL: Disable collision detection during drag to prevent glitching
-    // Only update the dragged bubble position - no pushing other bubbles during drag
-    const draggedBubble = initialBubbles.find(b => b.id === draggedBubbleId);
-    if (!draggedBubble) return;
-    
-    // Clamp final position to container bounds with padding
-    const edgePadding = 20; // Padding to keep bubbles away from edges
-    const clampedX = Math.max(edgePadding + draggedBubble.radius, Math.min(size.width - edgePadding - draggedBubble.radius, newX));
-    const clampedY = Math.max(edgePadding + draggedBubble.radius, Math.min(size.height - edgePadding - draggedBubble.radius, newY));
-    
-    // CRITICAL: Only update dragged bubble position, don't push others during drag
-    // This prevents expensive collision detection calculations that cause glitching
-    // Use refs for immediate update, state will be synced on mouse up
-    if (isDraggingRef.current) {
-      // Update persistent ref immediately for smooth dragging
+      // CRITICAL: Disable collision detection during drag to prevent glitching
+      const draggedBubble = initialBubbles.find(b => b.id === draggedBubbleId);
+      if (!draggedBubble) return;
+      
+      // Clamp final position to container bounds with padding
+      const edgePadding = 20;
+      const clampedX = Math.max(edgePadding + draggedBubble.radius, Math.min(size.width - edgePadding - draggedBubble.radius, newX));
+      const clampedY = Math.max(edgePadding + draggedBubble.radius, Math.min(size.height - edgePadding - draggedBubble.radius, newY));
+      
+      // CRITICAL: Update persistent ref immediately
       persistentPositionsRef.current[draggedBubbleId] = { x: clampedX, y: clampedY };
       
-      // Only update state (causes re-render) every 50ms to reduce glitching
-      const now = Date.now();
-      if (now - lastStateUpdateTimeRef.current > 50) {
-        lastStateUpdateTimeRef.current = now;
-        // Update state - throttled to prevent excessive re-renders
-        setBubblePositions({
-          ...persistentPositionsRef.current,
-        });
+      // CRITICAL: Direct DOM manipulation via CSS transform - bypasses React completely
+      if (draggedBubbleElementRef.current) {
+        const element = draggedBubbleElementRef.current;
+        // Get current position from element style (parsed from left/top in React)
+        const currentLeft = draggedBubble.x - draggedBubble.radius;
+        const currentTop = draggedBubble.y - draggedBubble.radius;
+        const targetLeft = clampedX - draggedBubble.radius;
+        const targetTop = clampedY - draggedBubble.radius;
+        // Calculate delta from original position for transform
+        const deltaX = targetLeft - currentLeft;
+        const deltaY = targetTop - currentTop;
+        // Use transform for GPU acceleration - bypasses React re-renders
+        element.style.transform = `translate(${deltaX}px, ${deltaY}px) translateZ(0)`;
       }
-    }
+      
+      // CRITICAL: Only update React state every 200ms during drag (batched updates)
+      // This prevents React re-renders from blocking smooth dragging
+      const now = Date.now();
+      if (now - lastStateUpdateTimeRef.current > 200) {
+        lastStateUpdateTimeRef.current = now;
+        // Use requestIdleCallback to batch state update when browser is idle
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(() => {
+            setBubblePositions({ ...persistentPositionsRef.current });
+          }, { timeout: 1000 });
+        } else {
+          setTimeout(() => {
+            setBubblePositions({ ...persistentPositionsRef.current });
+          }, 0);
+        }
+      }
     };
     
+    // Use requestAnimationFrame for smooth 60fps updates
     animationFrameRef.current = requestAnimationFrame(updatePosition);
   };
 
@@ -734,6 +757,15 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
+    }
+    
+    // CRITICAL: Reset transform and re-enable animations on dragged element
+    if (draggedBubbleElementRef.current) {
+      const element = draggedBubbleElementRef.current;
+      element.style.transform = '';
+      element.style.transition = '';
+      element.style.animation = '';
+      draggedBubbleElementRef.current = null;
     }
     
     // CRITICAL: Keep positions permanently - don't clear them!
@@ -812,6 +844,7 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
         return (
           <div
             key={bubble.id}
+            data-bubble-id={bubble.id}
             className="absolute banter-bubble-wrapper"
             style={{
               // CRITICAL: Use fixed positioning - bubbles should NEVER move when container resizes
