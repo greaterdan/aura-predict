@@ -21,9 +21,11 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : ['http://localhost:5173', 'http://localhost:3000', 'https://probly.tech']; // Default for development
 
+// CORS configuration - allow healthcheck without origin check
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    // Allow requests with no origin (like mobile apps, Postman, healthchecks, etc.)
+    // Railway healthchecks don't send an origin header, so we must allow this
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
@@ -56,17 +58,29 @@ const waitlistLimiter = rateLimit({
   message: 'Too many waitlist submissions, please try again later.',
 });
 
-// Apply rate limiting to all API routes
-app.use('/api/', apiLimiter);
+// Apply rate limiting to API routes (but NOT /api/health - healthchecks need to work)
+app.use('/api/', (req, res, next) => {
+  // Skip rate limiting for healthcheck endpoint
+  if (req.path === '/health') {
+    return next();
+  }
+  apiLimiter(req, res, next);
+});
 app.use(express.json({ limit: '1mb' })); // Limit request body size
 
-// Health check endpoints
+// Health check endpoints - BEFORE rate limiting so Railway healthchecks work
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Polymarket proxy server is running' });
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Polymarket proxy server is running', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    message: 'Polymarket proxy server is running', 
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    nodeEnv: process.env.NODE_ENV || 'development'
+  });
 });
 
 // Cache for predictions (5 minute cache - markets don't change that frequently)
@@ -885,9 +899,22 @@ export default app;
 // Serverless platforms (like AWS Lambda) don't need app.listen
 // Railway needs app.listen on 0.0.0.0 to be accessible
 if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Healthcheck available at http://0.0.0.0:${PORT}/api/health`);
-});
+  try {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ Server running on port ${PORT}`);
+      console.log(`✅ Healthcheck available at http://0.0.0.0:${PORT}/api/health`);
+      console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`✅ Railway PORT: ${process.env.PORT || 'not set (using fallback)'}`);
+    }).on('error', (err) => {
+      console.error('❌ Server failed to start:', err);
+      if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use`);
+      }
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
 }
 
