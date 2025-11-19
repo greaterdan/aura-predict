@@ -85,6 +85,18 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// SECURITY: CSRF Protection - Initialize BEFORE endpoints that use it
+// Generate a secret for CSRF tokens (use environment variable or generate one)
+const csrfSecret = process.env.CSRF_SECRET || 'csrf-secret-change-in-production-' + Date.now();
+const csrfProtection = new csrf({ secret: csrfSecret });
+
+// Warn if using default secret in production
+if (isProduction && !process.env.CSRF_SECRET) {
+  console.warn('⚠️  WARNING: CSRF_SECRET not set in production!');
+  console.warn('   Set CSRF_SECRET environment variable for security.');
+  console.warn('   Generate a secure random string: openssl rand -base64 32');
+}
+
 // SECURITY: CSRF token endpoint - clients can fetch CSRF token here
 app.get('/api/csrf-token', (req, res) => {
   try {
@@ -189,18 +201,6 @@ app.use((req, res, next) => {
   res.setHeader('X-Request-ID', req.id);
   next();
 });
-
-// SECURITY: CSRF Protection
-// Generate a secret for CSRF tokens (use environment variable or generate one)
-const csrfSecret = process.env.CSRF_SECRET || 'csrf-secret-change-in-production-' + Date.now();
-const csrfProtection = new csrf({ secret: csrfSecret });
-
-// Warn if using default secret in production
-if (isProduction && !process.env.CSRF_SECRET) {
-  console.warn('⚠️  WARNING: CSRF_SECRET not set in production!');
-  console.warn('   Set CSRF_SECRET environment variable for security.');
-  console.warn('   Generate a secure random string: openssl rand -base64 32');
-}
 
 // Cache for predictions (5 minute cache - markets don't change that frequently)
 let predictionsCache = {
