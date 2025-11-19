@@ -518,9 +518,21 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                 )}
               </div>
 
-              {/* Market */}
-              <div className="text-[13px] font-mono text-foreground mb-2" style={{ fontWeight: 500 }}>
+              {/* Market - Clickable to open market details */}
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (decision.marketId && onTradeClick) {
+                    onTradeClick(decision.marketId);
+                  }
+                }}
+                className={`text-[13px] font-mono mb-2 ${decision.marketId && onTradeClick ? 'text-terminal-accent cursor-pointer hover:underline' : 'text-foreground'}`}
+                style={{ fontWeight: 500, pointerEvents: decision.marketId && onTradeClick ? 'auto' : 'none' }}
+              >
                 {decision.market}
+                {decision.marketId && onTradeClick && (
+                  <span className="ml-2 text-[10px] text-muted-foreground">(click to view)</span>
+                )}
               </div>
 
               {/* Confidence & Reasoning */}
