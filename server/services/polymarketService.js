@@ -1,14 +1,26 @@
 // Polymarket API Service - Server Side
 // Handles all API communication with Polymarket
+// SECURITY: All credentials must be in environment variables - never hardcode
 
 import crypto from 'crypto';
 import fetch from 'node-fetch';
+import dotenv from 'dotenv';
 
+// Load environment variables
+dotenv.config();
+
+// SECURITY: Get credentials from environment variables
 const POLYMARKET_CONFIG = {
-  apiKey: '019a8eb8-78da-7dc7-bc81-afd6c293cbf0',
-  secret: 'kVZU2m32xOU0P2QFhP6nBWxLCe0KbFj7J1griqUjH3U=',
-  passphrase: '31e9ccd9d23c4b7df528e7e450816c8d1be2e776238c2087f477a8b87e8708f1',
+  apiKey: process.env.POLYMARKET_API_KEY,
+  secret: process.env.POLYMARKET_SECRET,
+  passphrase: process.env.POLYMARKET_PASSPHRASE,
 };
+
+// Validate that credentials are configured
+if (!POLYMARKET_CONFIG.apiKey || !POLYMARKET_CONFIG.secret || !POLYMARKET_CONFIG.passphrase) {
+  console.error('ERROR: Polymarket API credentials not configured in environment variables!');
+  console.error('Required: POLYMARKET_API_KEY, POLYMARKET_SECRET, POLYMARKET_PASSPHRASE');
+}
 
 const POLYMARKET_GAMMA_API = 'https://gamma-api.polymarket.com';
 const POLYMARKET_DATA_API = 'https://data-api.polymarket.com';
@@ -16,6 +28,11 @@ const POLYMARKET_BASE = 'https://clob.polymarket.com';
 
 // Create HMAC signature for authenticated requests
 function createSignature(timestamp, method, path, body) {
+  // SECURITY: Validate credentials before using
+  if (!POLYMARKET_CONFIG.secret) {
+    throw new Error('Polymarket API secret not configured');
+  }
+  
   const message = timestamp + method + path + (body || '');
   const hmac = crypto.createHmac('sha256', Buffer.from(POLYMARKET_CONFIG.secret, 'base64'));
   return hmac.update(message).digest('base64');

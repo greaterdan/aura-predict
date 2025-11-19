@@ -931,7 +931,7 @@ const Index = () => {
                     className="h-8 pl-9 pr-3 text-xs bg-background border-border focus:border-terminal-accent transition-colors rounded-full"
                   />
                 </div>
-              </div>
+                </div>
               </div>
             </div>
 

@@ -1,8 +1,9 @@
 // Polymarket API Service
-// Note: In production, these credentials should be stored in environment variables
-// and API calls should be made through a backend proxy to avoid exposing secrets
+// SECURITY: This file should NOT contain API credentials
+// All API calls should go through the backend proxy to keep secrets server-side
+// Client-side code should only call the backend API endpoints
 
-// Using Polymarket's API endpoints
+// Using Polymarket's API endpoints (for reference only - not used client-side)
 // Note: Polymarket's public API structure - trying multiple known endpoints
 const POLYMARKET_API_BASE = 'https://clob.polymarket.com';
 const POLYMARKET_DATA_API = 'https://data-api.polymarket.com';
@@ -11,11 +12,13 @@ const POLYMARKET_GRAPHQL = 'https://data-api.polymarket.com/graphql';
 const POLYMARKET_PUBLIC_API = 'https://api.polymarket.com';
 const POLYMARKET_WEBSITE_API = 'https://polymarket.com';
 
-// API Credentials (should be moved to environment variables in production)
+// SECURITY: Removed API credentials from client-side code
+// All authenticated API calls must go through backend proxy (/api/predictions)
+// Client-side code should only use public endpoints or backend proxy
 export const POLYMARKET_CONFIG = {
-  apiKey: '019a8543-9674-7c1f-8f77-8b1a1365fe67',
-  secret: 'EXKuOeXjqt0lRIM-KBpdPQyth34ZilHKJLYv6jTXa5w=',
-  passphrase: 'e7694b050d029d85fe3efe00353017f8bd3e53f617b410d09dc55346efd7889d',
+  apiKey: null, // SECURITY: Never expose API keys in client-side code
+  secret: null, // SECURITY: Never expose secrets in client-side code
+  passphrase: null, // SECURITY: Never expose passphrases in client-side code
 };
 
 export interface PolymarketMarket {

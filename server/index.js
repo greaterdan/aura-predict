@@ -20,6 +20,8 @@ const PORT = process.env.PORT || 3002;
 console.log('🚀 Starting server...');
 console.log(`📋 PORT: ${PORT}`);
 console.log(`📋 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+console.log(`📋 Process PID: ${process.pid}`);
+console.log(`📋 Railway PORT env: ${process.env.PORT || 'NOT SET'}`);
 
 // CRITICAL: Define healthcheck endpoints FIRST, before any middleware
 // Railway healthchecks need these to work immediately
@@ -32,14 +34,8 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok', 
-    message: 'Polymarket proxy server is running', 
-    timestamp: new Date().toISOString(),
-    port: PORT,
-    nodeEnv: process.env.NODE_ENV || 'development',
-    uptime: process.uptime()
-  });
+  // Minimal response for Railway healthcheck - must be fast
+  res.status(200).json({ status: 'ok' });
 });
 
 app.get('/', (req, res) => {
@@ -915,68 +911,56 @@ export default app;
 // Railway needs app.listen on 0.0.0.0 to be accessible
 if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   console.log('🔧 Starting server on Railway...');
+  console.log(`🔧 Attempting to listen on 0.0.0.0:${PORT}...`);
   
-  // Start server with error handling
-  const server = app.listen(PORT, '0.0.0.0', (err) => {
-    if (err) {
-      console.error('❌ Failed to start server:', err);
-      process.exit(1);
-      return;
-    }
-    
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`✅ Healthcheck available at http://0.0.0.0:${PORT}/api/health`);
-    console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`✅ Railway PORT: ${process.env.PORT || 'not set (using fallback)'}`);
-    console.log(`✅ Server started successfully - ready for healthchecks`);
-    
-    // Test healthcheck immediately (using node-fetch if available)
-    setTimeout(async () => {
-      try {
-        console.log('🧪 Testing healthcheck endpoint...');
-        const fetch = (await import('node-fetch')).default;
-        const res = await fetch(`http://localhost:${PORT}/api/health`);
-        const data = await res.json();
-        console.log('✅ Healthcheck test passed:', data);
-      } catch (err) {
-        console.warn('⚠️  Healthcheck test failed (this is OK):', err.message);
+  try {
+    // Start server with error handling
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ Server running on port ${PORT}`);
+      console.log(`✅ Healthcheck available at http://0.0.0.0:${PORT}/api/health`);
+      console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`✅ Railway PORT: ${process.env.PORT || 'not set (using fallback)'}`);
+      console.log(`✅ Server started successfully - ready for healthchecks`);
+    });
+
+    server.on('error', (err) => {
+      console.error('❌ Server failed to start:', err);
+      console.error('Error details:', {
+        code: err.code,
+        message: err.message,
+        port: PORT
+      });
+      if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use`);
       }
-    }, 1000);
-  });
-
-  server.on('error', (err) => {
-    console.error('❌ Server failed to start:', err);
-    console.error('Error details:', {
-      code: err.code,
-      message: err.message,
-      port: PORT
+      process.exit(1);
     });
-    if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${PORT} is already in use`);
-    }
-    process.exit(1);
-  });
 
-  // Handle uncaught errors gracefully - log but don't crash immediately
-  process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', error);
+    // Handle uncaught errors gracefully - log but don't crash immediately
+    process.on('uncaughtException', (error) => {
+      console.error('❌ Uncaught Exception:', error);
+      console.error('Stack:', error.stack);
+      // Don't exit immediately - let Railway handle it
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('❌ Unhandled Rejection at:', promise);
+      console.error('Reason:', reason);
+      // Don't exit - let Railway restart it
+    });
+    
+    // Keep process alive
+    process.on('SIGTERM', () => {
+      console.log('📴 Received SIGTERM, shutting down gracefully...');
+      server.close(() => {
+        console.log('✅ Server closed');
+        process.exit(0);
+      });
+    });
+  } catch (error) {
+    console.error('❌ CRITICAL: Failed to start server:', error);
     console.error('Stack:', error.stack);
-    // Don't exit immediately - let Railway handle it
-  });
-
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise);
-    console.error('Reason:', reason);
-    // Don't exit - let Railway restart it
-  });
-  
-  // Keep process alive
-  process.on('SIGTERM', () => {
-    console.log('📴 Received SIGTERM, shutting down gracefully...');
-    server.close(() => {
-      console.log('✅ Server closed');
-      process.exit(0);
-    });
-  });
+    process.exit(1);
+  }
 }
 
