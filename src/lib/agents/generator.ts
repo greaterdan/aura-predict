@@ -146,8 +146,9 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
   const topMarkets = scoredMarkets.slice(0, selectionSize);
   
   // Add rotation: shuffle top markets using deterministic but varying seed
-  // Use current time (rounded to 10 seconds) to create variation while maintaining determinism
-  const timeSeed = Math.floor(Date.now() / 10000); // Changes every 10 seconds
+  // Use current time (rounded to 5 seconds) to create variation while maintaining determinism
+  // This ensures different markets are selected every 5 seconds
+  const timeSeed = Math.floor(Date.now() / 5000); // Changes every 5 seconds
   const agentSeed = agentId.charCodeAt(0) + agentId.charCodeAt(agentId.length - 1);
   const rotationSeed = timeSeed + agentSeed;
   
@@ -162,20 +163,10 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
     const j = Math.abs(hash) % (i + 1);
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    // Only shuffle within score bands to maintain quality
-    const scoreBand = Math.floor(shuffled[i].score / 5); // Group by 5-point score bands
-    const prevScoreBand = Math.floor(shuffled[i - 1].score / 5);
-    
-    // Only shuffle if in same score band (maintains quality while adding variety)
-    if (scoreBand === prevScoreBand && Math.random() < 0.3) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-  }
   
-  // Take top N after slight shuffle (still prioritize high scores but add variety)
-  const selectedMarkets = shuffled.slice(0, agent.maxTrades * 2);
+  // Take top N after shuffle (still prioritize high scores but add variety)
+  // Take more markets to ensure we have enough variety
+  const selectedMarkets = shuffled.slice(0, Math.min(agent.maxTrades * 3, shuffled.length));
   
   console.log(`[Agent:${agentId}] 🎯 Selected ${selectedMarkets.length} markets for trade generation (top score: ${topScore.toFixed(1)})`);
   console.log(`[Agent:${agentId}] 🔄 Market rotation applied - exploring different markets each cycle`);
