@@ -114,88 +114,61 @@ export async function fetchAllMarkets(): Promise<Market[]> {
     const isServerSide = typeof process !== 'undefined' && process.versions?.node;
     
     if (isServerSide) {
-      // Server-side: Use the EXACT same function as bubble maps
+      // CRITICAL: Use the SAME transformed predictions as the frontend
+      // This ensures market IDs match prediction IDs exactly
       const { fetchAllMarkets } = await import('../../../server/services/polymarketService.js');
+      const { transformMarkets } = await import('../../../server/services/marketTransformer.js');
       
       // Fetch markets using the same function as bubble maps
-      // Uses same API keys: POLYMARKET_API_KEY, POLYMARKET_SECRET, POLYMARKET_PASSPHRASE
       const rawMarkets = await fetchAllMarkets({
         category: null,
         active: true,
-        maxPages: 5, // Get enough markets for trading (5 pages = ~5000 markets)
+        maxPages: 5, // Get enough markets for trading
         limitPerPage: 1000,
       });
       
       console.log(`[Polymarket] ✅ Fetched ${rawMarkets.length} raw markets from API`);
       
-      // Map Polymarket response to trading engine Market format
-      // IMPORTANT: Use EXACT same ID extraction logic as marketTransformer.js to ensure matching
-      const markets = rawMarkets.map((rawMarket: any) => {
-        const actualMarket = rawMarket.market || rawMarket;
-        
-        const question = actualMarket.question || actualMarket.title || '';
-        
-        // Extract market ID using EXACT same logic as predictions (marketTransformer.js line 624-635)
-        // This ensures market IDs match prediction IDs exactly
-        // Predictions use: condition_id || question_id || slug || id || market_id
-        // IMPORTANT: Use EXACT same hierarchy and field names as marketTransformer.js
-        let marketId = actualMarket.condition_id || 
-                      actualMarket.question_id || 
-                      actualMarket.slug || 
-                      actualMarket.id ||
-                      actualMarket.market_id ||
-                      rawMarket.condition_id ||
-                      rawMarket.question_id ||
-                      rawMarket.slug ||
-                      rawMarket.id ||
-                      rawMarket.market_id;
-        
-        // If no ID found, generate one using EXACT same logic as predictions (line 630-635)
-        if (!marketId && question) {
-          const questionHash = question.split('').reduce((acc: number, char: string) => {
-            return ((acc << 5) - acc) + char.charCodeAt(0);
-          }, 0);
-          marketId = `market-${question.substring(0, 30).replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '')}-${Math.abs(questionHash).toString(36)}`;
-        }
+      // CRITICAL: Use transformMarkets to get the SAME predictions as frontend
+      // This ensures IDs match exactly
+      const transformedPredictions = await transformMarkets(rawMarkets);
+      
+      console.log(`[Polymarket] ✅ Transformed to ${transformedPredictions.length} predictions (same as frontend)`);
+      
+      // Map transformed predictions to trading engine Market format
+      // Use the EXACT same IDs from transformed predictions
+      const markets = transformedPredictions.map((prediction: any) => {
+        // Use the EXACT ID from the transformed prediction
+        const marketId = prediction.id;
         
         if (!marketId) {
-          // Skip markets without any ID
           return null;
         }
         
-        // CRITICAL: Convert to string and ensure it matches prediction ID format
-        marketId = String(marketId);
+        // Extract data from transformed prediction
+        const question = prediction.question || '';
+        const volume = prediction.volume || prediction.volume24h || 0;
+        const liquidity = prediction.liquidity || 0;
+        const probability = prediction.probability || 50;
         
-        const volume = parseFloat(actualMarket.volume || actualMarket.volume24h || actualMarket.totalVolume || '0');
-        const liquidity = parseFloat(actualMarket.liquidity || actualMarket.liquidityUsd || actualMarket.liquidityClob || '0');
-        const probability = parseFloat(actualMarket.probability || actualMarket.currentPrice || '0.5');
-        
-        // Safely extract category - handle arrays, objects, null, undefined
-        let categoryValue: string | null | undefined = null;
-        if (actualMarket.category) {
-          categoryValue = typeof actualMarket.category === 'string' 
-            ? actualMarket.category 
-            : String(actualMarket.category);
-        } else if (actualMarket.tags && Array.isArray(actualMarket.tags) && actualMarket.tags.length > 0) {
-          const firstTag = actualMarket.tags[0];
-          categoryValue = typeof firstTag === 'string' ? firstTag : String(firstTag);
-        }
+        // Map category from prediction
+        const categoryValue = prediction.category || 'Other';
         
         return {
-          id: marketId, // Use condition_id to match prediction IDs
+          id: String(marketId), // Use EXACT prediction ID
           question,
           category: mapCategory(categoryValue),
           volumeUsd: volume,
           liquidityUsd: liquidity,
-          currentProbability: probability,
-          priceChange24h: 0, // Will be calculated if needed
-          raw: actualMarket,
+          currentProbability: probability / 100, // Convert from 0-100 to 0-1
+          priceChange24h: 0,
+          raw: prediction, // Store full prediction for reference
         };
       }).filter((m: Market | null): m is Market => {
         return m !== null && m.id && m.question && !isNaN(m.volumeUsd) && !isNaN(m.currentProbability);
       });
       
-      console.log(`[Polymarket] ✅ Mapped to ${markets.length} valid markets`);
+      console.log(`[Polymarket] ✅ Mapped to ${markets.length} valid markets with matching IDs`);
       
       // Update cache (separate cache from bubble maps to avoid conflicts)
       marketCache = {
