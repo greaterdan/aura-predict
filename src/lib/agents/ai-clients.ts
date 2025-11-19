@@ -109,10 +109,11 @@ async function callAnthropic(context: MarketContext): Promise<AITradeDecision> {
     body: JSON.stringify({
       model: 'claude-3-opus-20240229',
       max_tokens: 1000,
+      system: 'You are an analytical assistant helping analyze prediction market data. You evaluate market information and provide structured analysis in JSON format. This is for data analysis purposes, not financial advice.',
       messages: [
         {
           role: 'user',
-          content: `You are Claude 4.5, an expert prediction market trader. ${prompt}`,
+          content: prompt,
         },
       ],
       temperature: 0.7,
@@ -129,6 +130,25 @@ async function callAnthropic(context: MarketContext): Promise<AITradeDecision> {
   const content = data.content[0]?.text;
   if (!content) {
     throw new Error('No response from Anthropic');
+  }
+
+  // Check if Claude refused the request
+  const refusalIndicators = [
+    'do not feel comfortable',
+    'cannot',
+    'unable to',
+    'not comfortable',
+    'refuse',
+    'decline',
+    'outside of my',
+  ];
+  const isRefusal = refusalIndicators.some(indicator => 
+    content.toLowerCase().includes(indicator.toLowerCase())
+  );
+
+  if (isRefusal) {
+    console.warn('[AI] Claude refused the request, using fallback');
+    throw new Error('Claude refused to provide analysis');
   }
 
   return parseAIResponse(content);
@@ -337,23 +357,23 @@ function buildTradePrompt(context: MarketContext, agentName: string): string {
     ? `\n\nRelevant News:\n${context.relevantNews.slice(0, 5).map(n => `- ${n.title} (${n.source}, ${new Date(n.publishedAt).toLocaleDateString()})`).join('\n')}`
     : '\n\nNo recent relevant news.';
 
-  return `Analyze this prediction market and make a trading decision:
+  return `Analyze this prediction market data and provide your assessment:
 
-Market: ${context.question}
+Market Question: ${context.question}
 Category: ${context.category}
 Current Probability: ${(context.currentProbability * 100).toFixed(1)}%
 Trading Volume: $${(context.volumeUsd / 1000).toFixed(1)}k
 Liquidity: $${(context.liquidityUsd / 1000).toFixed(1)}k
 24h Price Change: ${(context.priceChange24h * 100).toFixed(1)}%${newsSummary}
 
-Respond with JSON in this exact format:
+Based on this data analysis, provide your assessment in JSON format:
 {
   "side": "YES" or "NO",
   "confidence": 0.0 to 1.0,
-  "reasoning": ["reason 1", "reason 2", "reason 3"]
+  "reasoning": ["analysis point 1", "analysis point 2", "analysis point 3"]
 }
 
-Make your decision based on the probability, volume, liquidity, price movement, and news.`;
+This is for data analysis purposes. Provide your assessment based on the probability, volume, liquidity, price movement, and news data.`;
 }
 
 /**
@@ -362,6 +382,25 @@ Make your decision based on the probability, volume, liquidity, price movement, 
 function parseAIResponse(content: string): AITradeDecision {
   try {
     let jsonStr = content.trim();
+    
+    // Check for refusal responses first
+    const refusalIndicators = [
+      'do not feel comfortable',
+      'cannot',
+      'unable to',
+      'not comfortable',
+      'refuse',
+      'decline',
+      'outside of my',
+      'apologize',
+    ];
+    const isRefusal = refusalIndicators.some(indicator => 
+      jsonStr.toLowerCase().includes(indicator.toLowerCase())
+    );
+
+    if (isRefusal) {
+      throw new Error('AI refused to provide analysis');
+    }
     
     // Try to extract JSON from markdown code blocks
     let jsonMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
@@ -372,6 +411,9 @@ function parseAIResponse(content: string): AITradeDecision {
       jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         jsonStr = jsonMatch[0];
+      } else {
+        // If no JSON found and it's not a refusal, it's a parsing error
+        throw new Error('No JSON found in response');
       }
     }
 
@@ -388,7 +430,7 @@ function parseAIResponse(content: string): AITradeDecision {
     return { side, confidence, reasoning };
   } catch (error) {
     console.error('[AI] Failed to parse AI response:', error);
-    console.error('[AI] Raw response:', content);
+    console.error('[AI] Raw response:', content.substring(0, 200)); // Log first 200 chars only
     throw new Error(`Failed to parse AI response: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
