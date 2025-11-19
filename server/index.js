@@ -610,7 +610,7 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
         return bVol - aVol;
       });
       noPredictions.sort((a, b) => {
-        const aVol = typeof a.volume === 'string' ? parseFloat(a.volume) : (b.volume || 0);
+        const aVol = typeof a.volume === 'string' ? parseFloat(a.volume) : (a.volume || 0);
         const bVol = typeof b.volume === 'string' ? parseFloat(b.volume) : (b.volume || 0);
         return bVol - aVol;
       });
