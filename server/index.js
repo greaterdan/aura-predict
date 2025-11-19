@@ -224,10 +224,10 @@ const waitlistLimiter = rateLimit({
   message: 'Too many waitlist submissions, please try again later.',
 });
 
-// Apply rate limiting to API routes (but NOT /api/health or /api/auth/me - healthchecks and auth checks need to work)
+// Apply rate limiting to API routes (but NOT /api/health, /api/auth/me, or /api/wallet - healthchecks, auth checks, and wallet operations need to work)
 app.use('/api/', (req, res, next) => {
-  // Skip rate limiting for healthcheck and auth endpoints
-  if (req.path === '/health' || req.path === '/auth/me') {
+  // Skip rate limiting for healthcheck, auth, and wallet endpoints
+  if (req.path === '/health' || req.path === '/auth/me' || req.path === '/wallet') {
     return next();
   }
   apiLimiter(req, res, next);
