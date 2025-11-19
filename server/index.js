@@ -1812,12 +1812,39 @@ app.get('/api/news', async (req, res) => {
 });
 
 // Agent trading endpoints
+// Load agents module dynamically to not block server startup
 // GET /api/agents/:agentId/trades - Get trades for a specific agent
-app.get('/api/agents/:agentId/trades', apiLimiter, getAgentTrades);
+app.get('/api/agents/:agentId/trades', apiLimiter, async (req, res) => {
+  try {
+    if (!getAgentTrades) {
+      const agentsModule = await import('./api/agents.js');
+      getAgentTrades = agentsModule.getAgentTrades;
+      getAgentsSummary = agentsModule.getAgentsSummary;
+      getAgentsStats = agentsModule.getAgentsStats;
+    }
+    return getAgentTrades(req, res);
+  } catch (error) {
+    console.error('[API] Failed to load agents module:', error);
+    res.status(503).json({ error: 'Agents module not available', message: error.message });
+  }
+});
 console.log('✅ Registered: GET /api/agents/:agentId/trades');
 
 // GET /api/agents/summary - Get summary for all agents
-app.get('/api/agents/summary', apiLimiter, getAgentsSummary);
+app.get('/api/agents/summary', apiLimiter, async (req, res) => {
+  try {
+    if (!getAgentsSummary) {
+      const agentsModule = await import('./api/agents.js');
+      getAgentTrades = agentsModule.getAgentTrades;
+      getAgentsSummary = agentsModule.getAgentsSummary;
+      getAgentsStats = agentsModule.getAgentsStats;
+    }
+    return getAgentsSummary(req, res);
+  } catch (error) {
+    console.error('[API] Failed to load agents module:', error);
+    res.status(503).json({ error: 'Agents module not available', message: error.message });
+  }
+});
 console.log('✅ Registered: GET /api/agents/summary');
 
 // Waitlist endpoint - sends email notification
