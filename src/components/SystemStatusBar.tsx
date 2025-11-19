@@ -61,7 +61,7 @@ export const SystemStatusBar = ({
       
       // If no custodial wallet exists, generate or retrieve one based on userId
       if (!wallet) {
-        const userId = storedEmail || storedWallet || 'default';
+      const userId = storedEmail || storedWallet || 'default';
         wallet = getOrCreateWallet(userId);
         // Store it as the main custodial wallet
         storeCustodialWallet(wallet);

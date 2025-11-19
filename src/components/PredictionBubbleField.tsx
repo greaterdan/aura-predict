@@ -36,15 +36,12 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
   const persistentPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const animationFrameRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
-  const lastStateUpdateTimeRef = useRef<number>(0); // Separate ref for state update throttling
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const measureFunctionRef = useRef<(() => void) | null>(null);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   // CRITICAL: Track if a drag actually occurred to prevent click after drag
   const hasDraggedRef = useRef<boolean>(false);
-  // CRITICAL: Direct DOM ref for dragged bubble to update via CSS transform (bypass React)
-  const draggedBubbleElementRef = useRef<HTMLElement | null>(null);
   // Store stable positions by market ID to prevent recalculation on price updates
   const stablePositionsRef = useRef<Record<string, { x: number; y: number; radius: number; width?: number; height?: number }>>({});
   const previousMarketIdsRef = useRef<Set<string>>(new Set());
@@ -411,17 +408,32 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
   // Merge initial positions with dragged positions
   // Use useMemo with proper dependencies to prevent unnecessary recalculations
   // CRITICAL: Only recalculate if initialBubbles actually changed (not just data updates)
-  // OPTIMIZED: Simplified - no pushing during drag to prevent glitching
+  // Add smooth transitions for pushed bubbles
   const bubbles = useMemo(() => {
     if (initialBubbles.length === 0) return [];
     
-    // CRITICAL: Use persistent positions (from ref) merged with state
-    // State updates are throttled during drag, but ref updates immediately
+    // CRITICAL: Use persistent positions (from ref) merged with current drag state
     const allPositions = { ...persistentPositionsRef.current, ...bubblePositions };
     
     const result = initialBubbles.map(bubble => {
       const draggedPos = allPositions[bubble.id];
       if (draggedPos) {
+        // If this bubble was pushed (not the dragged one), use smooth interpolation
+        const isPushed = draggedBubbleId && bubble.id !== draggedBubbleId && draggedPos;
+        if (isPushed) {
+          // SMOOTH interpolation for pushed bubbles - use persistent position as base
+          const persistentPos = persistentPositionsRef.current[bubble.id];
+          const basePos = persistentPos || initialBubbles.find(b => b.id === bubble.id);
+          if (basePos) {
+            // Much slower interpolation to prevent glitching
+            const smoothFactor = 0.08; // Very slow interpolation to prevent rapid movement
+            return {
+              ...bubble,
+              x: basePos.x + (draggedPos.x - basePos.x) * smoothFactor,
+              y: basePos.y + (draggedPos.y - basePos.y) * smoothFactor,
+            };
+          }
+        }
         // CRITICAL: Use dragged position directly - this is where user moved the bubble
         return { ...bubble, x: draggedPos.x, y: draggedPos.y };
       }
@@ -470,7 +482,7 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
       };
       
       // Start rendering immediately for faster appearance
-      requestAnimationFrame(renderNextBatch);
+        requestAnimationFrame(renderNextBatch);
     } else {
       // For smaller counts, render all immediately
       setRenderedCount(bubbles.length);
@@ -673,83 +685,245 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
           }
         }
         setDraggedBubbleId(closestBubble.id);
-        
-        // CRITICAL: Find and store DOM element reference for direct manipulation
-        if (containerRef.current) {
-          const element = containerRef.current.querySelector(`[data-bubble-id="${closestBubble.id}"]`) as HTMLElement;
-          if (element) {
-            draggedBubbleElementRef.current = element;
-            // Disable transitions and animations during drag for smooth performance
-            element.style.transition = 'none';
-            element.style.animation = 'none';
-          }
-        }
       }
     }
     
     if (!draggedBubbleId || !isDraggingRef.current) return;
     
-    // CRITICAL: Use aggressive throttling to prevent glitching
-    // Cancel any pending updates
+    // Use requestAnimationFrame for smooth dragging with throttling to prevent glitching
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
     
-    // CRITICAL: Use direct DOM manipulation with CSS transform for ultra-smooth dragging
-    // This bypasses React entirely during drag for maximum performance
-    const updatePosition = () => {
+    const throttleMs = 16; // ~60fps max update rate
+    
+    const updatePosition = (timestamp: number) => {
+      // Throttle updates to prevent glitching from too many rapid updates
+      if (timestamp - lastUpdateTimeRef.current < throttleMs) {
+        animationFrameRef.current = requestAnimationFrame(updatePosition);
+        return;
+      }
+      lastUpdateTimeRef.current = timestamp;
       if (!draggedBubbleId || !dragOffset || !containerRef.current || !isDraggingRef.current) return;
       
       const rect = containerRef.current.getBoundingClientRect();
       let newX = e.clientX - rect.left - dragOffset.x;
       let newY = e.clientY - rect.top - dragOffset.y;
     
-      // CRITICAL: Disable collision detection during drag to prevent glitching
-      const draggedBubble = initialBubbles.find(b => b.id === draggedBubbleId);
-      if (!draggedBubble) return;
+    // Clamp to container bounds - use initialBubbles to get radius
+    const draggedBubble = initialBubbles.find(b => b.id === draggedBubbleId);
+    if (!draggedBubble) return;
+    
+    // Get current bubble positions (including already dragged ones)
+    const currentBubbles = bubbles.map(b => {
+      const draggedPos = bubblePositions[b.id];
+      return draggedPos ? { ...b, x: draggedPos.x, y: draggedPos.y } : b;
+    });
+    
+    // NO INTERPOLATION on dragged bubble - it should follow mouse directly
+    let finalX = newX;
+    let finalY = newY;
+    // CRITICAL: Account for visual extensions (borders, shadows, glows) - same as layout
+    const visualExtension = 10; // Reduced - account for borders, shadows, and glows extending beyond radius
+    const minGap = 8; // Gap between bubbles when dragging - smooth spacing
+    const effectiveMinGap = minGap + visualExtension; // Minimal gap with visual extension
+    const animationBuffer = 15; // Account for floating animation
+    const totalMinDistance = effectiveMinGap + animationBuffer; // Total spacing needed
+    
+    // OPTIMIZED: Only check nearby bubbles for collision (spatial optimization)
+    // COLLISION PREVENTION: Iteratively resolve all collisions
+    // REDUCED iterations to prevent glitching from too many rapid updates
+    const maxIterations = 5;
+    // Find max radius from current bubbles for search optimization
+    const maxRadius = currentBubbles.length > 0 
+      ? Math.max(...currentBubbles.map(b => b.radius), draggedBubble.radius)
+      : draggedBubble.radius;
+    const searchRadius = draggedBubble.radius + maxRadius + totalMinDistance;
+    
+    for (let iter = 0; iter < maxIterations; iter++) {
+      let hasCollision = false;
       
-      // Clamp final position to container bounds with padding
-      const edgePadding = 20;
-      const clampedX = Math.max(edgePadding + draggedBubble.radius, Math.min(size.width - edgePadding - draggedBubble.radius, newX));
-      const clampedY = Math.max(edgePadding + draggedBubble.radius, Math.min(size.height - edgePadding - draggedBubble.radius, newY));
-      
-      // CRITICAL: Update persistent ref immediately
-      persistentPositionsRef.current[draggedBubbleId] = { x: clampedX, y: clampedY };
-      
-      // CRITICAL: Direct DOM manipulation via CSS transform - bypasses React completely
-      if (draggedBubbleElementRef.current) {
-        const element = draggedBubbleElementRef.current;
-        // Get current position from element style (parsed from left/top in React)
-        const currentLeft = draggedBubble.x - draggedBubble.radius;
-        const currentTop = draggedBubble.y - draggedBubble.radius;
-        const targetLeft = clampedX - draggedBubble.radius;
-        const targetTop = clampedY - draggedBubble.radius;
-        // Calculate delta from original position for transform
-        const deltaX = targetLeft - currentLeft;
-        const deltaY = targetTop - currentTop;
-        // Use transform for GPU acceleration - bypasses React re-renders
-        element.style.transform = `translate(${deltaX}px, ${deltaY}px) translateZ(0)`;
+      // OPTIMIZED: Only check bubbles within search radius
+      for (const otherBubble of currentBubbles) {
+        if (otherBubble.id === draggedBubbleId) continue;
+        
+        const dx = finalX - otherBubble.x;
+        const dy = finalY - otherBubble.y;
+        const distanceSq = dx * dx + dy * dy;
+        const searchRadiusSq = searchRadius * searchRadius;
+        
+        // Early exit if bubble is too far away
+        if (distanceSq > searchRadiusSq) continue;
+        
+        const distance = Math.sqrt(distanceSq);
+        const requiredDistance = draggedBubble.radius + otherBubble.radius + totalMinDistance;
+        
+        if (distance < requiredDistance && distance > 0.001) {
+          // Collision detected - smoothly push dragged bubble away
+          const pushAngle = Math.atan2(dy, dx);
+          const overlap = requiredDistance - distance;
+          
+          // SMOOTH push - use much slower interpolation to prevent glitching
+          const pushFactor = 0.1; // Much slower interpolation to prevent rapid movement
+          const targetX = otherBubble.x + Math.cos(pushAngle) * requiredDistance;
+          const targetY = otherBubble.y + Math.sin(pushAngle) * requiredDistance;
+          
+          // Interpolate for smooth movement - much slower to prevent glitching
+          finalX = finalX + (targetX - finalX) * pushFactor;
+          finalY = finalY + (targetY - finalY) * pushFactor;
+          hasCollision = true;
+        }
       }
       
-      // CRITICAL: Only update React state every 200ms during drag (batched updates)
-      // This prevents React re-renders from blocking smooth dragging
-      const now = Date.now();
-      if (now - lastStateUpdateTimeRef.current > 200) {
-        lastStateUpdateTimeRef.current = now;
-        // Use requestIdleCallback to batch state update when browser is idle
-        if ('requestIdleCallback' in window) {
-          (window as any).requestIdleCallback(() => {
-            setBubblePositions({ ...persistentPositionsRef.current });
-          }, { timeout: 1000 });
-        } else {
-          setTimeout(() => {
-            setBubblePositions({ ...persistentPositionsRef.current });
-          }, 0);
+      if (!hasCollision) break;
+    }
+    
+      // Clamp final position to container bounds with padding - container already accounts for navbars
+      const edgePadding = 20; // Padding to keep bubbles away from edges (glow extends ~15px)
+      const clampedX = Math.max(edgePadding + draggedBubble.radius, Math.min(size.width - edgePadding - draggedBubble.radius, finalX));
+      const clampedY = Math.max(edgePadding + draggedBubble.radius, Math.min(size.height - edgePadding - draggedBubble.radius, finalY));
+    
+      // COLLISION DETECTION: Only push other bubbles if we're actually dragging
+      // Don't push on click - only on drag
+      const pushedBubbles: Record<string, { x: number; y: number }> = {};
+      const pushStrength = 1.0; // Full push to prevent overlap - no smoothing during overlap
+      
+      // Only push other bubbles if we're actually dragging (not just clicking)
+      if (isDraggingRef.current) {
+      // OPTIMIZED: Use spatial optimization - only check nearby bubbles
+      // Use iterative relaxation to push all affected bubbles smoothly
+      // REDUCED passes to prevent glitching from too many rapid updates
+      for (let pass = 0; pass < 3; pass++) {
+      let movedAny = false;
+      const pushMaxRadius = currentBubbles.length > 0
+        ? Math.max(...currentBubbles.map(b => b.radius), draggedBubble.radius)
+        : draggedBubble.radius;
+      const pushSearchRadius = draggedBubble.radius + pushMaxRadius + totalMinDistance;
+      
+      currentBubbles.forEach(otherBubble => {
+        if (otherBubble.id === draggedBubbleId) return;
+        
+        // OPTIMIZED: Early exit if bubble is too far away
+        const currentPos = pushedBubbles[otherBubble.id] || { x: otherBubble.x, y: otherBubble.y };
+        const dx = clampedX - currentPos.x;
+        const dy = clampedY - currentPos.y;
+        const distanceSq = dx * dx + dy * dy;
+        const searchRadiusSq = pushSearchRadius * pushSearchRadius;
+        
+        if (distanceSq > searchRadiusSq) return; // Too far, skip
+        
+        const distance = Math.sqrt(distanceSq);
+        const requiredDistance = draggedBubble.radius + otherBubble.radius + totalMinDistance;
+        
+        if (distance < requiredDistance && distance > 0.001) {
+          const pushAngle = Math.atan2(dy, dx);
+          const overlap = requiredDistance - distance;
+          
+          // SMOOTH push - use much slower interpolation to prevent glitching
+          const smoothPushFactor = 0.15; // Much slower interpolation to prevent rapid movement
+          const pushDistance = overlap * pushStrength;
+          
+          // Calculate target position - push away from dragged bubble smoothly
+          const targetX = currentPos.x - Math.cos(pushAngle) * (pushDistance + totalMinDistance * 0.5);
+          const targetY = currentPos.y - Math.sin(pushAngle) * (pushDistance + totalMinDistance * 0.5);
+          
+          // Interpolate for smooth movement - much slower to prevent glitching
+          let finalTargetX = currentPos.x + (targetX - currentPos.x) * smoothPushFactor;
+          let finalTargetY = currentPos.y + (targetY - currentPos.y) * smoothPushFactor;
+          
+          // Also check for collisions with other pushed bubbles
+          for (const [otherId, otherPos] of Object.entries(pushedBubbles)) {
+            if (otherId === otherBubble.id || otherId === draggedBubbleId) continue;
+            const otherB = currentBubbles.find(b => b.id === otherId);
+            if (!otherB) continue;
+            
+            const otherDx = finalTargetX - otherPos.x;
+            const otherDy = finalTargetY - otherPos.y;
+            const otherDistance = Math.sqrt(otherDx * otherDx + otherDy * otherDy);
+            const otherRequiredDistance = otherBubble.radius + otherB.radius + totalMinDistance;
+            
+            if (otherDistance < otherRequiredDistance && otherDistance > 0.001) {
+              const otherAngle = Math.atan2(otherDy, otherDx);
+              finalTargetX = otherPos.x + Math.cos(otherAngle) * (otherRequiredDistance + totalMinDistance * 0.5);
+              finalTargetY = otherPos.y + Math.sin(otherAngle) * (otherRequiredDistance + totalMinDistance * 0.5);
+              movedAny = true;
+            }
+          }
+          
+          // Container already accounts for navbars, so use container bounds with padding
+          const edgePadding = 20; // Padding to keep bubbles away from edges
+          const clampedPushX = Math.max(edgePadding + otherBubble.radius, Math.min(size.width - edgePadding - otherBubble.radius, finalTargetX));
+          const clampedPushY = Math.max(edgePadding + otherBubble.radius, Math.min(size.height - edgePadding - otherBubble.radius, finalTargetY));
+          
+          if (clampedPushX !== currentPos.x || clampedPushY !== currentPos.y) {
+            pushedBubbles[otherBubble.id] = { x: clampedPushX, y: clampedPushY };
+            movedAny = true;
+          }
         }
+      });
+      
+        if (!movedAny) break;
+      }
+      
+      // Final pass: ensure NO overlaps remain
+      for (const [bubbleId, pos] of Object.entries(pushedBubbles)) {
+        const bubble = currentBubbles.find(b => b.id === bubbleId);
+        if (!bubble) continue;
+        
+        // Check against dragged bubble
+        const dx = clampedX - pos.x;
+        const dy = clampedY - pos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const requiredDistance = draggedBubble.radius + bubble.radius + totalMinDistance;
+        
+        if (distance < requiredDistance && distance > 0.001) {
+          const angle = Math.atan2(dy, dx);
+          pos.x = clampedX - Math.cos(angle) * requiredDistance;
+          pos.y = clampedY - Math.sin(angle) * requiredDistance;
+          
+          // Clamp again - container already accounts for navbars, add padding
+          const edgePadding = 20; // Padding to keep bubbles away from edges
+          pos.x = Math.max(edgePadding + bubble.radius, Math.min(size.width - edgePadding - bubble.radius, pos.x));
+          pos.y = Math.max(edgePadding + bubble.radius, Math.min(size.height - edgePadding - bubble.radius, pos.y));
+        }
+        
+        // Check against other pushed bubbles
+        for (const [otherId, otherPos] of Object.entries(pushedBubbles)) {
+          if (otherId === bubbleId) continue;
+          const otherB = currentBubbles.find(b => b.id === otherId);
+          if (!otherB) continue;
+          
+          const otherDx = pos.x - otherPos.x;
+          const otherDy = pos.y - otherPos.y;
+          const otherDistance = Math.sqrt(otherDx * otherDx + otherDy * otherDy);
+          const otherRequiredDistance = bubble.radius + otherB.radius + totalMinDistance;
+          
+          if (otherDistance < otherRequiredDistance && otherDistance > 0.001) {
+            const otherAngle = Math.atan2(otherDy, otherDx);
+            pos.x = otherPos.x + Math.cos(otherAngle) * otherRequiredDistance;
+            pos.y = otherPos.y + Math.sin(otherAngle) * otherRequiredDistance;
+            
+            // Clamp again - container already accounts for navbars
+            pos.x = Math.max(bubble.radius, Math.min(size.width - bubble.radius, pos.x));
+            pos.y = Math.max(bubble.radius, Math.min(size.height - bubble.radius, pos.y));
+          }
+        }
+      }
+    }
+    
+      // Update positions: dragged bubble moves immediately, others push smoothly (only if dragging)
+      if (isDraggingRef.current) {
+        const newPositions = {
+          ...persistentPositionsRef.current,
+          [draggedBubbleId]: { x: clampedX, y: clampedY },
+          ...pushedBubbles,
+        };
+        // CRITICAL: Save to both state and persistent ref so positions persist
+        persistentPositionsRef.current = newPositions;
+        setBubblePositions(newPositions);
       }
     };
     
-    // Use requestAnimationFrame for smooth 60fps updates
     animationFrameRef.current = requestAnimationFrame(updatePosition);
   };
 
@@ -757,15 +931,6 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
-    }
-    
-    // CRITICAL: Reset transform and re-enable animations on dragged element
-    if (draggedBubbleElementRef.current) {
-      const element = draggedBubbleElementRef.current;
-      element.style.transform = '';
-      element.style.transition = '';
-      element.style.animation = '';
-      draggedBubbleElementRef.current = null;
     }
     
     // CRITICAL: Keep positions permanently - don't clear them!
@@ -844,7 +1009,6 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
         return (
           <div
             key={bubble.id}
-            data-bubble-id={bubble.id}
             className="absolute banter-bubble-wrapper"
             style={{
               // CRITICAL: Use fixed positioning - bubbles should NEVER move when container resizes

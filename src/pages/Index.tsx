@@ -57,11 +57,11 @@ const Index = () => {
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [bubbleLimit, setBubbleLimit] = useState<number>(100);
   
-  // CRITICAL: Aggressive debounce for search to prevent glitching
+  // Debounce search query to prevent glitching during typing
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-    }, 500); // 500ms delay - prevents glitching from rapid filtering
+    }, 200); // 200ms delay after user stops typing - faster response
     
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -524,10 +524,10 @@ const Index = () => {
       
       // If no custodial wallet, check if user is logged in and create/get one
       if (!wallet) {
-        const storedEmail = localStorage.getItem('userEmail');
-        const storedWallet = localStorage.getItem('walletAddress');
-        if (storedEmail || storedWallet) {
-          const userId = storedEmail || storedWallet || 'default';
+      const storedEmail = localStorage.getItem('userEmail');
+      const storedWallet = localStorage.getItem('walletAddress');
+      if (storedEmail || storedWallet) {
+        const userId = storedEmail || storedWallet || 'default';
           wallet = getOrCreateWallet(userId);
           // Store it as the main custodial wallet
           storeCustodialWallet(wallet);
