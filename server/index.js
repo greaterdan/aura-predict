@@ -39,7 +39,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "http:"],
       scriptSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.mainnet-beta.solana.com", "https://gamma-api.polymarket.com", "https://data-api.polymarket.com", "https://clob.polymarket.com", "https://newsapi.org", "https://newsdata.io", "https://gnews.io"],
+      connectSrc: ["'self'", "https://api.mainnet-beta.solana.com", "https://gamma-api.polymarket.com", "https://data-api.polymarket.com", "https://clob.polymarket.com", "https://newsapi.org", "https://newsdata.io", "https://gnews.io", "https://my.productfruits.com"],
     },
   },
   crossOriginEmbedderPolicy: false, // Allow external resources
@@ -143,10 +143,10 @@ app.use(cors({
     // In development, allow localhost origins
     if (isProduction) {
       if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
+      callback(null, true);
+    } else {
         console.warn(`[CORS] Blocked request from origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
+      callback(new Error('Not allowed by CORS'));
       }
     } else {
       // Development: Allow localhost and configured origins
