@@ -107,9 +107,15 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
     console.log(`[Agent:${agentId}]      Components: Vol:${m.components.volumeScore.toFixed(1)} Liq:${m.components.liquidityScore.toFixed(1)} News:${m.components.newsScore.toFixed(1)} Prob:${m.components.probScore.toFixed(1)}`);
   });
   
-  // Take top markets (2x maxTrades for safety, then filter)
+  // Take top markets (use relative threshold - take top N regardless of absolute score)
+  // This ensures agents can trade even if all scores are relatively low
   const topMarkets = scoredMarkets.slice(0, agent.maxTrades * 2);
-  console.log(`[Agent:${agentId}] 🎯 Selected top ${topMarkets.length} markets for trade generation`);
+  console.log(`[Agent:${agentId}] 🎯 Selected top ${topMarkets.length} markets for trade generation (top score: ${topScore.toFixed(1)})`);
+  
+  // If top score is very low, log a warning but still proceed
+  if (topScore < 15 && topMarkets.length > 0) {
+    console.warn(`[Agent:${agentId}] ⚠️ Top market score is low (${topScore.toFixed(1)}), but proceeding with top markets anyway`);
+  }
   
   // Generate trades (now async due to AI API calls)
   const nowMs = Date.now();
