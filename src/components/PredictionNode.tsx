@@ -78,6 +78,25 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
   const bubbleRef = useRef<HTMLDivElement>(null);
   
   const isDragging = externalIsDragging || false;
+
+  // Format volume for display
+  const formatVolume = (value?: number | string): string => {
+    if (!value) return "N/A";
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(numValue)) return "N/A";
+    if (numValue >= 1000000) return `$${(numValue / 1000000).toFixed(1)}M`;
+    if (numValue >= 1000) return `$${(numValue / 1000).toFixed(1)}K`;
+    return `$${numValue.toFixed(0)}`;
+  };
+
+  // Truncate question to fit bubble size
+  const getTruncatedQuestion = (question: string, maxLength: number): string => {
+    if (question.length <= maxLength) return question;
+    return question.substring(0, maxLength - 3) + '...';
+  };
+  
+  // Calculate max question length based on bubble size
+  const maxQuestionLength = Math.max(15, Math.min(40, Math.floor(bubbleSize / 3.5)));
   
   const borderColor = data.position === "YES" 
     ? "border-trade-yes" 
@@ -224,35 +243,74 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
             }}
           />
           
-          {/* Content - Minimal: Only YES/NO and price */}
-          <div className="relative z-10 flex flex-col items-center justify-center gap-1 text-center px-1" style={{ width: '90%', height: '90%', zIndex: 2 }}>
-            {/* Position (YES/NO) - Larger - Show based on which side has higher price */}
+          {/* Content - YES/NO, percentage, volume, and question preview */}
+          <div className="relative z-10 flex flex-col items-center justify-center gap-0.5 text-center px-1.5" style={{ width: '90%', height: '90%', zIndex: 2 }}>
+            {/* Position (YES/NO) - Larger */}
             <div 
               className="font-bold uppercase"
               style={{
-                fontSize: `${Math.max(14, Math.min(20, bubbleSize * 0.2))}px`,
+                fontSize: `${Math.max(12, Math.min(18, bubbleSize * 0.18))}px`,
                 color: data.position === "YES" 
                   ? 'hsl(var(--trade-yes))' 
                   : 'hsl(var(--trade-no))',
                 fontWeight: 800,
                 lineHeight: '1',
                 letterSpacing: '0.05em',
+                textShadow: '0 1px 3px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.6)',
               }}
             >
               {data.position}
             </div>
             
-            {/* Price in dollars - Show the price of the selected position */}
+            {/* Percentage */}
             <div 
               className="font-bold text-white"
               style={{
-                fontSize: `${Math.max(18, Math.min(26, bubbleSize * 0.24))}px`,
+                fontSize: `${Math.max(13, Math.min(19, bubbleSize * 0.16))}px`,
                 fontWeight: 700,
                 lineHeight: '1',
+                textShadow: '0 1px 3px rgba(0, 0, 0, 0.8), 0 0 8px rgba(0, 0, 0, 0.5)',
               }}
             >
-              ${data.price.toFixed(2)}
+              {data.probability.toFixed(0)}%
             </div>
+
+            {/* Volume */}
+            {data.volume && (
+              <div 
+                className="font-semibold text-white/95"
+                style={{
+                  fontSize: `${Math.max(9, Math.min(13, bubbleSize * 0.11))}px`,
+                  fontWeight: 600,
+                  lineHeight: '1',
+                  textShadow: '0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.5)',
+                }}
+              >
+                {formatVolume(data.volume)}
+              </div>
+            )}
+
+            {/* Question preview - only show if bubble is large enough */}
+            {bubbleSize >= 60 && (
+              <div 
+                className="font-semibold text-white/90 leading-tight mt-0.5"
+                style={{
+                  fontSize: `${Math.max(8, Math.min(12, bubbleSize * 0.10))}px`,
+                  fontWeight: 500,
+                  lineHeight: '1.2',
+                  maxWidth: '95%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: bubbleSize >= 80 ? 2 : 1,
+                  WebkitBoxOrient: 'vertical',
+                  textShadow: '0 1px 2px rgba(0, 0, 0, 0.9), 0 0 5px rgba(0, 0, 0, 0.6)',
+                }}
+                title={data.question}
+              >
+                {getTruncatedQuestion(data.question, maxQuestionLength)}
+              </div>
+            )}
           </div>
         </div>
 
