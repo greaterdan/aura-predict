@@ -926,6 +926,9 @@ const GNEWS_API_URL = 'https://gnews.io/api/v4/search';
 // World News API - Get your free API key from https://worldnewsapi.com/
 const WORLD_NEWS_API_KEY = process.env.WORLD_NEWS_API_KEY;
 const WORLD_NEWS_API_URL = 'https://api.worldnewsapi.com/search-news';
+// Mediastack API - Get your free API key from https://mediastack.com/
+const MEDIASTACK_API_KEY = process.env.MEDIASTACK_API_KEY;
+const MEDIASTACK_API_URL = 'https://api.mediastack.com/v1/news';
 
 // Log API key status on startup
 console.log('[NEWS] 📰 News API Configuration:');
@@ -933,6 +936,7 @@ console.log(`[NEWS]   NewsAPI: ${NEWS_API_KEY ? `✅ Configured (${NEWS_API_KEY.
 console.log(`[NEWS]   NewsData.io: ${NEWSDATA_API_KEY ? `✅ Configured (${NEWSDATA_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 console.log(`[NEWS]   GNews: ${GNEWS_API_KEY ? `✅ Configured (${GNEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 console.log(`[NEWS]   World News API: ${WORLD_NEWS_API_KEY ? `✅ Configured (${WORLD_NEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
+console.log(`[NEWS]   Mediastack: ${MEDIASTACK_API_KEY ? `✅ Configured (${MEDIASTACK_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 
 // Simple in-memory cache (refresh every 5 minutes)
 let newsCache = {
@@ -1452,8 +1456,117 @@ const fetchWorldNews = async () => {
   }));
 };
 
+// Fetch news from Mediastack
+const fetchMediastack = async () => {
+  console.log('[NEWS] 🔄 Starting Mediastack fetch...');
+  // SECURITY: Check if API key is configured
+  if (!MEDIASTACK_API_KEY) {
+    console.error('[NEWS] ❌ MEDIASTACK_API_KEY not configured, skipping Mediastack');
+    return [];
+  }
+  
+  // Get date from last 7 days
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - 7);
+  const fromDateStr = fromDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  
+  // Mediastack queries - try multiple topics
+  // Using fewer queries since limit is 100 per request (more efficient)
+  const queries = [
+    'prediction OR election',
+    'cryptocurrency OR bitcoin OR ethereum',
+    'blockchain OR crypto OR defi',
+    'stock market OR economy OR finance',
+    'technology OR trading OR markets',
+    'sports OR climate OR politics',
+    'solana OR nft OR web3'
+  ];
+  
+  // Fetch from multiple queries and combine results
+  const fetchPromises = queries.map(async (query) => {
+    try {
+      // Mediastack uses access_key parameter and supports date range
+      // Max limit is 100 per request
+      const url = `${MEDIASTACK_API_URL}?access_key=${MEDIASTACK_API_KEY}&keywords=${encodeURIComponent(query)}&languages=en&date=${fromDateStr},${new Date().toISOString().split('T')[0]}&limit=100&sort=published_desc`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        // ALWAYS log API errors for debugging
+        try {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error(`[NEWS] ❌ Mediastack HTTP error ${response.status} for query "${query}":`, errorText.substring(0, 500));
+        } catch (e) {
+          console.error(`[NEWS] ❌ Mediastack HTTP error ${response.status} for query "${query}":`, e.message);
+        }
+        return [];
+      }
+      
+      const data = await response.json();
+      
+      // ALWAYS log API responses for debugging
+      if (data.data && Array.isArray(data.data)) {
+        console.log(`[NEWS] Mediastack response for "${query}": articles=${data.data.length}, total=${data.pagination?.total || 'N/A'}`);
+        
+        // Filter to only articles from last 7 days (double-check)
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const filtered = data.data.filter(article => {
+          if (!article.published_at) return false;
+          const publishedDate = new Date(article.published_at);
+          return publishedDate >= sevenDaysAgo;
+        });
+        console.log(`[NEWS] Mediastack "${query}": ${data.data.length} articles, ${filtered.length} after 7-day filter`);
+        return filtered;
+      }
+      
+      // ALWAYS log API errors
+      if (data.error) {
+        console.error(`[NEWS] ❌ Mediastack error for query "${query}":`, JSON.stringify(data.error));
+      }
+      
+      return [];
+    } catch (error) {
+      // ALWAYS log fetch errors
+      console.error(`[NEWS] ❌ Mediastack fetch error for query "${query}":`, error.message, error.stack);
+      return [];
+    }
+  });
+  
+  const results = await Promise.all(fetchPromises);
+  const allArticles = results.flat();
+  
+  // Remove duplicates based on url
+  const uniqueArticles = [];
+  const seenUrls = new Set();
+  
+  for (const article of allArticles) {
+    const url = article.url;
+    if (url && !seenUrls.has(url)) {
+      seenUrls.add(url);
+      uniqueArticles.push(article);
+    }
+  }
+  
+  // Transform Mediastack format to match NewsAPI format
+  return uniqueArticles.map(article => ({
+    source: {
+      id: article.source || null,
+      name: article.source || 'Unknown',
+    },
+    author: article.author || null,
+    title: article.title || '',
+    description: article.description || null,
+    url: article.url || '',
+    urlToImage: article.image || null,
+    publishedAt: article.published_at || new Date().toISOString(),
+    content: article.description || null,
+    sourceApi: 'mediastack',
+  }));
+};
+
 app.get('/api/news', async (req, res) => {
-  const { source = 'all' } = req.query; // 'all', 'newsapi', 'newsdata', 'gnews', or 'worldnews'
+  const { source = 'all' } = req.query; // 'all', 'newsapi', 'newsdata', 'gnews', 'worldnews', or 'mediastack'
   
   try {
     // Check cache
@@ -1491,6 +1604,10 @@ app.get('/api/news', async (req, res) => {
       fetchPromises.push(fetchWorldNews().catch(() => []));
     }
     
+    if (source === 'all' || source === 'mediastack') {
+      fetchPromises.push(fetchMediastack().catch(() => []));
+    }
+    
     const results = await Promise.all(fetchPromises);
     let allArticles = results.flat();
     
@@ -1499,13 +1616,14 @@ app.get('/api/news', async (req, res) => {
     const newsdataCount = allArticles.filter(a => a.sourceApi === 'newsdata').length;
     const gnewsCount = allArticles.filter(a => a.sourceApi === 'gnews').length;
     const worldnewsCount = allArticles.filter(a => a.sourceApi === 'worldnews').length;
+    const mediastackCount = allArticles.filter(a => a.sourceApi === 'mediastack').length;
     
     if (allArticles.length === 0) {
       console.error('[NEWS] ❌❌❌ NO ARTICLES FETCHED FROM ANY API ❌❌❌');
-      console.error(`[NEWS] API keys configured: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}, WorldNews=${!!WORLD_NEWS_API_KEY}`);
+      console.error(`[NEWS] API keys configured: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}, WorldNews=${!!WORLD_NEWS_API_KEY}, Mediastack=${!!MEDIASTACK_API_KEY}`);
       console.error('[NEWS] Check Railway logs above for API errors or rate limit messages');
     } else {
-      console.log(`[NEWS] ✅ Fetched ${allArticles.length} articles (NewsAPI: ${newsapiCount}, NewsData: ${newsdataCount}, GNews: ${gnewsCount}, WorldNews: ${worldnewsCount})`);
+      console.log(`[NEWS] ✅ Fetched ${allArticles.length} articles (NewsAPI: ${newsapiCount}, NewsData: ${newsdataCount}, GNews: ${gnewsCount}, WorldNews: ${worldnewsCount}, Mediastack: ${mediastackCount})`);
     }
     
     // Deduplicate articles
@@ -1540,11 +1658,12 @@ app.get('/api/news', async (req, res) => {
       status: 'ok',
       totalResults: allArticles.length,
       articles: allArticles,
-      sources: {
+        sources: {
         newsapi: allArticles.filter(a => a.sourceApi === 'newsapi').length,
         newsdata: allArticles.filter(a => a.sourceApi === 'newsdata').length,
         gnews: allArticles.filter(a => a.sourceApi === 'gnews').length,
         worldnews: allArticles.filter(a => a.sourceApi === 'worldnews').length,
+        mediastack: allArticles.filter(a => a.sourceApi === 'mediastack').length,
       },
     };
     
@@ -1564,9 +1683,9 @@ app.get('/api/news', async (req, res) => {
     // ALWAYS log final results
     if (allArticles.length === 0) {
       console.error(`[${req.id}] ❌❌❌ FINAL RESULT: NO NEWS ARTICLES FOUND ❌❌❌`);
-      console.error(`[${req.id}] API keys: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}, WorldNews=${!!WORLD_NEWS_API_KEY}`);
+      console.error(`[${req.id}] API keys: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}, WorldNews=${!!WORLD_NEWS_API_KEY}, Mediastack=${!!MEDIASTACK_API_KEY}`);
     } else {
-      console.log(`[${req.id}] ✅ Final result: ${allArticles.length} articles after filtering`);
+      console.log(`[${req.id}] ✅ Final result: ${allArticles.length} articles (NewsAPI: ${newsapiCount}, NewsData: ${newsdataCount}, GNews: ${gnewsCount}, WorldNews: ${worldnewsCount}, Mediastack: ${mediastackCount})`);
     }
     
     res.json(responseData);
@@ -1596,7 +1715,7 @@ app.get('/api/news', async (req, res) => {
         status: 'ok',
         totalResults: 0,
         articles: [],
-        sources: { newsapi: 0, newsdata: 0, gnews: 0, worldnews: 0 },
+        sources: { newsapi: 0, newsdata: 0, gnews: 0, worldnews: 0, mediastack: 0 },
       });
     }
     
