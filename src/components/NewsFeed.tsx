@@ -67,6 +67,7 @@ export const NewsFeed = () => {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('All');
+  const [timeKey, setTimeKey] = useState(0); // Force recalculation of timestamps
 
   // Fetch news from server proxy (which caches and respects rate limits)
   const fetchNews = async () => {
@@ -116,7 +117,7 @@ export const NewsFeed = () => {
               id: article.url || `news-${index}`,
               title: article.title,
               source: article.source?.name || 'Unknown',
-              time: formatTime(article.publishedAt),
+              time: '', // Will be calculated dynamically on render
               category,
               url: article.url,
               imageUrl: article.urlToImage || undefined,
@@ -142,13 +143,18 @@ export const NewsFeed = () => {
     }
   };
 
-  // Filter news by selected category
+  // Filter news by selected category and calculate timestamps dynamically
   const news = useMemo(() => {
-    if (selectedCategory === 'All') {
-      return allNews;
-    }
-    return allNews.filter(item => item.category === selectedCategory);
-  }, [allNews, selectedCategory]);
+    let filtered = selectedCategory === 'All' 
+      ? allNews 
+      : allNews.filter(item => item.category === selectedCategory);
+    
+    // Recalculate timestamps dynamically
+    return filtered.map(item => ({
+      ...item,
+      time: item.publishedAt ? formatTime(item.publishedAt) : 'Unknown',
+    }));
+  }, [allNews, selectedCategory, timeKey]); // Include timeKey to force recalculation
 
   // Initial fetch
   useEffect(() => {
@@ -161,6 +167,15 @@ export const NewsFeed = () => {
     const interval = setInterval(() => {
       fetchNews();
     }, 2.5 * 60 * 1000); // 2.5 minutes (slightly longer than server cache of 2 minutes)
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update timestamps every minute to keep them current
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeKey(prev => prev + 1);
+    }, 60 * 1000); // Every minute
 
     return () => clearInterval(interval);
   }, []);
