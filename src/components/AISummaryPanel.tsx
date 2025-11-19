@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Brain, TrendingUp, TrendingDown, Activity, ChevronDown } from "lucide-react";
+import { TypewriterText } from "./TypewriterText";
 
 const getAgentLogo = (agentName: string): string => {
   const agentUpper = agentName.toUpperCase();
@@ -284,7 +285,12 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
   useEffect(() => {
     const loadSummary = async () => {
       try {
-        setLoading(true);
+        // Don't set loading to true - show existing decisions immediately
+        // Only show loading on first load when there are no decisions
+        if (decisions.length === 0) {
+          setLoading(true);
+        }
+        
         const { API_BASE_URL } = await import('@/lib/apiConfig');
         const response = await fetch(`${API_BASE_URL}/api/agents/summary`);
         
@@ -469,18 +475,22 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
           </div>
         ) : (
         <div className="p-3 space-y-3">
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence mode="popLayout" initial={false}>
             {decisions.map((decision, index) => {
             const isExpanded = expandedId === decision.id;
             const hasHistory = decision.decisionHistory && decision.decisionHistory.length > 0;
             
+            // Track if this is a new decision (for animation) - only animate top 3 as "new"
+            const isNewDecision = index < 3;
+            
             return (
               <motion.div
                 key={decision.id}
-                initial={{ opacity: 0, y: -20, scale: 0.95 }} // Start from top (new items appear at top)
+                initial={isNewDecision ? { opacity: 0, y: -30, scale: 0.96 } : false} // Only animate truly new items from top
                 animate={{ opacity: 1, y: 0, scale: 1 }} // Animate into position
-                exit={{ opacity: 0, y: 20, scale: 0.95 }} // Exit downward (old items scroll down)
-                transition={{ duration: 0.3, ease: "easeOut" }} // Smooth animation
+                exit={{ opacity: 0, height: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0 }} // Exit by collapsing height
+                transition={{ duration: 0.4, ease: "easeOut" }} // Smooth animation
+                layout // Enable layout animations for smooth repositioning when new items added
                 className="bg-bg-elevated border border-border rounded-xl overflow-hidden hover:border-terminal-accent/50 transition-colors"
               >
                 {/* Clickable Header - Always expandable to show decision details */}
@@ -584,9 +594,13 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                 </div>
               )}
 
-                  {/* Reasoning (truncated) */}
+                  {/* Reasoning (truncated) - Typewriter effect */}
                   <div className="text-[12px] text-text-secondary leading-relaxed" style={{ fontWeight: 400 }}>
-                    {decision.reasoning}
+                    <TypewriterText 
+                      text={decision.reasoning} 
+                      speed={25}
+                      className="inline"
+                    />
                   </div>
                 </div>
 
