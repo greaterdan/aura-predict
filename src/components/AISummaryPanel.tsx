@@ -356,28 +356,53 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
             }
           }
           
-          // Sort by timestamp (most recent first)
+          // Sort by timestamp (most recent first - newest at top)
           newDecisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
           
-          // Only update if decisions actually changed (prevent unnecessary re-renders)
+          // Merge new decisions with existing ones - new items appear at top, scroll down naturally
           setDecisions(prev => {
-            // Check if decisions actually changed
-            const prevIds = new Set(prev.map(d => d.id));
-            const newIds = new Set(newDecisions.map(d => d.id));
+            const prevMap = new Map(prev.map(d => [d.id, d]));
+            const newMap = new Map(newDecisions.map(d => [d.id, d]));
             
-            // If same IDs, just update data without causing re-render
-            if (prevIds.size === newIds.size && [...prevIds].every(id => newIds.has(id))) {
-              // Same decisions, just update their data
-              const prevMap = new Map(prev.map(d => [d.id, d]));
-              return newDecisions.map(decision => {
-                const prevDecision = prevMap.get(decision.id);
-                // Keep expanded state
-                return decision;
-              });
+            // Preserve expanded state for existing decisions
+            const preservedExpanded = expandedId;
+            
+            // Merge: new decisions first (top), then existing ones that aren't in new list
+            const merged: AIDecision[] = [];
+            const seenIds = new Set<string>();
+            
+            // Add new decisions first (most recent at top)
+            for (const decision of newDecisions) {
+              const prevDecision = prevMap.get(decision.id);
+              if (prevDecision) {
+                // Existing decision - preserve expanded state
+                merged.push({
+                  ...decision,
+                  // Keep any additional state from prev if needed
+                });
+              } else {
+                // Brand new decision - add at top
+                merged.push(decision);
+              }
+              seenIds.add(decision.id);
             }
             
-            // New decisions added/removed - update but preserve expanded state
-            return newDecisions;
+            // Add existing decisions that aren't in new list (keep old ones visible)
+            for (const prevDecision of prev) {
+              if (!seenIds.has(prevDecision.id)) {
+                merged.push(prevDecision);
+              }
+            }
+            
+            // Sort by timestamp again (newest first)
+            merged.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+            
+            // Restore expanded state
+            if (preservedExpanded && merged.some(d => d.id === preservedExpanded)) {
+              // Expanded state will be managed by expandedId state
+            }
+            
+            return merged;
           });
         }
       } catch (error) {
@@ -442,7 +467,8 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
           </div>
         ) : (
         <div className="p-3 space-y-3">
-          {decisions.map((decision, index) => {
+          <AnimatePresence mode="popLayout">
+            {decisions.map((decision, index) => {
             const isExpanded = expandedId === decision.id;
             const hasHistory = decision.decisionHistory && decision.decisionHistory.length > 0;
             
@@ -625,9 +651,14 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onTradeClick(decision.marketId!);
+                              e.preventDefault();
+                              console.log('[AISummaryPanel] View Market Details clicked:', decision.marketId);
+                              if (decision.marketId) {
+                                onTradeClick(decision.marketId);
+                              }
                             }}
-                            className="w-full px-3 py-2 bg-terminal-accent/10 hover:bg-terminal-accent/20 text-terminal-accent rounded-lg transition-colors text-[11px] font-mono border border-terminal-accent/30"
+                            className="w-full px-3 py-2 bg-terminal-accent/10 hover:bg-terminal-accent/20 text-terminal-accent rounded-lg transition-colors text-[11px] font-mono border border-terminal-accent/30 cursor-pointer"
+                            style={{ pointerEvents: 'auto' }}
                           >
                             View Market Details →
                           </button>
@@ -639,6 +670,7 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
               </motion.div>
             );
           })}
+          </AnimatePresence>
         </div>
         )}
       </div>
