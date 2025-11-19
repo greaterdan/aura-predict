@@ -16,26 +16,28 @@ import session from 'express-session';
 import { createClient } from 'redis';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-// connect-redis v7.x - load the factory function
-// The CJS build should export the factory directly or as default
-let connectRedisFactory;
+// connect-redis v7.x - load the RedisStore class
+// In v7.x, it exports the class directly (not a factory function)
+let RedisStoreClass;
 try {
   const connectRedisModule = require('connect-redis');
-  // Try to get the factory function - it might be the module itself or a default property
-  if (typeof connectRedisModule === 'function') {
-    connectRedisFactory = connectRedisModule;
-  } else if (connectRedisModule.default && typeof connectRedisModule.default === 'function') {
-    connectRedisFactory = connectRedisModule.default;
-  } else {
-    // If it's an object, try to find the factory
-    const keys = Object.keys(connectRedisModule);
-    console.log('[REDIS] connect-redis module keys:', keys);
-    throw new Error(`connect-redis module is not a function. Type: ${typeof connectRedisModule}, Keys: ${keys.join(', ')}`);
+  // v7.x exports the RedisStore class directly as default
+  RedisStoreClass = connectRedisModule.default || connectRedisModule;
+  
+  if (!RedisStoreClass) {
+    throw new Error('RedisStore class not found in connect-redis module');
   }
-  console.log('[REDIS] connect-redis factory loaded, type:', typeof connectRedisFactory);
+  
+  // Check if it's actually a class (has prototype and can be instantiated)
+  if (typeof RedisStoreClass !== 'function') {
+    const keys = Object.keys(connectRedisModule);
+    throw new Error(`RedisStore is not a class. Type: ${typeof RedisStoreClass}, Module keys: ${keys.join(', ')}`);
+  }
+  
+  console.log('[REDIS] RedisStore class loaded successfully');
 } catch (error) {
   console.error('[REDIS] Failed to load connect-redis:', error.message);
-  connectRedisFactory = null;
+  RedisStoreClass = null;
 }
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
@@ -274,18 +276,12 @@ if (redisUrl) {
     
     // Create RedisStore (will work even if not connected yet - Redis client handles reconnection)
     try {
-      if (!connectRedisFactory || typeof connectRedisFactory !== 'function') {
-        throw new Error(`connect-redis factory not available. Type: ${typeof connectRedisFactory}`);
+      if (!RedisStoreClass) {
+        throw new Error('RedisStore class not loaded - check connect-redis installation');
       }
       
-      // connect-redis v7.x: the factory function takes session and returns RedisStore class
-      const RedisStore = connectRedisFactory(session);
-      
-      if (!RedisStore) {
-        throw new Error('RedisStore factory returned undefined - check connect-redis version');
-      }
-      
-      sessionStore = new RedisStore({
+      // connect-redis v7.x: RedisStore is a class, instantiate it directly
+      sessionStore = new RedisStoreClass({
         client: redisClient,
         prefix: 'probly:sess:',
       });
