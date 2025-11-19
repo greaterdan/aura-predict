@@ -684,7 +684,7 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
           </ResponsiveContainer>
         </div>
       ) : (
-        <TechnicalView />
+        <TechnicalView selectedAgentId={selectedAgentId} />
       )}
     </div>
   );
