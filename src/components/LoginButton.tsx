@@ -52,16 +52,16 @@ export const LoginButton = ({
       try {
         const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
           credentials: 'include',
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
           if (data.authenticated && data.user?.email) {
             // User is logged in via OAuth
             onLogin?.(data.user.email);
           }
-        }
-      } catch (error) {
+      }
+    } catch (error) {
         // Silently fail - user might not be logged in
         console.debug('Auth check failed:', error);
       }
@@ -120,7 +120,7 @@ export const LoginButton = ({
   return (
     <button
       onClick={handleGoogleLogin}
-      disabled={isConnecting}
+          disabled={isConnecting}
       className="h-7 w-7 p-0 bg-transparent hover:bg-bg-elevated border border-border rounded-full transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
       title="Sign in with Google"
     >

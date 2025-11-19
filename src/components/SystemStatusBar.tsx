@@ -48,29 +48,29 @@ export const SystemStatusBar = ({
   useEffect(() => {
     // Check if user is already logged in (from localStorage or OAuth session)
     const checkAuth = async () => {
-      const storedEmail = localStorage.getItem('userEmail');
-      
+    const storedEmail = localStorage.getItem('userEmail');
+    
       // First check localStorage for email
       if (storedEmail) {
-        setIsLoggedIn(true);
+      setIsLoggedIn(true);
         setUserEmail(storedEmail);
-        
+      
         // Get or create wallet for this email
         // This ensures the same email always gets the same wallet
         let wallet = getStoredWallet(storedEmail);
-        
-        if (!wallet) {
+      
+      if (!wallet) {
           wallet = getOrCreateWallet(storedEmail);
         }
         
         // Store as custodial wallet for persistence
         storeCustodialWallet(wallet);
-        
-        setCustodialWallet({
-          publicKey: wallet.publicKey,
-          privateKey: wallet.privateKey,
-        });
-      } else {
+      
+      setCustodialWallet({
+        publicKey: wallet.publicKey,
+        privateKey: wallet.privateKey,
+      });
+    } else {
         // Check for OAuth session (Google login)
         try {
           const { API_BASE_URL } = await import('@/lib/apiConfig');
@@ -108,16 +108,16 @@ export const SystemStatusBar = ({
           console.debug('OAuth check failed:', error);
         }
         
-        // Check if there's a stored custodial wallet even without login
-        // (for backwards compatibility)
-        const storedCustodialWallet = getCustodialWallet();
-        if (storedCustodialWallet) {
-          setCustodialWallet({
-            publicKey: storedCustodialWallet.publicKey,
-            privateKey: storedCustodialWallet.privateKey,
-          });
-        }
+      // Check if there's a stored custodial wallet even without login
+      // (for backwards compatibility)
+      const storedCustodialWallet = getCustodialWallet();
+      if (storedCustodialWallet) {
+        setCustodialWallet({
+          publicKey: storedCustodialWallet.publicKey,
+          privateKey: storedCustodialWallet.privateKey,
+        });
       }
+    }
     };
     
     checkAuth();
