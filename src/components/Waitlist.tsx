@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export const Waitlist = () => {
@@ -54,18 +54,14 @@ export const Waitlist = () => {
   };
 
   return (
-    <div className="h-full w-full flex items-center justify-center bg-[#05070a]">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full mx-auto rounded-2xl bg-[#080b12] border border-zinc-800/60 p-8"
-      >
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-semibold text-zinc-100 mb-2">
-            Join the Waitlist
+    <div className="h-full w-full flex items-center justify-center bg-background p-6">
+      <div className="max-w-sm w-full">
+        <div className="mb-8">
+          <h2 className="text-lg font-mono text-foreground mb-3">
+            Agent Builder
           </h2>
-          <p className="text-sm text-zinc-400">
-            Get early access to our AI Agent Builder. Be among the first to create and deploy your own trading agents.
+          <p className="text-sm text-muted-foreground font-mono leading-relaxed">
+            Building custom trading agents. Sign up to get notified when it's ready.
           </p>
         </div>
 
@@ -73,20 +69,22 @@ export const Waitlist = () => {
           {isSuccess ? (
             <motion.div
               key="success"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="text-center py-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="border border-border bg-bg-elevated p-6 rounded"
             >
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-trade-yes/10 border border-trade-yes/20 mb-3">
-                <CheckCircle2 className="w-6 h-6 text-trade-yes" />
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-trade-yes mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground font-mono mb-1">
+                    You're in
+                  </p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    We'll send you an email when it's live.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-zinc-300 font-medium mb-1">
-                You're on the list!
-              </p>
-              <p className="text-xs text-zinc-500">
-                We'll notify you when the Agent Builder is ready.
-              </p>
             </motion.div>
           ) : (
             <motion.form
@@ -97,14 +95,13 @@ export const Waitlist = () => {
               onSubmit={handleSubmit}
               className="space-y-4"
             >
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <div>
                 <Input
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="your@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-12 bg-background border-border focus:border-terminal-accent"
+                  className="h-10 bg-background border-border font-mono text-sm focus:border-terminal-accent"
                   disabled={isSubmitting}
                   required
                 />
@@ -112,9 +109,9 @@ export const Waitlist = () => {
 
               {error && (
                 <motion.p
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-xs text-red-400 text-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-xs text-red-400 font-mono"
                 >
                   {error}
                 </motion.p>
@@ -123,27 +120,21 @@ export const Waitlist = () => {
               <Button
                 type="submit"
                 disabled={isSubmitting || !email}
-                className="w-full h-12 bg-terminal-accent hover:bg-terminal-accent/90 text-background font-medium"
+                className="w-full h-10 bg-terminal-accent hover:bg-terminal-accent/90 text-background font-mono text-xs"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Joining...
+                    <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                    Sending...
                   </>
                 ) : (
-                  <>
-                    Join Waitlist
-                  </>
+                  "Notify me"
                 )}
               </Button>
-
-              <p className="text-xs text-zinc-500 text-center mt-4">
-                We respect your privacy. We'll only use your email to notify you about early access.
-              </p>
             </motion.form>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
     </div>
   );
 };
