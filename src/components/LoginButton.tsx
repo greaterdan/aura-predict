@@ -25,8 +25,90 @@ export const LoginButton = ({
   const [isConnecting, setIsConnecting] = useState(false);
 
   const handleGoogleLogin = () => {
-    // Redirect to Google OAuth endpoint - this will redirect to Google
-    window.location.href = `${API_BASE_URL}/api/auth/google`;
+    setIsConnecting(true);
+    
+    // Open Google OAuth in a popup window
+    const width = 500;
+    const height = 600;
+    const left = (window.screen.width - width) / 2;
+    const top = (window.screen.height - height) / 2;
+    
+    const popup = window.open(
+      `${API_BASE_URL}/api/auth/google`,
+      'google-auth',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes,location=no,directories=no,status=no`
+    );
+    
+    if (!popup) {
+      setIsConnecting(false);
+      alert('Please allow popups for this site to sign in with Google.');
+      return;
+    }
+    
+    // Listen for popup to close or send message
+    const checkPopup = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkPopup);
+        setIsConnecting(false);
+        // Check auth status after popup closes
+        checkAuthStatus();
+      }
+    }, 500);
+    
+    // Listen for message from popup callback page
+    const messageHandler = (event: MessageEvent) => {
+      // Verify origin for security - allow same origin or API base URL origin
+      const apiOrigin = new URL(API_BASE_URL).origin;
+      const currentOrigin = window.location.origin;
+      
+      if (event.origin !== apiOrigin && event.origin !== currentOrigin) {
+        console.warn('Rejected message from unauthorized origin:', event.origin);
+        return;
+      }
+      
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        clearInterval(checkPopup);
+        popup.close();
+        setIsConnecting(false);
+        window.removeEventListener('message', messageHandler);
+        checkAuthStatus();
+      } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+        clearInterval(checkPopup);
+        popup.close();
+        setIsConnecting(false);
+        window.removeEventListener('message', messageHandler);
+        alert('Authentication failed. Please try again.');
+      }
+    };
+    
+    window.addEventListener('message', messageHandler);
+    
+    // Cleanup after 5 minutes if popup is still open
+    setTimeout(() => {
+      if (!popup.closed) {
+        clearInterval(checkPopup);
+        popup.close();
+        setIsConnecting(false);
+        window.removeEventListener('message', messageHandler);
+      }
+    }, 5 * 60 * 1000);
+  };
+  
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.authenticated && data.user?.email) {
+          onLogin?.(data.user.email);
+        }
+      }
+    } catch (error) {
+      console.debug('Auth check failed:', error);
+    }
   };
 
   const handleLogout = async () => {
@@ -67,23 +149,8 @@ export const LoginButton = ({
       }
     };
 
-    // Check URL params for auth success/error
-    const urlParams = new URLSearchParams(window.location.search);
-    const authStatus = urlParams.get('auth');
-    
-    if (authStatus === 'success') {
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      // Check auth status
-      checkAuth();
-    } else if (authStatus === 'error') {
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      alert('Authentication failed. Please try again.');
-    } else {
-      // Check on mount if already logged in
-      checkAuth();
-    }
+    // Check on mount if already logged in
+    checkAuth();
   }, [onLogin]);
 
   if (isLoggedIn) {

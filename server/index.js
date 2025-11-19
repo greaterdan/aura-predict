@@ -356,11 +356,11 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
 
   // Google OAuth callback
   app.get('/api/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/?auth=error' }),
+    passport.authenticate('google', { failureRedirect: '/auth-popup-callback?error=1' }),
     (req, res) => {
-      // Successful authentication - redirect to frontend with success
+      // Successful authentication - redirect to popup callback page
       // The user object is stored in req.user via Passport
-      res.redirect('/?auth=success');
+      res.redirect('/auth-popup-callback?success=1');
     }
   );
 
