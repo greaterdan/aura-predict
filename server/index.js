@@ -708,6 +708,12 @@ const NEWSDATA_API_URL = 'https://newsdata.io/api/1/news';
 const GNEWS_API_KEY = process.env.GNEWS_API_KEY;
 const GNEWS_API_URL = 'https://gnews.io/api/v4/search';
 
+// Log API key status on startup
+console.log('[NEWS] 📰 News API Configuration:');
+console.log(`[NEWS]   NewsAPI: ${NEWS_API_KEY ? `✅ Configured (${NEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
+console.log(`[NEWS]   NewsData.io: ${NEWSDATA_API_KEY ? `✅ Configured (${NEWSDATA_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
+console.log(`[NEWS]   GNews: ${GNEWS_API_KEY ? `✅ Configured (${GNEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
+
 // Simple in-memory cache (refresh every 5 minutes)
 let newsCache = {
   data: null,
@@ -774,12 +780,10 @@ const deduplicateArticles = (articles) => {
 
 // Fetch news from NewsAPI
 const fetchNewsAPI = async () => {
+  console.log('[NEWS] 🔄 Starting NewsAPI fetch...');
   // SECURITY: Check if API key is configured
   if (!NEWS_API_KEY) {
-    // Only log occasionally to reduce log spam
-    if (Math.random() < 0.01) {
-      console.warn('NEWS_API_KEY not configured, skipping NewsAPI');
-    }
+    console.error('[NEWS] ❌ NEWS_API_KEY not configured, skipping NewsAPI');
     return [];
   }
   // Get date from last 7 days for better news coverage
@@ -805,22 +809,32 @@ const fetchNewsAPI = async () => {
   
   const fetchPromises = queries.map(async (query) => {
     try {
-      // Use from and to parameters for last 24 hours, sort by publishedAt (newest first)
+      // Use from and to parameters for last 7 days, sort by publishedAt (newest first)
       const url = `${NEWS_API_URL}?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=20&from=${fromDateStr}&to=${toDateStr}&apiKey=${NEWS_API_KEY}`;
       
       const response = await fetch(url);
       
       if (!response.ok) {
+        // ALWAYS log API errors for debugging
+        try {
+          const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+          console.error(`[NEWS] ❌ NewsAPI HTTP error ${response.status} for query "${query}":`, JSON.stringify(errorData));
+        } catch (e) {
+          console.error(`[NEWS] ❌ NewsAPI HTTP error ${response.status} for query "${query}":`, e.message);
+        }
         return [];
       }
       
       const data = await response.json();
       
+      // ALWAYS log API responses for debugging
+      console.log(`[NEWS] NewsAPI response for "${query}": status=${data.status}, articles=${data.articles?.length || 0}, totalResults=${data.totalResults || 0}`);
+      
       if (data.status === 'ok' && data.articles) {
         // Filter to only articles from last 7 days
         const now = new Date();
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return data.articles
+        const filtered = data.articles
           .filter(article => {
             if (!article.publishedAt) return false;
             const publishedDate = new Date(article.publishedAt);
@@ -830,19 +844,19 @@ const fetchNewsAPI = async () => {
             ...article,
             sourceApi: 'newsapi',
           }));
+        console.log(`[NEWS] NewsAPI "${query}": ${data.articles.length} articles, ${filtered.length} after 7-day filter`);
+        return filtered;
       }
       
-      // Log API errors (only occasionally to reduce spam)
-      if (data.status !== 'ok' && Math.random() < 0.1) {
-        console.warn(`[NEWS] NewsAPI error for query "${query}":`, data.message || data.status);
+      // ALWAYS log API errors
+      if (data.status !== 'ok') {
+        console.error(`[NEWS] ❌ NewsAPI error for query "${query}":`, JSON.stringify(data));
       }
       
       return [];
     } catch (error) {
-      // Log fetch errors (only occasionally)
-      if (Math.random() < 0.1) {
-        console.warn(`[NEWS] NewsAPI fetch error for query "${query}":`, error.message);
-      }
+      // ALWAYS log fetch errors
+      console.error(`[NEWS] ❌ NewsAPI fetch error for query "${query}":`, error.message, error.stack);
       return [];
     }
   });
@@ -866,12 +880,10 @@ const fetchNewsAPI = async () => {
 
 // Fetch news from NewsData.io
 const fetchNewsData = async () => {
+  console.log('[NEWS] 🔄 Starting NewsData.io fetch...');
   // SECURITY: Check if API key is configured
   if (!NEWSDATA_API_KEY) {
-    // Only log occasionally to reduce log spam
-    if (Math.random() < 0.01) {
-      console.warn('NEWSDATA_API_KEY not configured, skipping NewsData.io');
-    }
+    console.error('[NEWS] ❌ NEWSDATA_API_KEY not configured, skipping NewsData.io');
     return [];
   }
   // Get date from last 7 days for more news (relaxed from 24 hours)
@@ -903,30 +915,43 @@ const fetchNewsData = async () => {
       const response = await fetch(url);
       
       if (!response.ok) {
-        // Log API errors (only occasionally to reduce spam)
-        if (Math.random() < 0.1) {
+        // ALWAYS log API errors for debugging
+        try {
           const errorText = await response.text().catch(() => 'Unknown error');
-          console.warn(`[NEWS] NewsData.io HTTP error ${response.status} for query "${query}":`, errorText.substring(0, 200));
+          console.error(`[NEWS] ❌ NewsData.io HTTP error ${response.status} for query "${query}":`, errorText.substring(0, 500));
+        } catch (e) {
+          console.error(`[NEWS] ❌ NewsData.io HTTP error ${response.status} for query "${query}":`, e.message);
         }
         return [];
       }
       
       const data = await response.json();
       
+      // ALWAYS log API responses for debugging
+      console.log(`[NEWS] NewsData.io response for "${query}": status=${data.status}, results=${data.results?.length || 0}, totalResults=${data.totalResults || 0}`);
+      
       if (data.status === 'success' && data.results) {
         // Filter to only articles from last 7 days (double-check)
         const now = new Date();
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        
-        return data.results.filter(article => {
+        const filtered = data.results.filter(article => {
           if (!article.pubDate) return false;
           const publishedDate = new Date(article.pubDate);
           return publishedDate >= sevenDaysAgo;
         });
+        console.log(`[NEWS] NewsData.io "${query}": ${data.results.length} articles, ${filtered.length} after 7-day filter`);
+        return filtered;
+      }
+      
+      // ALWAYS log API errors
+      if (data.status !== 'success') {
+        console.error(`[NEWS] ❌ NewsData.io error for query "${query}":`, JSON.stringify(data));
       }
       
       return [];
     } catch (error) {
+      // ALWAYS log fetch errors
+      console.error(`[NEWS] ❌ NewsData.io fetch error for query "${query}":`, error.message, error.stack);
       return [];
     }
   });
@@ -965,12 +990,10 @@ const fetchNewsData = async () => {
 
 // Fetch news from GNews
 const fetchGNews = async () => {
+  console.log('[NEWS] 🔄 Starting GNews fetch...');
   // SECURITY: Check if API key is configured
   if (!GNEWS_API_KEY) {
-    // Only log occasionally to reduce log spam
-    if (Math.random() < 0.01) {
-      console.warn('GNEWS_API_KEY not configured, skipping GNews');
-    }
+    console.error('[NEWS] ❌ GNEWS_API_KEY not configured, skipping GNews');
     return [];
   }
   
@@ -1004,13 +1027,24 @@ const fetchGNews = async () => {
       const response = await fetch(url);
       
       if (!response.ok) {
+        // ALWAYS log API errors for debugging
         if (response.status === 429) {
+          console.error(`[NEWS] ❌ GNews rate limit hit (429) for query "${query}"`);
           break; // Stop if we hit rate limit
+        }
+        try {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error(`[NEWS] ❌ GNews HTTP error ${response.status} for query "${query}":`, errorText.substring(0, 500));
+        } catch (e) {
+          console.error(`[NEWS] ❌ GNews HTTP error ${response.status} for query "${query}":`, e.message);
         }
         continue;
       }
       
       const data = await response.json();
+      
+      // ALWAYS log API responses for debugging
+      console.log(`[NEWS] GNews response for "${query}": articles=${data.articles?.length || 0}, totalArticles=${data.totalArticles || 0}`);
       
       if (data.articles && Array.isArray(data.articles)) {
         // Filter to only articles from last 7 days (relaxed from 24 hours)
@@ -1023,10 +1057,14 @@ const fetchGNews = async () => {
           return publishedDate >= sevenDaysAgo;
         });
         
+        console.log(`[NEWS] GNews "${query}": ${data.articles.length} articles, ${filteredArticles.length} after 7-day filter`);
         allArticles.push(...filteredArticles);
+      } else {
+        console.error(`[NEWS] ❌ GNews unexpected response format for "${query}":`, JSON.stringify(data).substring(0, 200));
       }
     } catch (error) {
-      // Continue to next query
+      // ALWAYS log fetch errors
+      console.error(`[NEWS] ❌ GNews fetch error for query "${query}":`, error.message, error.stack);
     }
   }
   
@@ -1097,12 +1135,17 @@ app.get('/api/news', async (req, res) => {
     const results = await Promise.all(fetchPromises);
     let allArticles = results.flat();
     
-    // Log if no articles were fetched (sampled at 10% to reduce log spam)
-    if (allArticles.length === 0 && Math.random() < 0.1) {
-      console.warn('[NEWS] No articles fetched from any API. Check API keys and rate limits.');
-      console.warn(`[NEWS] NEWS_API_KEY: ${NEWS_API_KEY ? 'set' : 'NOT SET'}`);
-      console.warn(`[NEWS] NEWSDATA_API_KEY: ${NEWSDATA_API_KEY ? 'set' : 'NOT SET'}`);
-      console.warn(`[NEWS] GNEWS_API_KEY: ${GNEWS_API_KEY ? 'set' : 'NOT SET'}`);
+    // ALWAYS log fetch results for debugging
+    const newsapiCount = allArticles.filter(a => a.sourceApi === 'newsapi').length;
+    const newsdataCount = allArticles.filter(a => a.sourceApi === 'newsdata').length;
+    const gnewsCount = allArticles.filter(a => a.sourceApi === 'gnews').length;
+    
+    if (allArticles.length === 0) {
+      console.error('[NEWS] ❌❌❌ NO ARTICLES FETCHED FROM ANY API ❌❌❌');
+      console.error(`[NEWS] API keys configured: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}`);
+      console.error('[NEWS] Check Railway logs above for API errors or rate limit messages');
+    } else {
+      console.log(`[NEWS] ✅ Fetched ${allArticles.length} articles (NewsAPI: ${newsapiCount}, NewsData: ${newsdataCount}, GNews: ${gnewsCount})`);
     }
     
     // Deduplicate articles
@@ -1157,17 +1200,18 @@ app.get('/api/news', async (req, res) => {
       responseData.totalResults = responseData.articles.length;
     }
     
-    // Log if no articles found (only occasionally to reduce log spam)
-    if (allArticles.length === 0 && Math.random() < 0.1) {
-      console.warn(`[${req.id}] No news articles found. API keys configured: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}`);
+    // ALWAYS log final results
+    if (allArticles.length === 0) {
+      console.error(`[${req.id}] ❌❌❌ FINAL RESULT: NO NEWS ARTICLES FOUND ❌❌❌`);
+      console.error(`[${req.id}] API keys: NewsAPI=${!!NEWS_API_KEY}, NewsData=${!!NEWSDATA_API_KEY}, GNews=${!!GNEWS_API_KEY}`);
+    } else {
+      console.log(`[${req.id}] ✅ Final result: ${allArticles.length} articles after filtering`);
     }
     
     res.json(responseData);
   } catch (error) {
-    // Only log errors occasionally to reduce log spam
-    if (Math.random() < 0.1) {
-      console.error(`[${req.id}] Error in /api/news:`, error.message);
-    }
+    // ALWAYS log errors
+    console.error(`[${req.id}] ❌❌❌ ERROR in /api/news:`, error.message, error.stack);
     // Return cached data if available, even if expired
     if (newsCache.data && newsCache.data.articles && newsCache.data.articles.length > 0) {
       let cachedData = newsCache.data;
