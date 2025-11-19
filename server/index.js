@@ -5,16 +5,44 @@ import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 import { fetchAllMarkets } from './services/polymarketService.js';
 import { transformMarkets } from './services/marketTransformer.js';
 import { mapCategoryToPolymarket } from './utils/categoryMapper.js';
+
+// Get directory paths for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+const isProduction = process.env.NODE_ENV === 'production';
+
+// SECURITY: Trust proxy if behind reverse proxy (Railway, etc.)
+app.set('trust proxy', 1);
+
+// SECURITY: Add security headers using Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", "https://api.mainnet-beta.solana.com", "https://gamma-api.polymarket.com", "https://data-api.polymarket.com", "https://clob.polymarket.com", "https://newsapi.org", "https://newsdata.io", "https://gnews.io"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow external resources
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow external resources
+}));
 
 // Log startup info immediately
 console.log('🚀 Starting server...');
@@ -22,6 +50,20 @@ console.log(`📋 PORT: ${PORT}`);
 console.log(`📋 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 console.log(`📋 Process PID: ${process.pid}`);
 console.log(`📋 Railway PORT env: ${process.env.PORT || 'NOT SET'}`);
+
+// Check if dist folder exists (frontend build)
+const distPath = path.join(__dirname, '..', 'dist');
+try {
+  const distExists = fs.existsSync(distPath);
+  if (distExists) {
+    console.log(`✅ Frontend build found at: ${distPath}`);
+  } else {
+    console.warn(`⚠️  Frontend build not found at: ${distPath}`);
+    console.warn(`   Run "npm run build" to build the frontend`);
+  }
+} catch (err) {
+  console.warn(`⚠️  Could not check for frontend build: ${err.message}`);
+}
 
 // CRITICAL: Define healthcheck endpoints FIRST, before any middleware
 // Railway healthchecks need these to work immediately
@@ -54,10 +96,23 @@ app.use(cors({
     // Railway healthchecks don't send an origin header, so we must allow this
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      callback(null, true);
+    // SECURITY: In production, only allow configured origins
+    // In development, allow localhost origins
+    if (isProduction) {
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn(`[CORS] Blocked request from origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Development: Allow localhost and configured origins
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        callback(null, true);
+      } else {
+        console.warn(`[CORS] Blocked request from origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true
@@ -93,6 +148,13 @@ app.use('/api/', (req, res, next) => {
   apiLimiter(req, res, next);
 });
 app.use(express.json({ limit: '1mb' })); // Limit request body size
+
+// SECURITY: Add request ID for logging and tracking
+app.use((req, res, next) => {
+  req.id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  res.setHeader('X-Request-ID', req.id);
+  next();
+});
 
 // Cache for predictions (5 minute cache - markets don't change that frequently)
 let predictionsCache = {
@@ -282,8 +344,10 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
     
     res.json(responseData);
   } catch (error) {
+    console.error(`[${req.id}] Error in /api/predictions:`, error);
+    // SECURITY: Don't expose error details to clients
     res.status(500).json({ 
-      error: error.message,
+      error: isProduction ? 'Internal server error' : error.message,
       predictions: [],
       count: 0,
     });
@@ -320,8 +384,10 @@ app.get('/api/polymarket/markets', async (req, res) => {
       total: markets.length,
     });
   } catch (error) {
+    console.error(`[${req.id}] Error in /api/polymarket/markets:`, error);
+    // SECURITY: Don't expose error details to clients
     res.status(500).json({
-      error: error.message,
+      error: isProduction ? 'Internal server error' : error.message,
       markets: [],
       count: 0,
     });
@@ -753,6 +819,7 @@ app.get('/api/news', async (req, res) => {
     
     res.json(responseData);
   } catch (error) {
+    console.error(`[${req.id}] Error in /api/news:`, error);
     // Return cached data if available, even if expired
     if (newsCache.data) {
       let cachedData = newsCache.data;
@@ -768,8 +835,9 @@ app.get('/api/news', async (req, res) => {
       return res.json(cachedData);
     }
     
+    // SECURITY: Don't expose error details to clients
     res.status(500).json({ 
-      error: error.message,
+      error: isProduction ? 'Internal server error' : error.message,
       articles: [],
       status: 'error',
     });
@@ -895,12 +963,48 @@ Timestamp: ${timestamp}
       email: sanitizedEmail 
     });
   } catch (error) {
-    console.error('Waitlist endpoint error:', error);
+    console.error(`[${req.id}] Waitlist endpoint error:`, error);
+    // SECURITY: Don't expose error details to clients
     res.status(500).json({ 
       error: 'Failed to process waitlist signup',
-      message: error.message 
+      message: isProduction ? undefined : error.message 
     });
   }
+});
+
+// Serve static files from the React app build directory
+// This must come AFTER all API routes
+// distPath is already defined above, reuse it
+
+// Serve static assets (JS, CSS, images, etc.)
+app.use(express.static(distPath, {
+  maxAge: '1y', // Cache static assets for 1 year
+  etag: true,
+}));
+
+// Handle React Router - serve index.html for all non-API routes
+// This allows client-side routing to work
+app.get('*', (req, res, next) => {
+  // Don't serve index.html for API routes
+  if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
+    return next();
+  }
+  
+  // Serve index.html for all other routes (SPA routing)
+  res.sendFile(path.join(distPath, 'index.html'), (err) => {
+    if (err) {
+      console.error(`Error serving index.html: ${err.message}`);
+      // If dist folder doesn't exist, return a helpful message
+      if (err.code === 'ENOENT') {
+        res.status(500).json({
+          error: 'Frontend not built',
+          message: 'Please run "npm run build" to build the frontend',
+        });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+  });
 });
 
 // Export app for serverless functions (Railway, etc.)
