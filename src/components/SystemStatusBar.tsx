@@ -105,8 +105,8 @@ export const SystemStatusBar = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => window.open('https://github.com/greaterdan/aura-predict', '_blank', 'noopener,noreferrer')}
-          className="h-7 w-7 p-0 border-border bg-background hover:bg-bg-elevated text-foreground hover:text-foreground rounded-full"
+          disabled
+          className="h-7 w-7 p-0 border-border bg-background text-foreground rounded-full cursor-default"
           title="GitHub"
         >
           <Github className="w-3.5 h-3.5" />

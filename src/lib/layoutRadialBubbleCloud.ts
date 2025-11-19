@@ -330,7 +330,7 @@ export function layoutRadialBubbleCloud<T>(
     
     // STRICT: If we STILL can't find a position, SKIP this bubble - don't stack it
     if (!pos) {
-      console.warn(`Could not find position for bubble ${i} after ${maxRandomAttempts} attempts, skipping to prevent stacking`);
+      // Silently skip bubbles that can't be placed to avoid console spam
       continue;
     }
     
@@ -351,7 +351,7 @@ export function layoutRadialBubbleCloud<T>(
     }
     
     if (hasAnyCollision) {
-      console.warn(`Position for bubble ${i} collides with existing bubbles, skipping to prevent stacking`);
+      // Silently skip bubbles with collisions to avoid console spam
       continue;
     }
 
@@ -369,7 +369,7 @@ export function layoutRadialBubbleCloud<T>(
         // Clamp to bounds
         finalX = Math.max(radius, Math.min(width - radius, finalX));
         finalY = Math.max(radius, Math.min(height - radius, finalY));
-        console.warn(`Bubble ${i} had duplicate position, offset to (${finalX.toFixed(1)}, ${finalY.toFixed(1)})`);
+        // Silently handle duplicate positions
         break;
       }
     }

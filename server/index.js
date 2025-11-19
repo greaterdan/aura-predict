@@ -766,7 +766,14 @@ Timestamp: ${new Date().toISOString()}
   }
 });
 
-app.listen(PORT, () => {
-  // Server started
-});
+// Export app for Vercel serverless functions
+export default app;
+
+// Only start server if not in serverless environment (Vercel)
+// Vercel uses serverless functions, so app.listen is not needed
+if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 

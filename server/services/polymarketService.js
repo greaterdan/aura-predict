@@ -29,6 +29,7 @@ export async function fetchMarketsFromPolymarket({
   active = true,
   order = 'volume',
   ascending = false,
+  searchQuery = null, // Add search query parameter
 }) {
   const gammaParams = new URLSearchParams({
     active: active.toString(),
@@ -39,6 +40,13 @@ export async function fetchMarketsFromPolymarket({
     order: order,
     ascending: ascending.toString(),
   });
+
+  // Add search query if provided (try multiple parameter names)
+  if (searchQuery && searchQuery.trim()) {
+    gammaParams.set('q', searchQuery.trim());
+    gammaParams.set('query', searchQuery.trim());
+    gammaParams.set('search', searchQuery.trim());
+  }
 
   // Add category/topic filter if provided
   // Try multiple parameter names as Polymarket API might use different ones
@@ -175,6 +183,7 @@ export async function fetchAllMarkets({
   active = true,
   maxPages = 50,
   limitPerPage = 1000,
+  searchQuery = null, // Add search query parameter
 }) {
   let allMarkets = [];
   const seenIds = new Set();
@@ -188,6 +197,7 @@ export async function fetchAllMarkets({
         offset,
         category,
         active,
+        searchQuery, // Pass search query
       });
 
       if (markets.length === 0) {
