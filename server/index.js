@@ -153,13 +153,13 @@ app.use(cors({
       const isRailwayOrigin = origin.includes('.up.railway.app') || origin.includes('.railway.app');
       
       if (allowedOrigins.indexOf(origin) !== -1 || isRailwayOrigin) {
-        callback(null, true);
-      } else {
+      callback(null, true);
+    } else {
         // Only log CORS blocks occasionally (every 100th) to reduce log spam
         if (Math.random() < 0.01) {
           console.warn(`[CORS] Blocked request from origin: ${origin} (sampling 1% of blocks)`);
         }
-        callback(new Error('Not allowed by CORS'));
+      callback(new Error('Not allowed by CORS'));
       }
     } else {
       // Development: Allow localhost and configured origins
@@ -488,7 +488,7 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
     
     // Only log cache misses occasionally (every 10th miss) to reduce log spam
     if (Math.random() < 0.1) {
-      console.log(`[CACHE MISS] Fetching fresh predictions for category: ${category}${isSearching ? ` (search: ${search})` : ''}`);
+    console.log(`[CACHE MISS] Fetching fresh predictions for category: ${category}${isSearching ? ` (search: ${search})` : ''}`);
     }
     
     // Map category to Polymarket category
@@ -499,10 +499,9 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
     
     // Fetch markets from Polymarket - increased limits for better coverage
     // When searching, fetch more markets to increase search pool
-    // For "All Markets", fetch more to get better variety of YES/NO outcomes
     const maxMarkets = isSearching 
       ? 10000 // Fetch more markets when searching
-      : category === 'All Markets' ? 3000 : 5000; // Increased from 500 to 3000 for better variety
+      : category === 'All Markets' ? 500 : 5000;
     
     let markets = await fetchAllMarkets({
       category: polymarketCategory,
@@ -517,7 +516,7 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
     if (category === 'Earnings' || category === 'Geopolitics' || category === 'Elections') {
       // Reduced logging - only log occasionally
       if (Math.random() < 0.1) {
-        console.log(`Fetching ALL markets for ${category} category (will filter by detection)...`);
+      console.log(`Fetching ALL markets for ${category} category (will filter by detection)...`);
       }
       const allMarkets = await fetchAllMarkets({
         category: null, // Fetch all markets - don't filter by API category
@@ -529,12 +528,12 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
       markets = allMarkets; // Use all markets, will filter by detection below
       // Reduced logging
       if (Math.random() < 0.1) {
-        console.log(`Fetched ${markets.length} total markets for ${category} detection`);
+      console.log(`Fetched ${markets.length} total markets for ${category} detection`);
       }
     } else if (markets.length < 50 && polymarketCategory) {
       // Reduced logging
       if (Math.random() < 0.1) {
-        console.log(`Category search for ${category} returned only ${markets.length} markets. Trying without category filter...`);
+      console.log(`Category search for ${category} returned only ${markets.length} markets. Trying without category filter...`);
       }
       const allMarkets = await fetchAllMarkets({
         category: null, // Fetch all markets
@@ -547,9 +546,8 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
     }
     
     // Limit markets for "All Markets" category (but allow more when searching or for other categories)
-    // Increased limit to get more variety of YES/NO outcomes
     const limitedMarkets = (category === 'All Markets' && !isSearching) 
-      ? markets.slice(0, 2000) // Increased from 500 to 2000 for better variety
+      ? markets.slice(0, 500) 
       : markets;
     
     // Transform markets to predictions (server-side filtering and transformation)
@@ -571,8 +569,8 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
       });
       // Only log search results occasionally (every 10th) to reduce log spam
       if (Math.random() < 0.1) {
-        console.log(`Search "${search}" filtered ${predictions.length} predictions down to ${searchFilteredPredictions.length}`);
-      }
+      console.log(`Search "${search}" filtered ${predictions.length} predictions down to ${searchFilteredPredictions.length}`);
+    }
     }
     
     // DEBUG: Log category distribution (removed to reduce log spam - only log occasionally)
@@ -590,7 +588,7 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
     // Use search-filtered predictions if search was applied
     let filteredPredictions = searchFilteredPredictions;
     
-    // For "All Markets", add variety by mixing high-volume YES and NO outcomes
+    // For "All Markets", mix YES and NO markets for better variety
     if (category === 'All Markets' && !isSearching && filteredPredictions.length > 0) {
       // Separate predictions by outcome type (YES vs NO)
       const yesPredictions = filteredPredictions.filter(p => {
@@ -605,23 +603,39 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
         return noPrice >= yesPrice; // NO is more likely or equal
       });
       
-      // Sort each group by volume (highest first)
-      yesPredictions.sort((a, b) => (b.volume || 0) - (a.volume || 0));
-      noPredictions.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+      // Sort each group by volume (highest first) to prioritize high-volume markets
+      yesPredictions.sort((a, b) => {
+        const aVol = typeof a.volume === 'string' ? parseFloat(a.volume) : (a.volume || 0);
+        const bVol = typeof b.volume === 'string' ? parseFloat(b.volume) : (b.volume || 0);
+        return bVol - aVol;
+      });
+      noPredictions.sort((a, b) => {
+        const aVol = typeof a.volume === 'string' ? parseFloat(a.volume) : (b.volume || 0);
+        const bVol = typeof b.volume === 'string' ? parseFloat(b.volume) : (b.volume || 0);
+        return bVol - aVol;
+      });
       
       // Interleave: take top YES and NO markets alternately for variety
+      // Take more YES markets to balance out the typically higher number of NO markets
       const mixed = [];
-      const maxToMix = Math.min(yesPredictions.length, noPredictions.length, 150);
+      const maxToMix = Math.min(yesPredictions.length, noPredictions.length, 75); // Mix up to 75 of each
       
       for (let i = 0; i < maxToMix; i++) {
+        // Alternate: YES, NO, YES, NO...
         if (i < yesPredictions.length) mixed.push(yesPredictions[i]);
         if (i < noPredictions.length) mixed.push(noPredictions[i]);
       }
       
-      // Add remaining high-volume markets from both groups
+      // Add remaining high-volume markets from both groups (prioritize YES to balance)
       const remainingYes = yesPredictions.slice(maxToMix);
       const remainingNo = noPredictions.slice(maxToMix);
-      const allRemaining = [...remainingYes, ...remainingNo].sort((a, b) => (b.volume || 0) - (a.volume || 0));
+      
+      // Add more YES markets first, then NO markets
+      const allRemaining = [...remainingYes, ...remainingNo].sort((a, b) => {
+        const aVol = typeof a.volume === 'string' ? parseFloat(a.volume) : (a.volume || 0);
+        const bVol = typeof b.volume === 'string' ? parseFloat(b.volume) : (b.volume || 0);
+        return bVol - aVol;
+      });
       
       filteredPredictions = [...mixed, ...allRemaining];
     } else if (category !== 'All Markets') {
@@ -652,7 +666,7 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
       });
       // Only log category filtering occasionally (every 10th) to reduce log spam
       if (Math.random() < 0.1) {
-        console.log(`Filtered ${filteredPredictions.length} predictions for category: ${category}`);
+      console.log(`Filtered ${filteredPredictions.length} predictions for category: ${category}`);
       }
       // DEBUG: Log sample filtered prediction (removed to reduce log spam)
       // if (filteredPredictions.length > 0 && Math.random() < 0.1) {
