@@ -309,9 +309,10 @@ export function transformMarket(market, index = 0, pricesMap = {}) {
         //   console.log(`  ✅ Extracted price for ${outcomeName}: $${priceInfo.price.toFixed(3)} (${(priceInfo.price * 100).toFixed(1)}%)`);
         // }
       } else {
-        if (index === 0 || index < 3) {
-          console.log(`  ⚠️  Failed to extract valid price for ${outcomeName} from:`, priceData);
-        }
+        // DEBUG: Log failed price extraction (removed to reduce log spam)
+        // if (index === 0 || index < 3) {
+        //   console.log(`  ⚠️  Failed to extract valid price for ${outcomeName} from:`, priceData);
+        // }
       }
     }
     
@@ -965,10 +966,10 @@ export async function transformMarkets(markets) {
   // console.log(`Extracted ${allTokenIds.size} unique token_ids from ${flattenedMarkets.length} markets`);
   // console.log(`Markets with token maps: ${marketTokenMap.size}`);
   
-  // Debug: Check first few markets to see their structure
-  if (flattenedMarkets.length > 0) {
-    console.log(`\nSample market structures (first 2):`);
-    for (let i = 0; i < Math.min(2, flattenedMarkets.length); i++) {
+  // Debug: Check first few markets to see their structure (removed to reduce log spam)
+  // if (flattenedMarkets.length > 0 && Math.random() < 0.01) {
+  //   console.log(`\nSample market structures (first 2):`);
+  //   for (let i = 0; i < Math.min(2, flattenedMarkets.length); i++) {
       const market = flattenedMarkets[i];
       const actualMarket = market.market || market;
       const conditionId = actualMarket.condition_id || actualMarket.event?.condition_id || market.condition_id || actualMarket.id || market.id;
@@ -1083,19 +1084,19 @@ export async function transformMarkets(markets) {
       // console.log(`Markets with prices: ${marketsWithPrices}/${marketTokenMap.size}`);
       // console.log(`Outcomes matched: ${matchedCount}, unmatched: ${unmatchedCount}`);
       
-      if (marketsWithPrices > 0) {
-        // Log first market's prices in detail
-        const firstMarket = Object.entries(pricesMap)[0];
-        console.log(`\n✅ Sample market ${firstMarket[0]} has ${Object.keys(firstMarket[1]).length} outcomes with prices:`);
-        Object.entries(firstMarket[1]).forEach(([tokenId, data]) => {
-          console.log(`   - ${data.outcome || tokenId} (token: ${tokenId}):`, JSON.stringify(data));
-        });
-      } else {
-        console.log(`\n❌ NO MARKETS GOT PRICES! This is a problem.`);
-        console.log(`Available price keys in API response:`, Object.keys(allPrices).slice(0, 20));
-        console.log(`Sample market condition_ids we're looking for:`, Array.from(marketTokenMap.keys()).slice(0, 5));
-      }
-      console.log(`=== END PRICE DEBUG ===\n`);
+      // DEBUG: Log price details (removed to reduce log spam)
+      // if (marketsWithPrices > 0) {
+      //   const firstMarket = Object.entries(pricesMap)[0];
+      //   console.log(`\n✅ Sample market ${firstMarket[0]} has ${Object.keys(firstMarket[1]).length} outcomes with prices:`);
+      //   Object.entries(firstMarket[1]).forEach(([tokenId, data]) => {
+      //     console.log(`   - ${data.outcome || tokenId} (token: ${tokenId}):`, JSON.stringify(data));
+      //   });
+      // } else {
+      //   console.log(`\n❌ NO MARKETS GOT PRICES! This is a problem.`);
+      //   console.log(`Available price keys in API response:`, Object.keys(allPrices).slice(0, 20));
+      //   console.log(`Sample market condition_ids we're looking for:`, Array.from(marketTokenMap.keys()).slice(0, 5));
+      // }
+      // console.log(`=== END PRICE DEBUG ===\n`);
     } catch (error) {
       console.warn(`Error fetching prices: ${error.message}`);
       console.error(error);

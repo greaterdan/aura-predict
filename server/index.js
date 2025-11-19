@@ -617,12 +617,13 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
       if (Math.random() < 0.1) {
         console.log(`Filtered ${filteredPredictions.length} predictions for category: ${category}`);
       }
-      if (filteredPredictions.length > 0) {
-        console.log(`Sample filtered prediction:`, {
-          question: filteredPredictions[0].question?.substring(0, 50),
-          category: filteredPredictions[0].category
-        });
-      }
+      // DEBUG: Log sample filtered prediction (removed to reduce log spam)
+      // if (filteredPredictions.length > 0 && Math.random() < 0.1) {
+      //   console.log(`Sample filtered prediction:`, {
+      //     question: filteredPredictions[0].question?.substring(0, 50),
+      //     category: filteredPredictions[0].category
+      //   });
+      // }
     }
     
     // Apply limit if specified
