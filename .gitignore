@@ -31,3 +31,4 @@ bun.lockb
 *.njsproj
 *.sln
 *.sw?
+test-agents-with-keys.sh
