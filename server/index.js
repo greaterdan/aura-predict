@@ -145,11 +145,14 @@ app.use(cors({
     // SECURITY: In production, only allow configured origins
     // In development, allow localhost origins
     if (isProduction) {
-      if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
+      // Allow Railway internal origins (for healthchecks and internal requests)
+      const isRailwayOrigin = origin.includes('.up.railway.app') || origin.includes('.railway.app');
+      
+      if (allowedOrigins.indexOf(origin) !== -1 || isRailwayOrigin) {
+        callback(null, true);
+      } else {
         console.warn(`[CORS] Blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+        callback(new Error('Not allowed by CORS'));
       }
     } else {
       // Development: Allow localhost and configured origins
