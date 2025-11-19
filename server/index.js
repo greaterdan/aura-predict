@@ -225,14 +225,15 @@ const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
 
 if (redisUrl) {
   try {
-    // Create Redis client
+    // Create Redis client with lazy connect (won't connect until first use)
     const redisClient = createClient({
       url: redisUrl,
       socket: {
+        lazyConnect: true, // Don't connect immediately - connect on first use
         reconnectStrategy: (retries) => {
           // Don't block server startup if Redis fails
           if (retries > 3) {
-            console.warn('⚠️  Redis connection failed after 3 retries, falling back to MemoryStore');
+            console.warn('⚠️  Redis connection failed after 3 retries');
             return false; // Stop retrying
           }
           return Math.min(retries * 100, 3000); // Exponential backoff
@@ -255,14 +256,11 @@ if (redisUrl) {
         client: redisClient,
         prefix: 'probly:sess:',
       });
-      console.log('✅ RedisStore created (connecting in background...)');
+      console.log('✅ RedisStore created (will connect on first use)');
       
-      // Try to connect to Redis (non-blocking - don't wait for it)
-      redisClient.connect().then(() => {
-        console.log('✅ Redis connected - using Redis for session storage');
-      }).catch((err) => {
-        console.warn('⚠️  Redis connection failed, sessions will use MemoryStore:', err.message);
-        // Don't set sessionStore to undefined here - let it try to reconnect
+      // Try to connect to Redis in background (non-blocking)
+      redisClient.connect().catch((err) => {
+        console.warn('⚠️  Redis connection failed (will retry):', err.message);
       });
     } catch (storeError) {
       console.warn('⚠️  Failed to create RedisStore, using MemoryStore:', storeError.message);
