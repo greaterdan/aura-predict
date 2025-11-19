@@ -1056,9 +1056,15 @@ if (fs.existsSync(distPath)) {
 
   // Handle React Router - serve index.html for all non-API routes
   // This allows client-side routing to work
-  app.get('*', (req, res, next) => {
-    // Don't serve index.html for API routes
+  // Express 5.x doesn't support '*' pattern, so use a catch-all middleware
+  app.use((req, res, next) => {
+    // Don't serve index.html for API routes or health checks
     if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
+      return next();
+    }
+    
+    // Don't serve index.html for static assets (they're already handled by express.static)
+    if (req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
       return next();
     }
     
