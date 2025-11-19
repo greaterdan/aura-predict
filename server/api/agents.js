@@ -7,11 +7,19 @@
  */
 
 // Import TypeScript modules via bridge (uses tsx)
+// Load asynchronously to not block server startup
 let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAgentSummary, computeSummaryStats, calculateAllAgentStats;
+let agentsModuleLoading = false;
+let agentsModuleLoaded = false;
 
-try {
-  // Try to import via tsx bridge
-  const bridge = await import('./agents-bridge.mjs');
+// Load agents module asynchronously (non-blocking)
+(async () => {
+  if (agentsModuleLoading || agentsModuleLoaded) return;
+  agentsModuleLoading = true;
+  
+  try {
+    // Try to import via tsx bridge
+    const bridge = await import('./agents-bridge.mjs');
   
   // Validate all required exports exist and are functions
   if (typeof bridge.generateAgentTrades !== 'function') {
@@ -39,16 +47,17 @@ try {
   ALL_AGENT_IDS = bridge.ALL_AGENT_IDS;
   buildAgentSummary = bridge.buildAgentSummary;
   computeSummaryStats = bridge.computeSummaryStats;
-  calculateAllAgentStats = bridge.calculateAllAgentStats;
-  
-  console.log('[API] ✅ TypeScript modules loaded successfully');
-} catch (error) {
-  console.warn('[API] ⚠️ TypeScript modules not available. Using fallback.');
-  console.warn('[API] Error:', error.message);
-  console.warn('[API] Stack:', error.stack);
-  console.warn('[API] Make sure tsx is installed and server is run with: node --import tsx server/index.js');
-  
-  // Fallback: Return placeholder data until TS is compiled
+    calculateAllAgentStats = bridge.calculateAllAgentStats;
+    
+    agentsModuleLoaded = true;
+    console.log('[API] ✅ TypeScript modules loaded successfully');
+  } catch (error) {
+    console.warn('[API] ⚠️ TypeScript modules not available. Using fallback.');
+    console.warn('[API] Error:', error.message);
+    console.warn('[API] Stack:', error.stack);
+    console.warn('[API] Make sure tsx is installed and server is run with: node --import tsx server/index.js');
+    
+    // Fallback: Return placeholder data until TS is compiled
   const AGENT_PROFILES = {
     GROK_4: { id: 'GROK_4', displayName: 'GROK 4', avatar: '🔥' },
     GPT_5: { id: 'GPT_5', displayName: 'GPT-5', avatar: '✨' },
@@ -83,8 +92,12 @@ try {
     };
   }
   
-  ALL_AGENT_IDS = Object.keys(AGENT_PROFILES);
-}
+    ALL_AGENT_IDS = Object.keys(AGENT_PROFILES);
+    agentsModuleLoaded = true;
+  } finally {
+    agentsModuleLoading = false;
+  }
+})();
 
 /**
  * GET /api/agents/:agentId/trades
