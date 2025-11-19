@@ -1,108 +1,8 @@
-# Probly
+# Aura Predict - AI-Powered Prediction Market Terminal
 
-**AI-Powered Prediction Market Terminal**
-
-A professional prediction and trading platform built with modern web technologies, featuring AI-powered agents and real-time market analysis.
-
-## Overview
-
-Probly is a comprehensive trading and prediction platform that integrates multiple AI agents for market analysis and decision-making. The platform provides real-time market data, technical analysis, and automated trading capabilities with a focus on Solana-based prediction markets.
+Real-time AI-powered prediction market interface with live trading analytics and neural network visualizations.
 
 ## Features
-
-- **AI-Powered Agents**: Multiple AI agents (GPT, Claude, Grok, DeepSeek, Gemini) for market analysis and predictions
-- **Real-Time Market Data**: Live feed integration with Polymarket and other prediction market providers
-- **Technical Analysis**: Advanced charting and technical indicators
-- **Trading Dashboard**: Comprehensive trading interface with position management
-- **Custodial Wallet Integration**: Secure wallet management for Solana transactions
-- **Performance Tracking**: Real-time performance metrics and analytics
-- **Agent Builder**: Create and deploy custom AI trading agents with a user-friendly wizard interface
-
-## Technology Stack
-
-- **Frontend**: React 18 + TypeScript + Vite
-- **Styling**: Tailwind CSS + shadcn/ui components
-- **State Management**: TanStack Query (React Query)
-- **Routing**: React Router DOM
-- **Blockchain**: Solana Web3.js
-- **Charts**: Recharts
-- **Animations**: Framer Motion
-- **Backend**: Express.js + Node.js
-
-## Prerequisites
-
-- Node.js 18.x or higher
-- npm or yarn package manager
-
-## Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/greaterdan/aura-predict.git
-cd aura-predict
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-## Development
-
-Start the development server:
-```bash
-npm run dev
-```
-
-Start the backend server:
-```bash
-npm run server
-```
-
-Start both frontend and backend concurrently:
-```bash
-npm run dev:all
-```
-
-The application will be available at `http://localhost:3000` (frontend) and `http://localhost:3002` (backend).
-
-## Build
-
-Build for production:
-```bash
-npm run build
-```
-
-Build for development:
-```bash
-npm run build:dev
-```
-
-Preview production build:
-```bash
-npm run preview
-```
-
-## Project Structure
-
-```
-aura-predict/
-├── src/
-│   ├── components/     # React components
-│   │   ├── ui/         # shadcn/ui components
-│   │   └── ...         # Feature components
-│   ├── pages/          # Page components
-│   ├── hooks/          # Custom React hooks
-│   ├── lib/            # Utility libraries and API clients
-│   ├── types/          # TypeScript type definitions
-│   └── App.tsx         # Main application component
-├── public/             # Static assets
-├── server.js           # Express backend server
-├── package.json        # Project dependencies
-└── vite.config.ts      # Vite configuration
-```
-
-## Key Features
 
 ### AI Agent System
 - Multiple AI models for diverse trading strategies
@@ -126,13 +26,114 @@ aura-predict/
 - Risk management settings
 - Live testing and deployment
 
+## Tech Stack
+
+- **Frontend:** React + TypeScript + Vite
+- **Backend:** Express.js + Node.js
+- **UI:** shadcn/ui + Tailwind CSS
+- **Blockchain:** Solana Web3.js
+- **Deployment:** Railway
+
+## Development
+
+### Prerequisites
+- Node.js 18+
+- npm
+
+### Installation
+
+```bash
+npm install
+```
+
+### Run Development Server
+
+Start both frontend and backend:
+```bash
+npm run dev:all
+```
+
+Or separately:
+```bash
+# Terminal 1: Backend
+npm run server
+
+# Terminal 2: Frontend
+npm run dev
+```
+
+The application will be available at:
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3002`
+
+### Build
+
+Build for production:
+```bash
+npm run build
+```
+
+## Environment Variables
+
+### Backend (Railway/Server)
+
+Required:
+- `PORT` - Server port (auto-set by Railway)
+- `NODE_ENV` - Environment (production/development)
+
+Optional:
+- `ALLOWED_ORIGINS` - Comma-separated list of allowed CORS origins
+- `CSRF_SECRET` - Secret for CSRF token generation (recommended for production)
+- `NEWS_API_KEY` - NewsAPI.org API key
+- `NEWSDATA_API_KEY` - NewsData.io API key
+- `GNEWS_API_KEY` - GNews API key
+- `POLYMARKET_API_KEY` - Polymarket API key
+- `POLYMARKET_SECRET` - Polymarket API secret
+- `POLYMARKET_PASSPHRASE` - Polymarket API passphrase
+- `SMTP_HOST` - SMTP server host
+- `SMTP_PORT` - SMTP server port
+- `SMTP_USER` - SMTP username
+- `SMTP_PASS` - SMTP password
+- `NOTIFICATION_EMAIL` - Email for waitlist notifications
+
+### Frontend
+
+Optional:
+- `VITE_API_BASE_URL` - Custom API base URL (defaults to relative URLs in production)
+
+## Project Structure
+
+```
+aura-predict/
+├── src/
+│   ├── components/     # React components
+│   │   ├── ui/         # shadcn/ui components
+│   │   └── ...         # Feature components
+│   ├── pages/          # Page components
+│   ├── hooks/          # Custom React hooks
+│   ├── lib/            # Utility libraries and API clients
+│   └── types/          # TypeScript type definitions
+├── server/
+│   ├── services/       # Business logic services
+│   ├── utils/          # Utility functions
+│   └── index.js        # Express server
+├── public/             # Static assets
+└── dist/               # Production build output
+```
+
+## Security
+
+The application includes comprehensive security features:
+- CSRF protection
+- Rate limiting
+- Input validation
+- Security headers (Helmet.js)
+- CORS configuration
+- Error sanitization
+
 ## License
 
 This project is private and proprietary.
-
-## Contributing
-
-This is a private project. For access or questions, please contact the repository owner.
 
 ## Contact
 
@@ -141,3 +142,4 @@ For inquiries about Probly, please contact dev@probly.tech
 ---
 
 **Built for the prediction market community**
+
