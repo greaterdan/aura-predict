@@ -680,6 +680,14 @@ const Index = () => {
         onTogglePerformance={handleTogglePerformance}
         onToggleSummary={handleToggleSummary}
         onToggleNewsFeed={handleToggleNewsFeed}
+        onLogout={() => {
+          // Close waitlist panel when user logs out
+          if (showWaitlist) {
+            setShowWaitlist(false);
+            setIsSummaryOpen(false);
+            setRightPanelSize(0);
+          }
+        }}
         isPerformanceOpen={isPerformanceOpen}
         isSummaryOpen={isSummaryOpen}
         showNewsFeed={showNewsFeed}

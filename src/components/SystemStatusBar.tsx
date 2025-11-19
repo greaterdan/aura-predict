@@ -11,6 +11,7 @@ interface SystemStatusBarProps {
   onTogglePerformance?: () => void;
   onToggleSummary?: () => void;
   onToggleNewsFeed?: () => void;
+  onLogout?: () => void;
   isPerformanceOpen?: boolean;
   isSummaryOpen?: boolean;
   showNewsFeed?: boolean;
@@ -23,6 +24,7 @@ export const SystemStatusBar = ({
   showWaitlist, 
   onToggleSummary,
   onToggleNewsFeed,
+  onLogout,
   isPerformanceOpen = true,
   isSummaryOpen = true,
   showNewsFeed = false
@@ -156,6 +158,8 @@ export const SystemStatusBar = ({
     localStorage.removeItem('userEmail');
     // Note: We keep the wallet in localStorage (keyed by email) for persistence
     // To fully clear, call clearCustodialWallet()
+    // Notify parent component to close waitlist panel if open
+    onLogout?.();
   };
 
   return (
