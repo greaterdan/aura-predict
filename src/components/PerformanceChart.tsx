@@ -474,8 +474,8 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null }: 
                       fill: agent.color,
                       strokeWidth: 0,
                     }}
-                    isAnimationActive={true}
-                    animationDuration={300}
+                    isAnimationActive={false}
+                    animationDuration={0}
                   />
                 );
               })}

@@ -273,8 +273,8 @@ export async function fetchMarketPrices(tokenIds) {
     console.log(`Fetching prices for ${tokenIds.length} tokens using /price endpoint...`);
     
     // Fetch prices for each token (both BUY and SELL)
-    // Limit to first 100 tokens to avoid too many requests
-    const tokensToFetch = Array.from(new Set(tokenIds)).slice(0, 100);
+    // Increased limit to 300 tokens to support more markets and multi-outcome markets
+    const tokensToFetch = Array.from(new Set(tokenIds)).slice(0, 300);
     
     const pricePromises = [];
     for (const tokenId of tokensToFetch) {
