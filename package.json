@@ -15,7 +15,8 @@
     "stress-test:light": "node stress-test.js light",
     "stress-test:medium": "node stress-test.js medium",
     "stress-test:heavy": "node stress-test.js heavy",
-    "stress-test:extreme": "node stress-test.js extreme"
+    "stress-test:extreme": "node stress-test.js extreme",
+    "test:agents": "node test-agents-system.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
