@@ -124,7 +124,13 @@ export async function generateTradeForMarket(
         confidence = Math.max(confidence * 0.9, 0.4);
       }
     } catch (error) {
-      console.warn(`[AI] Failed to get AI decision for ${agent.id}, using fallback:`, error);
+      // Only log non-access-denied errors (access denied is expected if account not eligible)
+      const isAccessDenied = (error as any)?.isAccessDenied || 
+                            (error instanceof Error && error.message.includes('access denied'));
+      
+      if (!isAccessDenied) {
+        console.warn(`[AI] Failed to get AI decision for ${agent.id}, using fallback:`, error);
+      }
       // Fallback to deterministic
       side = getDeterministicSide(scored, seed);
       confidence = getDeterministicConfidence(scored, agent, seed);

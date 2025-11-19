@@ -337,6 +337,16 @@ async function callQwen(context: MarketContext): Promise<AITradeDecision> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+    
+    // Handle access denied errors gracefully (403 = account not eligible)
+    if (response.status === 403 && error.code === 'AccessDenied.Unpurchased') {
+      // This is an account eligibility issue, not a code error
+      // Throw a specific error that can be handled quietly
+      const accessError = new Error('Qwen API access denied - account not eligible');
+      (accessError as any).isAccessDenied = true;
+      throw accessError;
+    }
+    
     throw new Error(`Qwen API error: ${response.status} - ${JSON.stringify(error)}`);
   }
 
@@ -501,7 +511,13 @@ export async function getAITradeDecision(
     setCachedAIDecision(agentId, market.id, decision);
     return decision;
   } catch (error) {
-    console.error(`[AI] Failed to get AI decision for ${agentId}:`, error);
+    // Only log non-access-denied errors (access denied is expected if account not eligible)
+    const isAccessDenied = (error as any)?.isAccessDenied || 
+                            (error instanceof Error && error.message.includes('access denied'));
+    
+    if (!isAccessDenied) {
+      console.error(`[AI] Failed to get AI decision for ${agentId}:`, error);
+    }
     throw error;
   }
 }
