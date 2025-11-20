@@ -648,12 +648,11 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                     setSelectedAgentFilter(null);
                     setDropdownOpen(false);
                   }}
-                  className={`w-full px-3 py-2 text-left text-[11px] font-mono hover:bg-muted/50 transition-colors flex items-center gap-2 ${
+                  className={`w-full px-3 py-2 text-left text-[11px] font-mono hover:bg-muted/50 transition-colors ${
                     selectedAgentFilter === null ? 'bg-terminal-accent/10 text-terminal-accent' : 'text-foreground'
                   }`}
                 >
-                  <span className="w-4 h-4 rounded-full bg-terminal-accent/20 border border-terminal-accent/30 flex items-center justify-center text-[9px] font-bold text-terminal-accent">ALL</span>
-                  <span className="text-[10px] text-muted-foreground">All Agents</span>
+                  <span className="text-[10px]">All Agents</span>
                 </button>
                 {agents.map((agent) => (
                   <button

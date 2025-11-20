@@ -13,16 +13,16 @@
  */
 export async function searchWebForMarket(query) {
     try {
-        // Try SerpAPI first (if configured)
-        const serpApiKey = process.env.SERP_API_KEY;
-        if (serpApiKey) {
-            return await searchWithSerpAPI(query, serpApiKey);
-        }
-        // Try Google Custom Search API (if configured)
+        // Try Google Custom Search API first (cheaper, higher quota)
         const googleSearchApiKey = process.env.GOOGLE_SEARCH_API_KEY;
         const googleSearchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
         if (googleSearchApiKey && googleSearchEngineId) {
             return await searchWithGoogleCustomSearch(query, googleSearchApiKey, googleSearchEngineId);
+        }
+        // Try SerpAPI second (limited monthly quota)
+        const serpApiKey = process.env.SERP_API_KEY;
+        if (serpApiKey) {
+            return await searchWithSerpAPI(query, serpApiKey);
         }
         // Fallback: DuckDuckGo (no key required)
         const duckResults = await searchWithDuckDuckGo(query);

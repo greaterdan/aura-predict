@@ -507,30 +507,21 @@ const Index = () => {
       return;
     }
     
-    if (selectedAgent === agentId) {
-      // Clicking the same agent - close trades view
-      setSelectedAgent(null);
-      setShowAgentTrades(false);
-    } else {
-      // Clicking a different agent - show their trades
-      setSelectedAgent(agentId);
-      setShowAgentTrades(true);
-      // Close other views when showing agent trades
-      setShowWaitlist(false);
-      setShowWatchlist(false);
-      setShowNewsFeed(false);
-      // Ensure summary panel is open
-      if (!isSummaryOpen) {
-        setIsSummaryOpen(true);
-      }
-      
-      // Fetch trades for this agent
-      try {
-        const trades = await getAgentTrades(agentId);
-        setAgentTrades(prev => ({ ...prev, [agentId]: trades }));
-      } catch (error) {
-        console.error(`Failed to load trades for ${agentId}:`, error);
-      }
+    // Always keep trades panel open for tapped agent
+    setSelectedAgent(agentId);
+    setShowAgentTrades(true);
+    setShowWaitlist(false);
+    setShowWatchlist(false);
+    setShowNewsFeed(false);
+    if (!isSummaryOpen) {
+      setIsSummaryOpen(true);
+    }
+    
+    try {
+      const trades = await getAgentTrades(agentId);
+      setAgentTrades(prev => ({ ...prev, [agentId]: trades }));
+    } catch (error) {
+      console.error(`Failed to load trades for ${agentId}:`, error);
     }
   };
 
@@ -1356,23 +1347,30 @@ const Index = () => {
                 boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
               }}
             >
-              {selectedPrediction ? (
-                <MarketDetailsPanel
-                  market={selectedPrediction}
-                  onClose={handleCloseMarketDetails}
-                  onWatchlistChange={() => {
-                    setWatchlist(getWatchlist(userEmail));
-                  }}
-                  watchlist={watchlist}
-                  userEmail={userEmail}
-                />
-              ) : (
-              <PerformanceChart
-                predictions={predictions}
-                selectedMarketId={selectedNode}
-                selectedAgentId={selectedAgent} // Pass selected agent to update chart
-              />
-              )}
+              <div className="flex flex-col h-full">
+                <div className={`transition-all duration-300 ${selectedPrediction ? 'h-1/2' : 'h-full'}`}>
+                  <div className="h-full">
+                    <PerformanceChart
+                      predictions={predictions}
+                      selectedMarketId={selectedNode}
+                      selectedAgentId={selectedAgent} // Pass selected agent to update chart
+                    />
+                  </div>
+                </div>
+                {selectedPrediction && (
+                  <div className="flex-1 min-h-[250px] overflow-hidden border-t border-border bg-background/80 backdrop-blur-sm">
+                    <MarketDetailsPanel
+                      market={selectedPrediction}
+                      onClose={handleCloseMarketDetails}
+                      onWatchlistChange={() => {
+                        setWatchlist(getWatchlist(userEmail));
+                      }}
+                      watchlist={watchlist}
+                      userEmail={userEmail}
+                    />
+                  </div>
+                )}
+              </div>
             </ResizablePanel>
             <ResizableHandle withHandle style={{ pointerEvents: 'auto', zIndex: 50 }} />
             <ResizablePanel defaultSize={100 - leftPanelSize} minSize={70} maxSize={85} style={{ pointerEvents: 'none' }} />

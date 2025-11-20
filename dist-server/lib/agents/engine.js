@@ -35,10 +35,31 @@ export function getDeterministicSide(scored, seed) {
  * Get deterministic confidence based on score and risk
  */
 export function getDeterministicConfidence(scored, agent, seed) {
-    const baseConfidence = scored.score / 100;
-    const riskMultiplier = agent.risk === 'HIGH' ? 1.1 : agent.risk === 'LOW' ? 0.9 : 1.0;
-    const jitter = (deterministicNumber(seed + 'jitter') - 0.5) * 0.1; // ±5% jitter
-    return Math.max(0.4, Math.min(0.95, baseConfidence * riskMultiplier + jitter));
+    const scoreNormalized = Math.min(1, scored.score / 15);
+    const probabilityEdge = Math.min(1, Math.abs(scored.currentProbability - 0.5) * 2);
+    const volumeNormalized = Math.min(1, Math.log10((scored.volumeUsd || 1) + 10) / 5);
+    const liquidityNormalized = Math.min(1, Math.log10((scored.liquidityUsd || 1) + 10) / 5);
+    const newsScore = scored.components?.newsScore ?? 0;
+    const newsNormalized = Math.min(1, newsScore / 15);
+    const momentumNormalized = Math.min(1, Math.abs(scored.priceChange24h || 0) * 12);
+    const focusBoost = scored.category && agent.focusCategories.includes(scored.category) ? 0.04 : 0;
+    let baseConfidence = 0.25 +
+        0.35 * Math.pow(scoreNormalized, 0.9) +
+        0.18 * probabilityEdge +
+        0.10 * volumeNormalized +
+        0.08 * liquidityNormalized +
+        0.06 * newsNormalized +
+        0.05 * momentumNormalized +
+        focusBoost;
+    if (agent.risk === 'HIGH') {
+        baseConfidence += 0.04;
+    }
+    else if (agent.risk === 'LOW') {
+        baseConfidence -= 0.03;
+    }
+    const jitter = (deterministicNumber(seed + 'jitter') - 0.5) * 0.12; // ±6%
+    const confidence = baseConfidence + jitter;
+    return Math.max(0.32, Math.min(0.97, confidence));
 }
 function resolveSourceName(source, url) {
     if (source && source.trim().length > 0) {

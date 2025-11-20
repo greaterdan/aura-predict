@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useEffect, useState, MouseEvent } from "react";
 import { X, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,9 +23,9 @@ interface Trade {
     source: string;
   }>;
   pnl?: number;
-  investmentUsd?: number; // Amount invested in this trade
+  investmentUsd?: number;
   status: "OPEN" | "CLOSED" | "PENDING";
-  predictionId?: string; // Link to actual prediction ID for accurate matching
+  predictionId?: string;
 }
 
 interface AgentTradesPanelProps {
@@ -62,10 +63,157 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
   const openTrades = sortedTrades.filter(t => t.status === "OPEN");
   const closedTrades = sortedTrades.filter(t => t.status === "CLOSED");
   const totalPnl = closedTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
+  const [expandedTradeId, setExpandedTradeId] = useState<string | null>(trades[0]?.id ?? null);
+
+  useEffect(() => {
+    if (trades.length === 0) {
+      setExpandedTradeId(null);
+      return;
+    }
+    setExpandedTradeId(prev => {
+      if (!prev || !trades.some(t => t.id === prev)) {
+        return trades[0].id;
+      }
+      return prev;
+    });
+  }, [trades]);
+
+  const handleTradeSelect = (trade: Trade, event?: MouseEvent) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (onTradeClick) {
+      onTradeClick(trade.market, trade.predictionId);
+    }
+  };
+
+  const renderTradeCard = (trade: Trade, section: "OPEN" | "CLOSED") => {
+    const isExpanded = expandedTradeId === trade.id;
+    const decisionPill = (
+      <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+        trade.decision === "YES"
+          ? "bg-trade-yes/15 text-trade-yes border border-trade-yes/30"
+          : "bg-trade-no/15 text-trade-no border border-trade-no/30"
+      }`}>
+        {trade.decision === "YES" ? (
+          <TrendingUp className="w-2.5 h-2.5" />
+        ) : (
+          <TrendingDown className="w-2.5 h-2.5" />
+        )}
+        {trade.decision}
+      </div>
+    );
+
+    return (
+      <motion.div
+        key={trade.id}
+        layout
+        onClick={() => setExpandedTradeId(prev => prev === trade.id ? null : trade.id)}
+        className={`border rounded-2xl px-3 py-2.5 transition-all cursor-pointer ${
+          isExpanded
+            ? "border-terminal-accent/40 bg-bg-elevated shadow-glow"
+            : "border-border bg-bg-card/80 hover:border-terminal-accent/40"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] text-muted-foreground font-mono uppercase tracking-[0.08em]" style={{ fontWeight: 600 }}>
+              {section === "OPEN" ? "Open Position" : "Closed Position"}
+            </div>
+            <div className="text-[13px] font-mono text-foreground truncate" style={{ fontWeight: 600 }}>
+              {trade.market}
+            </div>
+          </div>
+          <div className="text-[10px] text-muted-foreground font-mono flex-shrink-0">
+            {formatTimeAgo(trade.timestamp)}
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {decisionPill}
+          <div className="px-2 py-0.5 rounded-full text-[10px] font-mono border border-border bg-muted/40">
+            {trade.confidence}% CONF
+          </div>
+          {section === "CLOSED" && trade.pnl !== undefined && (
+            <div className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+              trade.pnl >= 0
+                ? "bg-trade-yes/15 text-trade-yes border border-trade-yes/30"
+                : "bg-trade-no/15 text-trade-no border border-trade-no/30"
+            }`}>
+              {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(4)} SOL
+            </div>
+          )}
+          {trade.investmentUsd !== undefined && trade.investmentUsd > 0 && (
+            <div className="px-2 py-0.5 rounded-full text-[10px] font-mono border border-border text-muted-foreground">
+              ${trade.investmentUsd.toFixed(0)}
+            </div>
+          )}
+          {trade.entryProbability !== undefined && section === "OPEN" && (
+            <div className="px-2 py-0.5 rounded-full text-[10px] font-mono border border-border text-muted-foreground">
+              Entry {Math.round((trade.entryProbability || 0) * 100)}%
+            </div>
+          )}
+        </div>
+
+        {isExpanded && (
+          <div className="mt-3 space-y-2">
+            {trade.summaryDecision && (
+              <div className="text-[12px] text-foreground leading-relaxed font-mono" style={{ fontWeight: 500 }}>
+                {trade.summaryDecision}
+              </div>
+            )}
+            {trade.reasoningBullets && trade.reasoningBullets.length > 0 ? (
+              <ul className="text-[12px] text-text-secondary leading-relaxed space-y-1 pl-4 list-disc">
+                {trade.reasoningBullets.map((reason, idx) => (
+                  <li key={`${trade.id}-reason-${idx}`}>{reason}</li>
+                ))}
+              </ul>
+            ) : trade.reasoning ? (
+              <div className="text-[12px] text-text-secondary leading-relaxed">
+                {trade.reasoning}
+              </div>
+            ) : null}
+            {trade.webResearchSummary && trade.webResearchSummary.length > 0 && (
+              <div className="text-[11px] text-muted-foreground font-mono border border-terminal-accent/30 rounded-lg p-2 bg-terminal-accent/5">
+                <div className="uppercase tracking-[0.1em] mb-1 text-terminal-accent">Web Research</div>
+                {trade.webResearchSummary.slice(0, 2).map((source, idx) => (
+                  <div key={`${trade.id}-web-${idx}`} className="text-[11px] text-foreground mb-1">
+                    <span className="font-semibold text-terminal-accent">{source.source}:</span> {source.snippet || source.title}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                onClick={(event) => handleTradeSelect(trade, event)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-lg border border-terminal-accent/40 text-terminal-accent hover:bg-terminal-accent/10 transition-colors"
+              >
+                View Decision →
+              </button>
+              {(trade.marketSlug || trade.conditionId) && (
+                <a
+                  href={
+                    trade.marketSlug
+                      ? `https://polymarket.com/event/${trade.marketSlug}`
+                      : `https://polymarket.com/condition/${trade.conditionId}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-terminal-accent/10 text-terminal-accent rounded hover:bg-terminal-accent/20 transition-colors text-[11px] font-mono"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View Market
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    );
+  };
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
-      {/* Header */}
       <div className="h-12 px-4 border-b border-border flex items-center justify-between bg-bg-elevated flex-shrink-0">
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <img
@@ -95,7 +243,6 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
         </Button>
       </div>
 
-      {/* Stats Bar */}
       <div className="px-4 py-2.5 border-b border-border bg-bg-elevated flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
@@ -108,7 +255,7 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
           <div className="flex flex-col">
             <span className="text-[10px] text-muted-foreground font-mono uppercase">Win Rate</span>
             <span className="text-[14px] font-mono text-terminal-accent" style={{ fontWeight: 600 }}>
-              {closedTrades.length > 0 
+              {closedTrades.length > 0
                 ? `${Math.round((closedTrades.filter(t => (t.pnl || 0) > 0).length / closedTrades.length) * 100)}%`
                 : 'N/A'}
             </span>
@@ -116,239 +263,24 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
         </div>
       </div>
 
-      {/* Trades List */}
       <div className="flex-1 overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        <div className="p-3 space-y-2.5">
-          {/* Open Trades */}
+        <div className="p-3 space-y-3">
           {openTrades.length > 0 && (
-            <>
-              <div className="text-[11px] text-muted-foreground font-mono uppercase mb-2 px-1" style={{ fontWeight: 600 }}>
+            <div className="space-y-2">
+              <div className="text-[11px] text-muted-foreground font-mono uppercase px-1" style={{ fontWeight: 600 }}>
                 Open Positions ({openTrades.length})
               </div>
-              {openTrades.map((trade, index) => (
-                <motion.div
-                  key={trade.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-bg-elevated border border-terminal-accent/30 rounded-xl p-3 hover:border-terminal-accent/50 transition-colors cursor-pointer"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('[AgentTradesPanel] Trade clicked:', {
-                      market: trade.market,
-                      predictionId: trade.predictionId,
-                      tradeId: trade.id,
-                      hasOnTradeClick: !!onTradeClick
-                    });
-                    if (onTradeClick && trade.predictionId) {
-                      onTradeClick(trade.market, trade.predictionId);
-                    } else {
-                      console.warn('[AgentTradesPanel] Cannot click - missing predictionId or onTradeClick handler');
-                    }
-                  }}
-                  style={{ pointerEvents: 'auto' }}
-                >
-                  <div className="flex items-start justify-between mb-2" style={{ pointerEvents: 'none' }}>
-                    <div className="flex-1 min-w-0" style={{ pointerEvents: 'none' }}>
-                      <div className="text-[13px] font-mono text-foreground mb-1" style={{ fontWeight: 600, pointerEvents: 'none' }}>
-                        {trade.market}
-                      </div>
-                      <div className="flex items-center gap-2 mb-2" style={{ pointerEvents: 'none' }}>
-                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold ${
-                          trade.decision === "YES"
-                            ? "bg-trade-yes/20 text-trade-yes border border-trade-yes/30"
-                            : "bg-trade-no/20 text-trade-no border border-trade-no/30"
-                        }`} style={{ pointerEvents: 'none' }}>
-                          {trade.decision === "YES" ? (
-                            <TrendingUp className="w-2.5 h-2.5" />
-                          ) : (
-                            <TrendingDown className="w-2.5 h-2.5" />
-                          )}
-                          {trade.decision}
-                        </div>
-                        <div className="px-2 py-0.5 rounded-lg text-[11px] font-mono bg-terminal-accent/20 text-terminal-accent border border-terminal-accent/30" style={{ pointerEvents: 'none' }}>
-                          {trade.confidence}% CONF
-                        </div>
-                        {trade.investmentUsd !== undefined && trade.investmentUsd > 0 && (
-                          <div className="px-2 py-0.5 rounded-lg text-[11px] font-mono bg-muted text-foreground border border-border" style={{ pointerEvents: 'none' }}>
-                            ${trade.investmentUsd.toFixed(0)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground font-mono flex-shrink-0 ml-2" style={{ pointerEvents: 'none' }}>
-                      {formatTimeAgo(trade.timestamp)}
-                    </div>
-                  </div>
-                  {trade.summaryDecision && (
-                    <div className="text-[12px] text-foreground leading-relaxed mb-2 font-mono" style={{ fontWeight: 500, pointerEvents: 'none' }}>
-                      {trade.summaryDecision}
-                    </div>
-                  )}
-                  {trade.reasoningBullets && trade.reasoningBullets.length > 0 ? (
-                    <ul className="text-[12px] text-text-secondary leading-relaxed mb-2 space-y-1 pl-4 list-disc" style={{ pointerEvents: 'none' }}>
-                      {trade.reasoningBullets.map((reason, idx) => (
-                        <li key={`${trade.id}-open-reason-${idx}`}>{reason}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-[12px] text-text-secondary leading-relaxed mb-2" style={{ fontWeight: 400, pointerEvents: 'none' }}>
-                      {trade.reasoning}
-                    </div>
-                  )}
-                  {trade.webResearchSummary && trade.webResearchSummary.length > 0 && (
-                    <div className="text-[11px] text-muted-foreground font-mono border border-terminal-accent/30 rounded-lg p-2 mb-2 bg-terminal-accent/5" style={{ pointerEvents: 'none' }}>
-                      <div className="uppercase tracking-[0.1em] mb-1 text-terminal-accent">Web Research</div>
-                      {trade.webResearchSummary.slice(0, 2).map((source, idx) => (
-                        <div key={`${trade.id}-web-${idx}`} className="text-[11px] text-foreground mb-1">
-                          <span className="font-semibold text-terminal-accent">{source.source}:</span> {source.snippet || source.title}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2" style={{ pointerEvents: 'auto' }}>
-                    {(trade.marketSlug || trade.conditionId) && (
-                      <a
-                        href={
-                          trade.marketSlug
-                            ? `https://polymarket.com/event/${trade.marketSlug}`
-                            : `https://polymarket.com/condition/${trade.conditionId}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-terminal-accent/10 text-terminal-accent rounded hover:bg-terminal-accent/20 transition-colors text-[11px] font-mono"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        View Market
-                      </a>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </>
+              {openTrades.map(trade => renderTradeCard(trade, "OPEN"))}
+            </div>
           )}
 
-          {/* Closed Trades */}
           {closedTrades.length > 0 && (
-            <>
-              <div className="text-[11px] text-muted-foreground font-mono uppercase mb-2 px-1 mt-4" style={{ fontWeight: 600 }}>
+            <div className="space-y-2">
+              <div className="text-[11px] text-muted-foreground font-mono uppercase px-1 mt-1" style={{ fontWeight: 600 }}>
                 Closed Positions ({closedTrades.length})
               </div>
-              {closedTrades.map((trade, index) => (
-                <motion.div
-                  key={trade.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: (openTrades.length + index) * 0.05 }}
-                  className="bg-bg-elevated border border-border rounded-xl p-3 hover:border-terminal-accent/50 transition-colors cursor-pointer"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('[AgentTradesPanel] Closed trade clicked:', {
-                      market: trade.market,
-                      predictionId: trade.predictionId,
-                      tradeId: trade.id,
-                      hasOnTradeClick: !!onTradeClick
-                    });
-                    // Use predictionId if available, otherwise try to find by market name
-                    if (onTradeClick && trade.predictionId) {
-                      onTradeClick(trade.market, trade.predictionId);
-                    } else {
-                      console.warn('[AgentTradesPanel] Cannot click closed trade - missing predictionId or onTradeClick handler');
-                      if (onTradeClick) {
-                        onTradeClick(trade.market, undefined);
-                      }
-                    }
-                  }}
-                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-                >
-                  <div className="flex items-start justify-between mb-2" style={{ pointerEvents: 'none' }}>
-                    <div className="flex-1 min-w-0" style={{ pointerEvents: 'none' }}>
-                      <div className="text-[13px] font-mono text-foreground mb-1" style={{ fontWeight: 600, pointerEvents: 'none' }}>
-                        {trade.market}
-                      </div>
-                      <div className="flex items-center gap-2 mb-2" style={{ pointerEvents: 'none' }}>
-                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold ${
-                          trade.decision === "YES"
-                            ? "bg-trade-yes/20 text-trade-yes border border-trade-yes/30"
-                            : "bg-trade-no/20 text-trade-no border border-trade-no/30"
-                        }`} style={{ pointerEvents: 'none' }}>
-                          {trade.decision === "YES" ? (
-                            <TrendingUp className="w-2.5 h-2.5" />
-                          ) : (
-                            <TrendingDown className="w-2.5 h-2.5" />
-                          )}
-                          {trade.decision}
-                        </div>
-                        {trade.pnl !== undefined && (
-                          <div className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold ${
-                            trade.pnl >= 0
-                              ? "bg-trade-yes/20 text-trade-yes border border-trade-yes/30"
-                              : "bg-trade-no/20 text-trade-no border border-trade-no/30"
-                          }`} style={{ pointerEvents: 'none' }}>
-                            {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(4)} SOL
-                          </div>
-                        )}
-                        {trade.investmentUsd !== undefined && trade.investmentUsd > 0 && (
-                          <div className="px-2 py-0.5 rounded-lg text-[11px] font-mono bg-muted text-foreground border border-border" style={{ pointerEvents: 'none' }}>
-                            ${trade.investmentUsd.toFixed(0)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground font-mono flex-shrink-0 ml-2" style={{ pointerEvents: 'none' }}>
-                      {formatTimeAgo(trade.timestamp)}
-                    </div>
-                  </div>
-                  {trade.summaryDecision && (
-                    <div className="text-[12px] text-foreground leading-relaxed mb-2 font-mono" style={{ fontWeight: 500, pointerEvents: 'none' }}>
-                      {trade.summaryDecision}
-                    </div>
-                  )}
-                  {trade.reasoningBullets && trade.reasoningBullets.length > 0 ? (
-                    <ul className="text-[12px] text-text-secondary leading-relaxed mb-2 space-y-1 pl-4 list-disc" style={{ pointerEvents: 'none' }}>
-                      {trade.reasoningBullets.map((reason, idx) => (
-                        <li key={`${trade.id}-closed-reason-${idx}`}>{reason}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-[12px] text-text-secondary leading-relaxed mb-2" style={{ fontWeight: 400, pointerEvents: 'none' }}>
-                      {trade.reasoning}
-                    </div>
-                  )}
-                  {trade.webResearchSummary && trade.webResearchSummary.length > 0 && (
-                    <div className="text-[11px] text-muted-foreground font-mono border border-terminal-accent/30 rounded-lg p-2 mb-2 bg-terminal-accent/5" style={{ pointerEvents: 'none' }}>
-                      <div className="uppercase tracking-[0.1em] mb-1 text-terminal-accent">Web Research</div>
-                      {trade.webResearchSummary.slice(0, 2).map((source, idx) => (
-                        <div key={`${trade.id}-closed-web-${idx}`} className="text-[11px] text-foreground mb-1">
-                          <span className="font-semibold text-terminal-accent">{source.source}:</span> {source.snippet || source.title}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2" style={{ pointerEvents: 'auto' }}>
-                    {(trade.marketSlug || trade.conditionId) && (
-                      <a
-                        href={
-                          trade.marketSlug
-                            ? `https://polymarket.com/event/${trade.marketSlug}`
-                            : `https://polymarket.com/condition/${trade.conditionId}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-terminal-accent/10 text-terminal-accent rounded hover:bg-terminal-accent/20 transition-colors text-[11px] font-mono"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        View Market
-                      </a>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </>
+              {closedTrades.map(trade => renderTradeCard(trade, "CLOSED"))}
+            </div>
           )}
 
           {trades.length === 0 && (
