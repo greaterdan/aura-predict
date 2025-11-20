@@ -1,44 +1,43 @@
 /**
- * Bridge to load TypeScript agent trading modules
- * Uses tsx to dynamically import TypeScript files
+ * Bridge to load agent trading modules
  * 
- * NOTE: This requires the server to be run with: node --import tsx server/index.js
- * Or use tsx directly: tsx server/index.js
+ * PRODUCTION (Railway): Loads compiled JavaScript from dist-server/
+ * DEVELOPMENT: Falls back to TypeScript with tsx if compiled JS not found
  */
 
-// CRITICAL: Register tsx BEFORE any TypeScript imports
-// This MUST happen synchronously at module load time
-let tsxRegistered = false;
-try {
-  // Method 1: Try tsx/esm/api register (for tsx v4+)
-  const tsxApi = await import('tsx/esm/api').catch(() => null);
-  if (tsxApi?.register) {
-    tsxApi.register();
-    tsxRegistered = true;
-    console.log('[API] ✅ tsx/esm/api registered');
-  }
-} catch (e) {
-  // Continue to next method
-}
+// Detect environment - Railway sets NODE_ENV=production
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
 
-// If Method 1 failed, try Method 2: Use createRequire
-if (!tsxRegistered) {
+if (isProduction) {
+  console.log('[API] 🚀 Production mode: Only loading compiled JavaScript');
+} else {
+  console.log('[API] 🔧 Development mode: May use TypeScript fallback');
+  
+  // CRITICAL: Only register tsx in development
+  // In production, we MUST use compiled JS
+  let tsxRegistered = false;
   try {
-    const { createRequire } = await import('module');
-    const require = createRequire(import.meta.url);
-    require('tsx/esm/api');
-    tsxRegistered = true;
-    console.log('[API] ✅ tsx registered via require');
+    const tsxApi = await import('tsx/esm/api').catch(() => null);
+    if (tsxApi?.register) {
+      tsxApi.register();
+      tsxRegistered = true;
+      console.log('[API] ✅ tsx/esm/api registered (development)');
+    }
   } catch (e) {
-    console.warn('[API] ⚠️ tsx require failed:', e.message);
+    // Continue
   }
-}
-
-// If still not registered, log warning but continue
-// The --import tsx flag should handle it
-if (!tsxRegistered) {
-  console.warn('[API] ⚠️ tsx not registered in bridge - relying on --import tsx flag');
-  console.warn('[API] ⚠️ If you see "Unexpected token" errors, ensure server starts with: node --import tsx server/index.js');
+  
+  if (!tsxRegistered) {
+    try {
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      require('tsx/esm/api');
+      tsxRegistered = true;
+      console.log('[API] ✅ tsx registered via require (development)');
+    } catch (e) {
+      console.warn('[API] ⚠️ tsx require failed:', e.message);
+    }
+  }
 }
 
 let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAgentSummary, computeSummaryStats, calculateAllAgentStats, getCachedTradesQuick, getAgentResearch;
@@ -58,16 +57,19 @@ try {
   // Railway must have compiled JS files from build:server
   let agentsModule;
   
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction) {
     // PRODUCTION: Only try compiled JS, fail fast if not found
+    // NEVER try TypeScript in production - Node.js can't parse it
     try {
       agentsModule = await import('../../dist-server/lib/agents/generator.js');
       console.log('[API] ✅ Loaded generator from compiled JS (production)');
     } catch (jsError) {
       console.error('[API] ❌ CRITICAL: Compiled JS not found in production!');
       console.error('[API] ❌ Error:', jsError.message);
+      console.error('[API] ❌ Path attempted: ../../dist-server/lib/agents/generator.js');
       console.error('[API] ❌ This means "npm run build:server" did not run during Railway build');
-      throw new Error('CRITICAL: Compiled JS not found. Railway build must include "npm run build:server"');
+      console.error('[API] ❌ Check Railway build logs for TypeScript compilation errors');
+      throw new Error('CRITICAL: Compiled JS not found. Railway build must include "npm run build:server". Check build logs.');
     }
   } else {
     // DEVELOPMENT: Try compiled JS first, fallback to TS with tsx
@@ -91,8 +93,8 @@ try {
   let domainModule, summaryModule, statsModule, cacheModule;
   
   const loadModule = async (modulePath, moduleName) => {
-    if (process.env.NODE_ENV === 'production') {
-      // PRODUCTION: Only compiled JS
+    if (isProduction) {
+      // PRODUCTION: Only compiled JS - NEVER TypeScript
       const jsPath = `../../dist-server/lib/agents/${modulePath}.js`;
       try {
         const module = await import(jsPath);
@@ -100,7 +102,9 @@ try {
         return module;
       } catch (jsError) {
         console.error(`[API] ❌ CRITICAL: Compiled ${moduleName} not found in production!`);
-        throw new Error(`CRITICAL: Compiled ${moduleName} not found. Railway build must include "npm run build:server"`);
+        console.error(`[API] ❌ Path attempted: ${jsPath}`);
+        console.error(`[API] ❌ Error: ${jsError.message}`);
+        throw new Error(`CRITICAL: Compiled ${moduleName} not found. Railway build must include "npm run build:server". Check build logs.`);
       }
     } else {
       // DEVELOPMENT: Try JS first, fallback to TS
