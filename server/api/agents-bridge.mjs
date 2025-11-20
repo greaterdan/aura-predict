@@ -60,15 +60,29 @@ try {
   if (isProduction) {
     // PRODUCTION: Only try compiled JS, fail fast if not found
     // NEVER try TypeScript in production - Node.js can't parse it
+    // Use path.resolve to ensure we're looking in the right place
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const jsPath = path.resolve(__dirname, '../../dist-server/lib/agents/generator.js');
+    
+    console.log('[API] 🔍 Production mode - attempting to load compiled JS');
+    console.log('[API] 🔍 Resolved path:', jsPath);
+    
     try {
+      // Try relative path first (works in most cases)
       agentsModule = await import('../../dist-server/lib/agents/generator.js');
       console.log('[API] ✅ Loaded generator from compiled JS (production)');
     } catch (jsError) {
       console.error('[API] ❌ CRITICAL: Compiled JS not found in production!');
       console.error('[API] ❌ Error:', jsError.message);
-      console.error('[API] ❌ Path attempted: ../../dist-server/lib/agents/generator.js');
+      console.error('[API] ❌ Code:', jsError.code);
+      console.error('[API] ❌ Relative path attempted: ../../dist-server/lib/agents/generator.js');
+      console.error('[API] ❌ Absolute path would be:', jsPath);
       console.error('[API] ❌ This means "npm run build:server" did not run during Railway build');
       console.error('[API] ❌ Check Railway build logs for TypeScript compilation errors');
+      console.error('[API] ❌ DO NOT attempt to load TypeScript - this will cause "Unexpected token" error');
       throw new Error('CRITICAL: Compiled JS not found. Railway build must include "npm run build:server". Check build logs.');
     }
   } else {
