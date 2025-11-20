@@ -77,10 +77,12 @@ export async function generateResearchForMarket(
       
       // Add web search results as "articles" for AI analysis
       if (webSearchResults.length > 0) {
-        const webArticles = webSearchResults.map(result => ({
+        const webArticles: NewsArticle[] = webSearchResults.map((result, idx) => ({
+          id: `web-search-${Date.now()}-${idx}`,
           title: result.title,
           description: result.snippet,
           content: result.snippet,
+          source: result.source || 'web-search',
           publishedAt: new Date().toISOString(),
           url: result.url,
           sourceApi: 'web-search',
