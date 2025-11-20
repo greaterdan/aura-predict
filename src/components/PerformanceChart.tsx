@@ -317,21 +317,35 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
   const [zoomLevel, setZoomLevel] = useState(1); // 1 = normal, >1 = zoomed in, <1 = zoomed out
   
   // PERSISTENT chart data - use ref to maintain across unmounts, state for rendering
+  // CRITICAL: Use module-level ref to persist across ALL component instances
   const chartDataRef = useRef<ChartDataPoint[]>(getInitialChartData());
   const [chartData, setChartData] = useState<ChartDataPoint[]>(() => {
     // Initialize from ref if available, otherwise use initial data
-    return chartDataRef.current.length > 0 ? [...chartDataRef.current] : getInitialChartData();
+    const refData = chartDataRef.current;
+    if (refData.length > 0 && refData[0].DEEPSEEK !== STARTING_CAPITAL) {
+      // We have real data, use it
+      return [...refData];
+    }
+    return getInitialChartData();
   });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    // Only show loading if we don't have real data
+    return chartDataRef.current.length === 0 || chartDataRef.current[0].DEEPSEEK === STARTING_CAPITAL;
+  });
   const lastAgentPnlRef = useRef<Map<string, number>>(new Map());
   const animationDisabled = true;
   
   // CRITICAL: Restore chart data from ref whenever component mounts or becomes visible
   // This ensures data persists even if component was unmounted
   useEffect(() => {
-    if (chartDataRef.current.length > 0 && chartData.length === 0) {
-      console.log('[Chart] Restoring chart data from ref:', chartDataRef.current.length, 'points');
-      setChartData([...chartDataRef.current]);
+    const refData = chartDataRef.current;
+    // Only restore if we have real data (not just initial data)
+    if (refData.length > 0 && refData[0].DEEPSEEK !== STARTING_CAPITAL) {
+      if (chartData.length === 0 || chartData[0].DEEPSEEK === STARTING_CAPITAL) {
+        console.log('[Chart] Restoring chart data from ref:', refData.length, 'points');
+        setChartData([...refData]);
+        setIsLoading(false);
+      }
     }
   }, [chartData.length]);
   
