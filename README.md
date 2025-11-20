@@ -1,4 +1,4 @@
-# Probly - AI-Powered Prediction Market Terminal
+# MIRA - AI-Powered Prediction Market Terminal
 
 Real-time AI-powered prediction market interface with live trading analytics and neural network visualizations.
 
@@ -91,7 +91,7 @@ Optional:
 - `SESSION_SECRET` - Secret for session management (required for Google OAuth, recommended for production)
 - `GOOGLE_CLIENT_ID` - Google OAuth Client ID (required for Google login)
 - `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret (required for Google login)
-- `GOOGLE_CALLBACK_URL` - Google OAuth callback URL (defaults to `https://probly.tech/api/auth/google/callback` in production)
+- `GOOGLE_CALLBACK_URL` - Google OAuth callback URL (defaults to `https://mira.tech/api/auth/google/callback` in production)
 - `NEWS_API_KEY` - NewsAPI.org API key
 - `NEWSDATA_API_KEY` - NewsData.io API key
 - `GNEWS_API_KEY` - GNews API key
@@ -140,7 +140,7 @@ To enable Google login:
    - Go to "Credentials" → "Create Credentials" → "OAuth client ID"
    - Choose "Web application"
    - Add authorized redirect URIs:
-     - Production: `https://probly.tech/api/auth/google/callback`
+     - Production: `https://mira.tech/api/auth/google/callback`
      - Development: `http://localhost:3002/api/auth/google/callback`
 
 2. **Set Environment Variables:**
@@ -172,7 +172,7 @@ This project is private and proprietary.
 
 ## Contact
 
-For inquiries about Probly, please contact dev@probly.tech
+For inquiries about MIRA, please contact dev@mira.tech
 
 ---
 

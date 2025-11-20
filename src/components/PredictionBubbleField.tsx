@@ -1048,7 +1048,7 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
               animationIterationCount: isDragging ? 0 : 'infinite',
               animationDelay: isDragging ? '0s' : `${(bubble.index % 30) * 0.15}s`, // Staggered delays for natural effect
               cursor: isDragging ? 'grabbing' : 'grab',
-              zIndex: isDragging ? 1000 : isHighlighted ? 100 : 1,
+              zIndex: isDragging ? 1000 : isHighlighted ? 200 : 50,
               transition: isDragging && bubble.id === draggedBubbleId
                 ? 'none' // NO transition when dragging - instant response
                 : bubblePositions[bubble.id] && bubble.id !== draggedBubbleId

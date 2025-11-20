@@ -162,7 +162,7 @@ app.get('/api/csrf-token', (req, res) => {
 // Security: CORS - restrict to specific origins instead of wildcard
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174', 'https://probly.tech']; // Default for development
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174', 'https://mira.tech']; // Default for development
 
 // CORS configuration - allow healthcheck without origin check
 // CRITICAL: When credentials are included, we MUST return the specific origin, not '*'
@@ -298,7 +298,7 @@ if (redisUrl) {
       // connect-redis v7.x: RedisStore is a class, instantiate it directly
       sessionStore = new RedisStoreClass({
         client: redisClient,
-        prefix: 'probly:sess:',
+        prefix: 'mira:sess:',
       });
       console.log('✅ RedisStore created (will connect on first use)');
       
@@ -353,8 +353,8 @@ app.use(passport.session());
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 // Determine callback URL - use environment variable if set, otherwise construct from current request
-// In production, default to probly.tech, but allow override for Railway deployments
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || (isProduction ? 'https://probly.tech/api/auth/google/callback' : 'http://localhost:3002/api/auth/google/callback');
+// In production, default to mira.tech, but allow override for Railway deployments
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || (isProduction ? 'https://mira.tech/api/auth/google/callback' : 'http://localhost:3002/api/auth/google/callback');
 
 // Log the callback URL for debugging
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
@@ -1936,8 +1936,8 @@ app.post('/api/waitlist', waitlistLimiter, (req, res, next) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Send email notification to dev@probly.tech
-    const notificationEmail = process.env.NOTIFICATION_EMAIL || 'dev@probly.tech';
+    // Send email notification to dev@mira.tech
+    const notificationEmail = process.env.NOTIFICATION_EMAIL || 'dev@mira.tech';
     
     // SECURITY: Sanitize email for HTML output to prevent injection
     // Escape HTML special characters
@@ -1962,7 +1962,7 @@ app.post('/api/waitlist', waitlistLimiter, (req, res, next) => {
         <p><strong>Email:</strong> ${safeEmail}</p>
         <p><strong>Timestamp:</strong> ${timestamp}</p>
         <hr style="border: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #666; font-size: 12px;">This is an automated notification from the Probly waitlist system.</p>
+        <p style="color: #666; font-size: 12px;">This is an automated notification from the MIRA waitlist system.</p>
       </div>
     `;
     const textMessage = `

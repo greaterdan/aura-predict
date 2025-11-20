@@ -6,9 +6,9 @@ import { PredictionNodeData } from "@/components/PredictionNode";
 function getWatchlistKey(userEmail?: string): string {
   if (!userEmail) {
     // Fallback to global key if no email (shouldn't happen when logged in)
-    return 'probly_watchlist';
+    return 'mira_watchlist';
   }
-  return `probly_watchlist_${userEmail}`;
+  return `mira_watchlist_${userEmail}`;
 }
 
 /**

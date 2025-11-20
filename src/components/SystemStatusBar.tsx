@@ -39,7 +39,7 @@ export const SystemStatusBar = ({
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
 
-  const devEmail = "dev@probly.tech";
+  const devEmail = "dev@mira.tech";
 
   const handleCopyEmail = async () => {
     try {
@@ -206,8 +206,32 @@ export const SystemStatusBar = ({
 
   return (
     <div className="h-11 bg-bg-elevated border-b border-border flex items-center gap-2 px-4 py-2 relative" style={{ zIndex: 1000 }}>
-      {/* Left side - empty */}
-      <div className="flex items-center gap-2"></div>
+      {/* Left side - MIRA text */}
+      <div className="relative flex items-center gap-2">
+        <img 
+          src="/Miraupp.png" 
+          alt="MIRA" 
+          className="w-auto"
+          style={{ 
+            height: '32px',
+            imageRendering: 'high-quality',
+          }}
+        />
+        <h1 
+          className="font-bold tracking-tight"
+          style={{ 
+            fontFamily: "'Boge', sans-serif",
+            color: '#FFFFFF',
+            fontSize: '1.25rem',
+          }}
+        >
+          {'MIRA'.split('').map((letter, index) => (
+            <span key={index} className="mira-letter">
+              {letter === ' ' ? '\u00A0' : letter}
+            </span>
+          ))}
+        </h1>
+      </div>
 
       {/* Center - GitHub, README, Contact - Absolutely centered */}
       <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
@@ -223,7 +247,7 @@ export const SystemStatusBar = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => window.open('https://x.com/Problytech', '_blank', 'noopener,noreferrer')}
+          onClick={() => window.open('https://x.com/MIRAtech', '_blank', 'noopener,noreferrer')}
           className="h-7 w-7 p-0 border-border bg-background hover:bg-bg-elevated text-foreground hover:text-foreground rounded-full"
           title="X (Twitter)"
         >
@@ -238,7 +262,7 @@ export const SystemStatusBar = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => window.open('https://github.com/greaterdan/probly/blob/main/README.md', '_blank', 'noopener,noreferrer')}
+          onClick={() => window.open('https://github.com/greaterdan/mira/blob/main/README.md', '_blank', 'noopener,noreferrer')}
           className="h-7 w-7 p-0 border-border bg-background hover:bg-bg-elevated text-foreground hover:text-foreground rounded-full"
           title="README"
         >

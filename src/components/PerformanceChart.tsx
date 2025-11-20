@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Customized, ReferenceLine } from "recharts";
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, ReferenceLine, Customized } from "recharts";
 import { TechnicalView } from "./TechnicalView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronDown, ZoomIn, ZoomOut, DollarSign } from "lucide-react";
 
 interface ChartDataPoint {
   time: string;
@@ -140,7 +140,7 @@ const MultiAgentTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-// Line Endpoints Component - renders pills at end of each line
+// Line Endpoints Component - Agents positioned at end of each line
 const createLineEndpoints = (selectedAgent: string | null, chartData: ChartDataPoint[]) => (props: any) => {
   const { xAxisMap, yAxisMap, offset, width, height } = props;
   const xAxis = xAxisMap?.[Object.keys(xAxisMap || {})[0]];
@@ -195,16 +195,16 @@ const createLineEndpoints = (selectedAgent: string | null, chartData: ChartDataP
         // Calculate Y position based on value
         const yPos = scaleY(value);
         
-        // Pill dimensions
+        // Pill dimensions - simpler design matching image
         const connectorLength = 8;
         const pillX = xPos + connectorLength;
-        const pillHeight = 26;
-        const logoSize = 18;
-        const pillPadding = { left: 4, right: 10, top: 4, bottom: 4 };
+        const pillHeight = 24;
+        const logoSize = 16;
+        const pillPadding = { left: 6, right: 8, top: 3, bottom: 3 };
         
         // Calculate pill width based on content
-        // Logo (18) + gap (6) + text width estimate (~50px for "$1250") + padding
-        const textWidth = `${value.toFixed(0)}`.length * 7 + 15; // rough estimate
+        // Logo (16) + gap (6) + text width estimate (~60px for "$1250.00") + padding
+        const textWidth = `${value.toFixed(2)}`.length * 7 + 20; // rough estimate
         const pillWidth = logoSize + 6 + textWidth + pillPadding.left + pillPadding.right;
         
         // Clamp pill to not overflow
@@ -236,12 +236,12 @@ const createLineEndpoints = (selectedAgent: string | null, chartData: ChartDataP
                   alignItems: "center",
                   gap: "6px",
                   padding: `${pillPadding.top}px ${pillPadding.right}px ${pillPadding.bottom}px ${pillPadding.left}px`,
-                  background: "rgba(5, 6, 8, 0.95)",
-                  border: `1px solid ${agent.color}`,
-                  borderRadius: "9999px",
+                  background: "rgba(5, 6, 8, 0.9)",
+                  border: "none",
+                  borderRadius: "4px",
                   height: `${pillHeight}px`,
-                  fontSize: "12px",
-                  fontWeight: 500,
+                  fontSize: "11px",
+                  fontWeight: 400,
                   color: "#ffffff",
                   fontFamily: "system-ui, -apple-system, sans-serif",
                   whiteSpace: "nowrap",
@@ -263,7 +263,7 @@ const createLineEndpoints = (selectedAgent: string | null, chartData: ChartDataP
                   }}
                 />
                 {/* Latest Value */}
-                <span>${value.toFixed(0)}</span>
+                <span>${value.toFixed(2)}</span>
               </div>
             </foreignObject>
           </g>
@@ -645,9 +645,9 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
   const yDomain = [minValue, maxValue];
 
   return (
-    <div className="h-full flex flex-col bg-bg-elevated">
+    <div className="h-full flex flex-col bg-background">
       {/* Chart Header */}
-      <div className="h-10 flex items-center justify-between px-2 sm:px-4 border-b border-border bg-bg-elevated min-w-0 overflow-hidden">
+      <div className="h-10 flex items-center justify-between px-2 sm:px-4 border-b border-border bg-background min-w-0 overflow-hidden">
         <span className="text-[10px] sm:text-xs text-terminal-accent font-mono leading-none flex items-center flex-shrink-0 whitespace-nowrap">
           <span className="hidden sm:inline">&gt; PERFORMANCE_INDEX</span>
           <span className="sm:hidden">&gt; PERF</span>
@@ -722,47 +722,30 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
       {/* Content Area */}
       {viewMode === "chart" ? (
         <div className="flex-1 relative" style={{ backgroundColor: "#050608" }}>
-          {/* Lower Band Gradient Overlay */}
-          <div
-            className="absolute bottom-0 left-0 right-0 pointer-events-none z-0"
-            style={{
-              height: "40%",
-              background: "linear-gradient(to bottom, transparent 0%, #1D120F 40%, #050608 100%)",
-              opacity: 0.6,
-            }}
-          />
+          {/* Dollar Sign Icon - Top Right */}
+          <div className="absolute top-4 right-4 z-10 pointer-events-none">
+            <DollarSign className="w-5 h-5 text-muted-foreground opacity-50" />
+          </div>
           
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 20, right: 140, bottom: 30, left: 50 }}
+              margin={{ top: 20, right: 160, bottom: 30, left: 50 }}
               style={{ backgroundColor: "transparent" }}
             >
-              <defs>
-                <linearGradient id="lowerBandGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#1D120F" stopOpacity={0.8} />
-                  <stop offset="100%" stopColor="#050608" stopOpacity={0} />
-                </linearGradient>
-                {/* Gradient definitions for each agent area */}
-                {agents.map((agent) => {
-                  const isVisible = selectedAgent === null || selectedAgent === agent.id;
-                  if (!isVisible) return null;
-                  
-                  return (
-                    <linearGradient key={`gradient-${agent.id}`} id={`gradient-${agent.id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={agent.color} stopOpacity={0.3} />
-                      <stop offset="50%" stopColor={agent.color} stopOpacity={0.15} />
-                      <stop offset="100%" stopColor={agent.color} stopOpacity={0} />
-                    </linearGradient>
-                  );
-                })}
-              </defs>
-              
               <CartesianGrid
                 stroke="#242935"
                 strokeWidth={1}
                 vertical={false}
                 horizontal={true}
+              />
+              
+              {/* Reference Line - Faint white dashed */}
+              <ReferenceLine
+                y={STARTING_CAPITAL}
+                stroke="rgba(255, 255, 255, 0.2)"
+                strokeWidth={1}
+                strokeDasharray="5 5"
               />
               
               <XAxis
@@ -794,25 +777,7 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
                 cursor={{ stroke: "#3A404B", strokeWidth: 1, strokeDasharray: "none" }}
               />
               
-              {/* Agent Areas and Lines - render areas first, then lines on top */}
-              {agents.map((agent) => {
-                const isVisible = selectedAgent === null || selectedAgent === agent.id;
-                
-                if (!isVisible) return null;
-                
-                return (
-                  <Area
-                    key={`area-${agent.id}`}
-                    type="monotone"
-                    dataKey={agent.id}
-                    fill={`url(#gradient-${agent.id})`}
-                    stroke="none"
-                    isAnimationActive={!animationDisabled}
-                    animationDuration={animationDisabled ? 0 : 1500}
-                    animationEasing="ease-out"
-                  />
-                );
-              })}
+              {/* Clean Lines Only - No Areas */}
               {agents.map((agent) => {
                 const isVisible = selectedAgent === null || selectedAgent === agent.id;
                 
@@ -825,23 +790,20 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
                     connectNulls
                     dataKey={agent.id}
                     stroke={agent.color}
-                    strokeWidth={selectedAgent === agent.id ? 2.5 : 2}
+                    strokeWidth={2}
                     dot={false}
                     activeDot={{
-                      r: 5,
+                      r: 4,
                       fill: agent.color,
                       strokeWidth: 2,
                       stroke: "#050608",
                     }}
-                    isAnimationActive={!animationDisabled}
-                    animationDuration={animationDisabled ? 0 : 1500}
-                    animationEasing="ease-out"
-                    animationBegin={0}
+                    isAnimationActive={false}
                   />
                 );
               })}
               
-              {/* Custom Line Endpoints */}
+              {/* Agents at End of Lines */}
               <Customized component={createLineEndpoints(selectedAgent, chartData)} />
             </ComposedChart>
           </ResponsiveContainer>

@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer';
 // SECURITY: CORS - restrict to specific origins instead of wildcard
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:3000', 'https://probly.tech'];
+  : ['http://localhost:5173', 'http://localhost:3000', 'https://mira.tech'];
 
 export default async function handler(req, res) {
   // SECURITY: CORS configuration
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    const notificationEmail = process.env.NOTIFICATION_EMAIL || 'dev@probly.tech';
+    const notificationEmail = process.env.NOTIFICATION_EMAIL || 'dev@mira.tech';
     
     // SECURITY: Sanitize email for HTML output to prevent injection
     const escapeHtml = (text) => {
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
         <p><strong>Email:</strong> ${safeEmail}</p>
         <p><strong>Timestamp:</strong> ${timestamp}</p>
         <hr style="border: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #666; font-size: 12px;">This is an automated notification from the Probly waitlist system.</p>
+        <p style="color: #666; font-size: 12px;">This is an automated notification from the MIRA waitlist system.</p>
       </div>
     `;
     const textMessage = `

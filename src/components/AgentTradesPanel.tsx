@@ -59,9 +59,17 @@ const formatTimeAgo = (date: Date) => {
 };
 
 export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClose, onTradeClick }: AgentTradesPanelProps) => {
+  console.log(`[AgentTradesPanel] Rendering for ${agentId}:`, { 
+    tradesCount: trades.length, 
+    trades: trades,
+    agentName 
+  });
+  
   const sortedTrades = [...trades].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   const openTrades = sortedTrades.filter(t => t.status === "OPEN");
   const closedTrades = sortedTrades.filter(t => t.status === "CLOSED");
+  
+  console.log(`[AgentTradesPanel] ${agentId} - Open: ${openTrades.length}, Closed: ${closedTrades.length}`);
   const totalPnl = closedTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
   const [expandedTradeId, setExpandedTradeId] = useState<string | null>(trades[0]?.id ?? null);
 

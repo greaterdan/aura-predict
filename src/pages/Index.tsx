@@ -82,15 +82,29 @@ interface NewsArticle {
 const fetchAgentTrades = async (agentId: string): Promise<Trade[]> => {
   try {
     const { API_BASE_URL } = await import('@/lib/apiConfig');
-    const response = await fetch(`${API_BASE_URL}/api/agents/${agentId}/trades`);
+    const url = `${API_BASE_URL}/api/agents/${agentId}/trades`;
+    console.log(`[fetchAgentTrades] Fetching trades for ${agentId} from ${url}`);
+    const response = await fetch(url);
     
     if (!response.ok) {
-      console.warn(`Failed to fetch trades for ${agentId}:`, response.statusText);
+      const errorText = await response.text();
+      console.error(`[fetchAgentTrades] Failed to fetch trades for ${agentId}:`, response.status, response.statusText, errorText);
       return [];
     }
     
     const data = await response.json();
-    return (data.trades || []).map((trade: any) => ({
+    console.log(`[fetchAgentTrades] Received data for ${agentId}:`, { 
+      hasTrades: !!data.trades, 
+      tradesCount: data.trades?.length || 0,
+      dataKeys: Object.keys(data)
+    });
+    
+    if (!data.trades || !Array.isArray(data.trades)) {
+      console.warn(`[fetchAgentTrades] Invalid trades data for ${agentId}:`, data);
+      return [];
+    }
+    
+    const mappedTrades = (data.trades || []).map((trade: any) => ({
       id: trade.id,
       timestamp: new Date(trade.timestamp || trade.openedAt),
       market: trade.marketQuestion || trade.market || trade.marketId, // Use marketQuestion if available
@@ -115,8 +129,11 @@ const fetchAgentTrades = async (agentId: string): Promise<Trade[]> => {
       status: trade.status || 'OPEN',
       predictionId: trade.predictionId || trade.marketId,
     }));
+    
+    console.log(`[fetchAgentTrades] Mapped ${mappedTrades.length} trades for ${agentId}`);
+    return mappedTrades;
   } catch (error) {
-    console.error(`Error fetching trades for ${agentId}:`, error);
+    console.error(`[fetchAgentTrades] Error fetching trades for ${agentId}:`, error);
     return [];
   }
 };
@@ -163,15 +180,21 @@ const getAgentTrades = async (agentId: string): Promise<Trade[]> => {
 
 const Index = () => {
   // Check if coming from landing page to trigger animations
-  const [isAnimatingIn, setIsAnimatingIn] = useState(false);
+  const [isAnimatingIn, setIsAnimatingIn] = useState(() => {
+    // Check immediately on mount to avoid flash
+    if (typeof window !== 'undefined') {
+      const fromLanding = sessionStorage.getItem('fromLanding');
+      return fromLanding === 'true';
+    }
+    return false;
+  });
   
   useEffect(() => {
     const fromLanding = sessionStorage.getItem('fromLanding');
     if (fromLanding === 'true') {
-      setIsAnimatingIn(true);
       sessionStorage.removeItem('fromLanding');
-      // Reset animation state after animation completes
-      setTimeout(() => setIsAnimatingIn(false), 1500);
+      // Disable animations for better performance - just show immediately
+      setIsAnimatingIn(false);
     }
   }, []);
 
@@ -187,8 +210,44 @@ const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("All Markets");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
-  const [predictions, setPredictions] = useState<PredictionNodeData[]>([]);
-  const [loadingMarkets, setLoadingMarkets] = useState(false);
+  const [predictions, setPredictions] = useState<PredictionNodeData[]>(() => {
+    // Load from cache immediately for instant display
+    try {
+      const cached = sessionStorage.getItem('app_predictions_cache');
+      const cacheTime = sessionStorage.getItem('app_predictions_cache_time');
+      const cacheCategory = sessionStorage.getItem('app_predictions_cache_category');
+      if (cached && cacheTime && cacheCategory === "All Markets") {
+        const age = Date.now() - parseInt(cacheTime);
+        // Use cache if less than 2 minutes old
+        if (age < 120000) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore cache errors
+    }
+    return [];
+  });
+  const [loadingMarkets, setLoadingMarkets] = useState(() => {
+    // Only show loading if we don't have cached data
+    try {
+      const cached = sessionStorage.getItem('app_predictions_cache');
+      const cacheTime = sessionStorage.getItem('app_predictions_cache_time');
+      const cacheCategory = sessionStorage.getItem('app_predictions_cache_category');
+      if (cached && cacheTime && cacheCategory === "All Markets") {
+        const age = Date.now() - parseInt(cacheTime);
+        if (age < 120000) {
+          return false; // We have valid cache, don't show loading
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return true;
+  });
   const [bubbleLimit, setBubbleLimit] = useState<number>(100);
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   
@@ -308,7 +367,10 @@ const Index = () => {
   // Fetch predictions from server (all processing is server-side)
   useEffect(() => {
     const loadPredictions = async () => {
-      setLoadingMarkets(true);
+      // Only set loading if we don't have cached data
+      if (predictions.length === 0) {
+        setLoadingMarkets(true);
+      }
       try {
         // Call server endpoint - server handles ALL fetching, filtering, and transformation
         // Request markets with reasonable limit for performance
@@ -363,10 +425,21 @@ const Index = () => {
             }
             
             // Market IDs changed - return new predictions
-            return newPredictions;
+            const finalPredictions = newPredictions;
+            // Cache for instant loading next time
+            try {
+              sessionStorage.setItem('app_predictions_cache', JSON.stringify(finalPredictions));
+              sessionStorage.setItem('app_predictions_cache_time', Date.now().toString());
+              sessionStorage.setItem('app_predictions_cache_category', selectedCategory);
+            } catch (e) {
+              // Ignore storage errors
+            }
+            return finalPredictions;
           });
         } else {
-          setPredictions([]);
+          if (predictions.length === 0) {
+            setPredictions([]);
+          }
         }
       } catch (error) {
         // Don't clear predictions on error - keep existing ones
@@ -376,8 +449,15 @@ const Index = () => {
       }
     };
 
-    // Load immediately
-    loadPredictions();
+    // If we have cached data, show it immediately and fetch fresh in background
+    // Otherwise, fetch immediately
+    if (predictions.length > 0) {
+      // We have cache, fetch fresh data in background
+      loadPredictions();
+    } else {
+      // No cache, fetch immediately
+      loadPredictions();
+    }
 
     // Auto-refresh markets and prices every 5 minutes (server caches for 5 minutes)
     const refreshInterval = setInterval(() => {
@@ -400,7 +480,7 @@ const Index = () => {
       
       // Listen for storage changes (from other tabs/windows)
       const handleStorageChange = (e: StorageEvent) => {
-        const watchlistKey = `probly_watchlist_${userEmail}`;
+        const watchlistKey = `mira_watchlist_${userEmail}`;
         if (e.key === watchlistKey) {
           loadWatchlist();
         }
@@ -531,10 +611,13 @@ const Index = () => {
     }
     
     try {
+      console.log(`[handleAgentClick] Fetching trades for ${agentId}...`);
       const trades = await getAgentTrades(agentId);
+      console.log(`[handleAgentClick] Received ${trades.length} trades for ${agentId}:`, trades);
       setAgentTrades(prev => ({ ...prev, [agentId]: trades }));
+      console.log(`[handleAgentClick] Updated agentTrades state for ${agentId}`);
     } catch (error) {
-      console.error(`Failed to load trades for ${agentId}:`, error);
+      console.error(`[handleAgentClick] Failed to load trades for ${agentId}:`, error);
     }
   };
 
@@ -871,7 +954,7 @@ const Index = () => {
     setTimeout(() => {
       setIsTransitioning(false);
       isTransitioningRef.current = false; // Clear ref after transition
-    }, 150); // Faster transition - 150ms for better responsiveness
+    }, 0); // No transition delay for instant response
   };
 
   const handleToggleSummary = () => {
@@ -1009,21 +1092,17 @@ const Index = () => {
 
   return (
     <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
-      {/* Global styles for smooth panel transitions */}
+      {/* Global styles - transitions disabled for performance */}
       <style>{`
         [data-panel-id] {
-          transition: ${isTransitioning ? 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'} !important;
+          transition: none !important;
         }
         [data-panel-group] {
-          transition: ${isTransitioning ? 'none' : 'none'} !important;
+          transition: none !important;
         }
       `}</style>
       {/* Top Status Bar - Animate in from top */}
-      <motion.div
-        initial={isAnimatingIn ? { y: -100, opacity: 0 } : { y: 0, opacity: 1 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: isAnimatingIn ? 0.3 : 0 }}
-      >
+      <div>
         <SystemStatusBar 
           onToggleWaitlist={handleToggleWaitlist}
           onTogglePerformance={handleTogglePerformance}
@@ -1044,7 +1123,8 @@ const Index = () => {
           showWaitlist={showWaitlist}
           showWatchlist={showWatchlist}
         />
-      </motion.div>
+      </div>
+
 
       {/* Main Content Area - Dashboard is always 100% width/height */}
       <div className="flex-1 flex overflow-hidden w-full relative" style={{ margin: 0, padding: 0 }}>
@@ -1060,10 +1140,7 @@ const Index = () => {
             }}
           >
           {/* Market Category Dropdown - EDGE TO EDGE - NO MARGINS OR PADDING ON CONTAINER - Animate in from top */}
-          <motion.div
-            initial={isAnimatingIn ? { y: -50, opacity: 0 } : { y: 0, opacity: 1 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: isAnimatingIn ? 0.4 : 0 }}
+          <div
             className="border-b border-border flex flex-col bg-bg-elevated" style={{ width: '100%', margin: 0, padding: 0, marginLeft: 0, marginRight: 0 }}
           >
             <div className="h-10 flex items-center justify-center px-4">
@@ -1299,7 +1376,6 @@ const Index = () => {
                 </div>
               </div>
             </div>
-
           </div>
 
           {/* Prediction Map Container - FULL SPACE - CLIP TO BOUNDS */}
@@ -1335,13 +1411,13 @@ const Index = () => {
                 height: '100%',
                 pointerEvents: 'auto',
                 willChange: 'auto',
+                position: 'relative',
+                zIndex: 10,
               }}
             >
-              <motion.div
-                initial={isAnimatingIn ? { opacity: 0 } : { opacity: 1 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.8, delay: isAnimatingIn ? 0.5 : 0 }}
+              <div
                 className="w-full h-full"
+                style={{ pointerEvents: 'auto', zIndex: 10 }}
               >
                 <PredictionBubbleField
                   markets={limitedPredictions}
@@ -1354,7 +1430,7 @@ const Index = () => {
                   isResizing={false}
                   frosted={false}
                 />
-              </motion.div>
+              </div>
             </div>
           </div>
         </div>
@@ -1362,70 +1438,88 @@ const Index = () => {
         {/* LEFT: Performance Chart - Overlay */}
         {/* CRITICAL: Always keep chart mounted - never unmount it, just hide/show */}
         {/* Use visibility instead of display to keep component rendered in DOM */}
-        <div style={{ 
-          visibility: isPerformanceOpen ? 'visible' : 'hidden',
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: isPerformanceOpen ? 'auto' : 'none',
-          display: isPerformanceOpen ? 'block' : 'block' // Always keep in DOM
-        }}>
-          <ResizablePanelGroup
-            direction="horizontal"
-            className="absolute inset-0 pointer-events-none"
-            style={{ zIndex: 10 }}
+        {isPerformanceOpen && (
+          <div 
+            style={{ 
+              position: 'absolute',
+              inset: 0,
+              pointerEvents: 'none', // Don't block clicks - let them pass through to bubbles
+              zIndex: 100
+            }}
           >
-          <ResizablePanel 
-              defaultSize={leftPanelSize}
-            minSize={15} 
-            maxSize={30} 
-              onResize={(size) => {
-                setLeftPanelSize(size);
-                setSavedLeftPanelSize(size);
-              }}
-              className="border-r border-border bg-background pointer-events-auto"
-            style={{
-                boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
+            <ResizablePanelGroup
+              direction="horizontal"
+              className="absolute inset-0"
+              style={{ 
+                pointerEvents: 'none', // Don't block clicks - only panels capture events
+                zIndex: 100
               }}
             >
-              <div className="flex flex-col h-full">
-                {/* When market is selected, hide chart and show full market details */}
-                {selectedPrediction ? (
-                  <div className="h-full overflow-hidden bg-background">
-                    <MarketDetailsPanel
-                      market={selectedPrediction}
-                      onClose={handleCloseMarketDetails}
-                      onWatchlistChange={() => {
-                        setWatchlist(getWatchlist(userEmail));
-                      }}
-                      watchlist={watchlist}
-                      userEmail={userEmail}
-                    />
-                  </div>
-                ) : (
-                  <div className="h-full">
-                    <PerformanceChart
-                      predictions={predictions}
-                      selectedMarketId={selectedNode}
-                      selectedAgentId={selectedAgent} // Pass selected agent to update chart
-                    />
-                  </div>
-                )}
-              </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle style={{ pointerEvents: 'auto', zIndex: 50 }} />
-            <ResizablePanel defaultSize={100 - leftPanelSize} minSize={70} maxSize={85} style={{ pointerEvents: 'auto' }} />
-          </ResizablePanelGroup>
-        </div>
+            <ResizablePanel 
+                defaultSize={leftPanelSize}
+              minSize={15} 
+              maxSize={30} 
+                onResize={(size) => {
+                  setLeftPanelSize(size);
+                  setSavedLeftPanelSize(size);
+                }}
+                className="border-r border-border bg-background"
+              style={{
+                  pointerEvents: 'auto', // Only the actual panel captures clicks
+                  boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
+                  zIndex: 100,
+                }}
+              >
+                <div className="flex flex-col h-full">
+                  {/* When market is selected, hide chart and show full market details */}
+                  {selectedPrediction ? (
+                    <div className="h-full overflow-hidden bg-background">
+                      <MarketDetailsPanel
+                        market={selectedPrediction}
+                        onClose={handleCloseMarketDetails}
+                        onWatchlistChange={() => {
+                          setWatchlist(getWatchlist(userEmail));
+                        }}
+                        watchlist={watchlist}
+                        userEmail={userEmail}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-full">
+                      <PerformanceChart
+                        predictions={predictions}
+                        selectedMarketId={selectedNode}
+                        selectedAgentId={selectedAgent} // Pass selected agent to update chart
+                      />
+                    </div>
+                  )}
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle style={{ pointerEvents: 'auto', zIndex: 50 }} />
+              <ResizablePanel defaultSize={100 - leftPanelSize} minSize={70} maxSize={85} style={{ pointerEvents: 'none' }} />
+            </ResizablePanelGroup>
+          </div>
+        )}
 
         {/* RIGHT: AI Summary Panel - Overlay */}
         {isSummaryOpen && (
-          <ResizablePanelGroup
-            direction="horizontal"
-            className="absolute inset-0 pointer-events-none"
-            style={{ zIndex: 10 }}
+          <div
+            className="absolute inset-0"
+            style={{ 
+              pointerEvents: 'none', // Don't block clicks - let them pass through to bubbles
+              zIndex: 100
+            }}
           >
+            <ResizablePanelGroup
+              direction="horizontal"
+              className="absolute inset-0"
+              style={{ 
+                pointerEvents: 'none', // Don't block clicks - only panels capture events
+                zIndex: 100
+              }}
+            >
             <ResizablePanel defaultSize={100 - rightPanelSize} minSize={70} maxSize={85} style={{ pointerEvents: 'none' }} />
-            <ResizableHandle withHandle style={{ pointerEvents: 'auto', zIndex: 50 }} />
+              <ResizableHandle withHandle style={{ pointerEvents: 'auto', zIndex: 50 }} />
             <ResizablePanel
               defaultSize={rightPanelSize}
               minSize={15}
@@ -1434,8 +1528,9 @@ const Index = () => {
                 setRightPanelSize(size);
                 setSavedRightPanelSize(size);
                   }}
-              className="border-l border-border bg-background pointer-events-auto"
+              className="border-l border-border bg-background"
                   style={{
+                pointerEvents: 'auto', // Only the actual panel captures clicks
                 boxShadow: '-2px 0 8px rgba(0,0,0,0.1)',
                   }}
                 >
@@ -1502,40 +1597,39 @@ const Index = () => {
                       }}
                     />
                   ) : (
-                    <AISummaryPanel 
-                      onTradeClick={(marketId) => {
-                        // Find the prediction by marketId and open it
-                        const matchingPrediction = predictions.find(p => p.id === marketId);
-                        if (matchingPrediction) {
-                          setSelectedPrediction(matchingPrediction);
-                          setSelectedNode(matchingPrediction.id);
-                          if (!isPerformanceOpen) {
-                            setIsPerformanceOpen(true);
-                            setLeftPanelSize(30);
+                    <div className="h-full">
+                      <AISummaryPanel 
+                        onTradeClick={(marketId) => {
+                          // Find the prediction by marketId and open it
+                          const matchingPrediction = predictions.find(p => p.id === marketId);
+                          if (matchingPrediction) {
+                            setSelectedPrediction(matchingPrediction);
+                            setSelectedNode(matchingPrediction.id);
+                            if (!isPerformanceOpen) {
+                              setIsPerformanceOpen(true);
+                              setLeftPanelSize(30);
+                            }
+                          } else {
+                            console.warn('Prediction not found for market ID:', marketId);
                           }
-                        } else {
-                          console.warn('Prediction not found for market ID:', marketId);
-                        }
-                      }}
-                    />
+                        }}
+                      />
+                    </div>
                   )}
           </ResizablePanel>
         </ResizablePanelGroup>
+          </div>
         )}
       </div>
 
-      {/* Bottom Active Positions - Animate in from bottom */}
-      <motion.div
-        initial={isAnimatingIn ? { y: 100, opacity: 0 } : { y: 0, opacity: 1 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: isAnimatingIn ? 0.4 : 0 }}
-      >
+      {/* Bottom Active Positions */}
+      <div>
         <ActivePositions 
           agents={agents}
           selectedAgent={selectedAgent}
           onAgentClick={handleAgentClick}
         />
-      </motion.div>
+      </div>
 
       {/* Market Details Modal - Replaced by side panel */}
       {/* Modal removed - details now show in left side panel */}

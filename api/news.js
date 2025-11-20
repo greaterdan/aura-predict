@@ -303,7 +303,7 @@ export default async function handler(req, res) {
   // SECURITY: CORS - restrict to specific origins instead of wildcard
   const allowedOrigins = process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:5173', 'http://localhost:3000', 'https://probly.tech'];
+    : ['http://localhost:5173', 'http://localhost:3000', 'https://mira.tech'];
   
   const origin = req.headers.origin;
   if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development')) {

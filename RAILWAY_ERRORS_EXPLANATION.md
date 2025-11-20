@@ -16,7 +16,7 @@ You're seeing multiple errors that indicate server/deployment issues:
 
 ### 3. **ERR_CERT_COMMON_NAME_INVALID**
 - **Meaning**: SSL certificate doesn't match the domain name
-- **Cause**: Railway SSL certificate might not be properly configured for `probly.tech`
+- **Cause**: Railway SSL certificate might not be properly configured for `mira.tech`
 - **Fix**: 
   - Check Railway domain settings
   - Ensure custom domain is properly configured
@@ -55,13 +55,13 @@ Look for these log messages:
 ### Step 4: Verify SSL Certificate
 1. In Railway, go to your service
 2. Click "Settings" → "Networking"
-3. Check if custom domain `probly.tech` is configured
+3. Check if custom domain `mira.tech` is configured
 4. Ensure SSL certificate is provisioned (Railway does this automatically)
 
 ### Step 5: Test Healthcheck
 Try accessing:
-- `https://probly.tech/api/health` - Should return `{"status":"ok"}`
-- `https://probly.tech/api/agents/summary` - Should return agent data
+- `https://mira.tech/api/health` - Should return `{"status":"ok"}`
+- `https://mira.tech/api/agents/summary` - Should return agent data
 
 ## Common Issues
 
@@ -90,12 +90,12 @@ Try accessing:
 
 1. **Check if server is running**:
    ```bash
-   curl https://probly.tech/api/health
+   curl https://mira.tech/api/health
    ```
 
 2. **Check if static files exist**:
    ```bash
-   curl https://probly.tech/assets/index-*.css
+   curl https://mira.tech/assets/index-*.css
    ```
 
 3. **Check Railway build logs**:

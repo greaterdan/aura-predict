@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Boge Font */
+@font-face {
+  font-family: 'Boge';
+  src: url('/Boge.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
@@ -306,13 +315,13 @@ All colors MUST be HSL.
       transform: translate3d(0, 0, 0) scale(1);
     }
     25% { 
-      transform: translate3d(15px, -18px, 0) scale(1.02);
+      transform: translate3d(30px, -35px, 0) scale(1.02);
     }
     50% { 
-      transform: translate3d(-12px, 15px, 0) scale(0.98);
+      transform: translate3d(-25px, 30px, 0) scale(0.98);
     }
     75% { 
-      transform: translate3d(10px, 18px, 0) scale(1.01);
+      transform: translate3d(20px, 35px, 0) scale(1.01);
     }
     100% { 
       transform: translate3d(0, 0, 0) scale(1);
@@ -463,4 +472,42 @@ All colors MUST be HSL.
     /* Keep glow on hover - don't override */
     transform: translateZ(0) scale(1.02);
   }
+
+  /* Letter-by-letter shimmer animation for MIRA text - Single wave effect */
+  @keyframes letter-shine {
+    0% {
+      text-shadow: 0 0 6px rgba(255, 255, 255, 0.2),
+                   0 0 12px rgba(255, 255, 255, 0.1),
+                   0 0 20px rgba(255, 255, 255, 0.05);
+      filter: brightness(1);
+    }
+    25% {
+      text-shadow: 0 0 15px rgba(255, 255, 255, 0.7),
+                   0 0 30px rgba(255, 255, 255, 0.5),
+                   0 0 50px rgba(255, 255, 255, 0.3),
+                   0 0 70px rgba(255, 255, 255, 0.15);
+      filter: brightness(1.25);
+    }
+    50%, 100% {
+      text-shadow: 0 0 6px rgba(255, 255, 255, 0.2),
+                   0 0 12px rgba(255, 255, 255, 0.1),
+                   0 0 20px rgba(255, 255, 255, 0.05);
+      filter: brightness(1);
+    }
+  }
+
+  .mira-letter {
+    display: inline-block;
+    animation: letter-shine 2.4s ease-in-out infinite;
+    will-change: text-shadow, filter;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .mira-letter:nth-child(1) { animation-delay: 0s; }
+  .mira-letter:nth-child(2) { animation-delay: 0.3s; }
+  .mira-letter:nth-child(3) { animation-delay: 0.6s; }
+  .mira-letter:nth-child(4) { animation-delay: 0.9s; }
 }

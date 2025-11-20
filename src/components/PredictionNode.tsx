@@ -203,7 +203,6 @@ export const PredictionNode = memo(({ data, position, size, animationIndex = 0, 
               : '0 0 5px rgba(255, 79, 100, 0.35), 0 0 10px rgba(255, 79, 100, 0.25)',
             // AGGRESSIVE: Prevent any focus rectangles, borders, rings
             outline: 'none',
-            border: 'none',
             userSelect: 'none',
             WebkitUserSelect: 'none',
             MozUserSelect: 'none',

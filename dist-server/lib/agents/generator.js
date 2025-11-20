@@ -12,7 +12,7 @@ import { fetchAllMarkets } from '../markets/polymarket.js';
 import { fetchLatestNews } from '../news/aggregator.js';
 import { filterCandidateMarkets, scoreMarketForAgent, computeNewsRelevance } from './scoring.js';
 import { generateTradeForMarket } from './engine.js';
-import { getCachedAgentTrades, setCachedAgentTrades } from './cache.js';
+import { getCachedAgentTrades, setCachedAgentTrades, getCachedTradesQuick } from './cache.js';
 import { generateResearchForMarket } from './research.js';
 /**
  * Research decisions cache (separate from trades)
@@ -74,14 +74,21 @@ export async function generateAgentTrades(agentId) {
     catch (error) {
         console.warn(`[Agent:${agentId}] ⚠️ Failed to fetch closed markets:`, error);
     }
-    // Check cache before computing
+    // Check cache before computing (FAST PATH - return immediately if cached)
     const currentMarketIds = markets.map(m => m.id).sort();
     // Log sample market IDs for debugging
     if (currentMarketIds.length > 0) {
         console.log(`[Agent:${agentId}] 📋 Sample market IDs (first 5):`, currentMarketIds.slice(0, 5));
     }
+    // Try quick cache first (no market ID validation - fastest)
+    const quickCached = await getCachedTradesQuick(agentId);
+    if (quickCached && quickCached.length > 0) {
+        console.log(`[Agent:${agentId}] ⚡ Quick cache hit - returning ${quickCached.length} cached trades immediately`);
+        return quickCached;
+    }
+    // Try full cache with market ID validation
     const cached = await getCachedAgentTrades(agentId, currentMarketIds);
-    if (cached !== null) {
+    if (cached !== null && cached.length > 0) {
         console.log(`[Agent:${agentId}] 💾 Cache hit - returning ${cached.length} cached trades`);
         // Log sample trade market IDs
         if (cached.length > 0) {
@@ -89,7 +96,7 @@ export async function generateAgentTrades(agentId) {
         }
         return cached;
     }
-    console.log(`[Agent:${agentId}] 💾 Cache miss - generating NEW trades with AI`);
+    console.log(`[Agent:${agentId}] 💾 Cache miss - generating NEW trades with AI (this may take time)`);
     // Filter candidate markets
     console.log(`[Agent:${agentId}] 🔍 Filtering candidate markets (minVolume: $${agent.minVolume}, minLiquidity: $${agent.minLiquidity})...`);
     // Log market statistics before filtering
