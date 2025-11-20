@@ -9,13 +9,27 @@
 // Try to use tsx register if available
 let tsxRegistered = false;
 try {
-  const { register } = await import('tsx/esm/api').catch(() => null);
-  if (register) {
-    register();
+  // Try multiple ways to register tsx
+  const tsxApi = await import('tsx/esm/api').catch(() => null);
+  if (tsxApi?.register) {
+    tsxApi.register();
     tsxRegistered = true;
+    console.log('[API] ✅ tsx/esm/api registered');
+  } else {
+    // Fallback: try require for tsx
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    try {
+      require('tsx/esm/api');
+      tsxRegistered = true;
+      console.log('[API] ✅ tsx registered via require');
+    } catch (e) {
+      console.warn('[API] ⚠️ tsx registration failed, will rely on --import tsx flag');
+    }
   }
 } catch (e) {
   // tsx not available - will try direct import
+  console.warn('[API] ⚠️ tsx registration error:', e.message);
 }
 
 let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAgentSummary, computeSummaryStats, calculateAllAgentStats, getCachedTradesQuick, getAgentResearch;
