@@ -190,7 +190,7 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
                     onClick={(event) => handleTradeSelect(trade, event)}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-lg border border-terminal-accent/40 text-terminal-accent hover:bg-terminal-accent/10 transition-colors"
                   >
-                    View Decision →
+                    View Market →
                   </button>
                   {(trade.marketSlug || trade.conditionId) && (
                     <a

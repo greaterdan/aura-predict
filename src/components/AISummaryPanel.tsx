@@ -964,7 +964,7 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                             className="w-full px-3 py-2 bg-terminal-accent/10 hover:bg-terminal-accent/20 text-terminal-accent rounded-lg transition-colors text-[11px] font-mono border border-terminal-accent/30 cursor-pointer"
                             style={{ pointerEvents: 'auto' }}
                           >
-                            View Market Details →
+                            View Market →
                           </button>
                         )}
                       </div>
