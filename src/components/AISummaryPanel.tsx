@@ -283,16 +283,19 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
 
   // Fetch agent summary from API
   useEffect(() => {
+    let isMounted = true;
+    
     const loadSummary = async () => {
       try {
-        // Don't set loading to true - show existing decisions immediately
-        // Only show loading on first load when there are no decisions
-        if (decisions.length === 0) {
-          setLoading(true);
+        // ONLY set loading on very first load when there are NO decisions at all
+        if (decisions.length === 0 && loading) {
+          // Keep loading state - will be set to false after first successful load
         }
         
         const { API_BASE_URL } = await import('@/lib/apiConfig');
         const response = await fetch(`${API_BASE_URL}/api/agents/summary`);
+        
+        if (!isMounted) return; // Component unmounted, don't update state
         
         if (response.ok) {
           const data = await response.json();
@@ -305,25 +308,13 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
               const agentId = agentSummary.agentId;
               const trades = data.tradesByAgent?.[agentId] || [];
               
-              console.log(`[AISummaryPanel] Agent ${agentId}: ${trades.length} trades from API`);
-              
-              // Get most recent trade
-              const recentTrade = trades
-                .filter((t: any) => t.status === 'OPEN')
-                .sort((a: any, b: any) => {
-                  const timeA = a.openedAt ? new Date(a.openedAt).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
-                  const timeB = b.openedAt ? new Date(b.openedAt).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
-                  return timeB - timeA;
-                })[0];
-              
-              // Get all recent trades (not just one) and deduplicate by market
+              // Get all recent trades (OPEN and CLOSED) and deduplicate by market
               const uniqueTrades = new Map<string, any>();
               trades
-                .filter((t: any) => t.status === 'OPEN')
                 .sort((a: any, b: any) => {
                   const timeA = a.openedAt ? new Date(a.openedAt).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
                   const timeB = b.openedAt ? new Date(b.openedAt).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
-                  return timeB - timeA;
+                  return timeB - timeA; // Most recent first
                 })
                 .forEach((trade: any) => {
                   // Use marketQuestion or marketId as key for deduplication
@@ -376,63 +367,69 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
           // Sort by timestamp (most recent first - newest at top)
           newDecisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
           
-          // Merge new decisions with existing ones - NEVER clear, only add/update
+          // CRITICAL: Merge new decisions with existing ones - NEVER clear, only add/update
+          // This ensures the summary NEVER disappears
           setDecisions(prev => {
-            // If no new decisions, keep existing ones (don't clear)
+            if (!isMounted) return prev; // Don't update if unmounted
+            
+            // If no new decisions, ALWAYS keep existing ones (never clear)
             if (newDecisions.length === 0) {
-              return prev; // Keep existing decisions
+              return prev; // Keep existing decisions visible
             }
             
             const prevMap = new Map(prev.map(d => [d.id, d]));
-            
-            // Merge: new decisions first (top), then existing ones that aren't in new list
             const merged: AIDecision[] = [];
             const seenIds = new Set<string>();
             
-            // Add new decisions first (most recent at top)
+            // Add new decisions first (most recent at top) - these will animate in
             for (const decision of newDecisions) {
               const prevDecision = prevMap.get(decision.id);
               if (prevDecision) {
-                // Existing decision - update but preserve any UI state
+                // Existing decision - update it but keep it in the list
                 merged.push(decision);
               } else {
-                // Brand new decision - add at top
+                // Brand new decision - add at top (will animate from top)
                 merged.push(decision);
               }
               seenIds.add(decision.id);
             }
             
-            // Add existing decisions that aren't in new list (keep old ones visible)
-            // Limit to last 50 to prevent memory issues
-            const oldDecisions = prev.filter(d => !seenIds.has(d.id)).slice(0, 50);
+            // CRITICAL: Add ALL existing decisions that aren't in new list
+            // This ensures nothing disappears - old decisions stay visible
+            const oldDecisions = prev.filter(d => !seenIds.has(d.id));
             merged.push(...oldDecisions);
             
-            // Sort by timestamp again (newest first)
+            // Sort by timestamp again (newest first) - newest at top
             merged.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
             
-            return merged;
+            // Limit to 100 items to prevent memory issues (but keep them all visible)
+            return merged.slice(0, 100);
           });
+          
+          // Set loading to false after first successful load
+          if (loading) {
+            setLoading(false);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch agent summary:', error);
-        // Don't clear decisions on error - keep existing ones visible
+        // NEVER clear decisions on error - always keep existing ones visible
         // Only set loading to false if we were actually loading
-        if (decisions.length === 0) {
-          setLoading(false);
-        }
-      } finally {
-        // Only set loading to false if we were actually loading
-        if (decisions.length === 0) {
+        if (loading && decisions.length === 0) {
           setLoading(false);
         }
       }
     };
     
     loadSummary();
-    // Refresh every 30 seconds (less frequent to prevent flickering)
+    // Refresh every 30 seconds
     const interval = setInterval(loadSummary, 30 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [decisions.length, loading]); // Only depend on length and loading state
 
   useEffect(() => {
     const interval = setInterval(() => {
