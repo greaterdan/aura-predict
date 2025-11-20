@@ -162,7 +162,7 @@ app.get('/api/csrf-token', (req, res) => {
 // Security: CORS - restrict to specific origins instead of wildcard
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174', 'https://mira.tech']; // Default for development
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174', 'https://mira.tech', 'https://probly.tech']; // Default for development
 
 // CORS configuration - allow healthcheck without origin check
 // CRITICAL: When credentials are included, we MUST return the specific origin, not '*'
@@ -2052,6 +2052,14 @@ if (fs.existsSync(distPath)) {
   app.use(express.static(distPath, {
     maxAge: '1y', // Cache static assets for 1 year
     etag: true,
+    setHeaders: (res, filePath) => {
+      // Ensure proper MIME types for CSS and JS files
+      if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css');
+      } else if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      }
+    },
   }));
 
   // Handle React Router - serve index.html for all non-API routes
@@ -2073,10 +2081,12 @@ if (fs.existsSync(distPath)) {
       // Return 404 with proper MIME type for CSS/JS to prevent browser errors
       if (req.path.endsWith('.css')) {
         res.type('text/css');
+        return res.status(404).send('/* File not found */');
       } else if (req.path.endsWith('.js')) {
         res.type('application/javascript');
+        return res.status(404).send('// File not found');
       }
-      return res.status(404).send('/* File not found */');
+      return res.status(404).json({ error: 'File not found' });
     }
     
     // For all other routes, serve index.html for SPA routing
