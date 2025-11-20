@@ -733,9 +733,9 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                 animate="visible"
                 exit="hidden"
                 transition={{
-                  duration: isNewDecision ? 0.6 : 0.3,
+                  duration: isNewDecision ? 0.3 : 0.2,
                   delay: animationDelay,
-                  ease: [0.16, 1, 0.3, 1],
+                  ease: "easeOut",
                 }}
                 className="bg-bg-elevated border border-border rounded-xl overflow-hidden hover:border-terminal-accent/50 transition-colors will-change-transform"
               >
