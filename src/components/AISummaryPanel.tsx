@@ -463,37 +463,40 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
         </div>
       </div>
 
-      {/* Activity Feed */}
+      {/* Activity Feed - ALWAYS show content, never disappear */}
       <div className="flex-1 overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {loading ? (
+        {/* Show loading ONLY on very first load when there are no decisions */}
+        {loading && decisions.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-[13px] text-muted-foreground font-mono">Loading summary...</div>
+            <div className="text-[13px] text-muted-foreground font-mono">Loading research...</div>
           </div>
         ) : decisions.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <div className="text-[13px] text-muted-foreground font-mono mb-2">No active trades</div>
+              <div className="text-[13px] text-muted-foreground font-mono mb-2">No research yet</div>
               <div className="text-[11px] text-muted-foreground font-mono">Agents are analyzing markets...</div>
             </div>
           </div>
         ) : (
         <div className="p-3 space-y-3">
-          <AnimatePresence mode="popLayout" initial={false}>
+          {/* CRITICAL: Use AnimatePresence with mode="sync" to prevent disappearing */}
+          {/* initial={false} prevents initial animations on mount */}
+          <AnimatePresence mode="sync" initial={false}>
             {decisions.map((decision, index) => {
             const isExpanded = expandedId === decision.id;
             const hasHistory = decision.decisionHistory && decision.decisionHistory.length > 0;
             
-            // Track if this is a new decision (for animation) - only animate top 3 as "new"
-            const isNewDecision = index < 3;
+            // Track if this is a truly new decision (first 5 items are considered "new" for animation)
+            const isNewDecision = index < 5;
             
             return (
               <motion.div
-                key={decision.id}
-                initial={isNewDecision ? { opacity: 0, y: -30, scale: 0.96 } : false} // Only animate truly new items from top
-                animate={{ opacity: 1, y: 0, scale: 1 }} // Animate into position
-                exit={{ opacity: 0, height: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0 }} // Exit by collapsing height
-                transition={{ duration: 0.4, ease: "easeOut" }} // Smooth animation
-                layout // Enable layout animations for smooth repositioning when new items added
+                key={decision.id} // Stable key - prevents re-mounting
+                initial={isNewDecision ? { opacity: 0, y: -40, scale: 0.95 } : false} // New items animate from top
+                animate={{ opacity: 1, y: 0, scale: 1 }} // Always visible when in list
+                exit={{ opacity: 0, height: 0 }} // Only exit if actually removed (shouldn't happen)
+                transition={{ duration: 0.5, ease: "easeOut" }} // Smooth animation
+                layout // Enable layout animations for smooth repositioning
                 className="bg-bg-elevated border border-border rounded-xl overflow-hidden hover:border-terminal-accent/50 transition-colors"
               >
                 {/* Clickable Header - Always expandable to show decision details */}
