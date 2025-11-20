@@ -1329,11 +1329,13 @@ const Index = () => {
 
         {/* LEFT: Performance Chart - Overlay */}
         {/* CRITICAL: Always keep chart mounted - never unmount it, just hide/show */}
+        {/* Use visibility instead of display to keep component rendered in DOM */}
         <div style={{ 
-          display: isPerformanceOpen ? 'block' : 'none',
+          visibility: isPerformanceOpen ? 'visible' : 'hidden',
           position: 'absolute',
           inset: 0,
-          pointerEvents: isPerformanceOpen ? 'auto' : 'none'
+          pointerEvents: isPerformanceOpen ? 'auto' : 'none',
+          display: isPerformanceOpen ? 'block' : 'block' // Always keep in DOM
         }}>
           <ResizablePanelGroup
             direction="horizontal"
