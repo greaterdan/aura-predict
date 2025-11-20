@@ -372,11 +372,9 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
                 const decisionTimestamp = decision.openedAt ? new Date(decision.openedAt) : (decision.timestamp ? new Date(decision.timestamp) : new Date());
                 
                 // For RESEARCH, decision can be YES, NO, or NEUTRAL
-                let decisionValue: "YES" | "NO" = decision.decision || decision.side || 'NEUTRAL';
-                if (decisionValue === 'NEUTRAL') {
-                  // For display, convert NEUTRAL to a readable format
-                  decisionValue = 'YES'; // Default display, but we'll show it's research
-                }
+                // For display, convert NEUTRAL to YES (but action will show it's RESEARCH)
+                const rawDecision = decision.decision || decision.side || 'YES';
+                let decisionValue: "YES" | "NO" = (rawDecision === 'YES' || rawDecision === 'NO') ? rawDecision : 'YES';
                 
                 newDecisions.push({
                   id: decision.id || `${agentId}-${decision.marketId}-${index}`, // Use decision.id or generate stable ID
