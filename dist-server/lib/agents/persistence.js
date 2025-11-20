@@ -10,8 +10,10 @@ export function getPersistenceAdapter() {
     return {
         savePortfolio: async (_portfolio) => { },
         loadPortfolio: async (_agentId) => null,
+        getPortfolio: async (_agentId) => null,
         saveTrade: async (_trade) => { },
         loadTrades: async (_agentId) => [],
+        updatePortfolio: async (_portfolio) => { },
     };
 }
 /**

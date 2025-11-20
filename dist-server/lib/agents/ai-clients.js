@@ -272,7 +272,7 @@ async function callQwen(context, webSearchResults) {
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Unknown error' }));
         // Handle access denied errors gracefully (403 = account not eligible)
-        if (response.status === 403 && error.code === 'AccessDenied.Unpurchased') {
+        if (response.status === 403 && error?.code === 'AccessDenied.Unpurchased') {
             // This is an account eligibility issue, not a code error
             // Throw a specific error that can be handled quietly
             const accessError = new Error('Qwen API access denied - account not eligible');

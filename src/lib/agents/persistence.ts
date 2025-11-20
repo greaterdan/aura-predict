@@ -38,8 +38,10 @@ export function getPersistenceAdapter() {
   return {
     savePortfolio: async (_portfolio: AgentPortfolio) => {},
     loadPortfolio: async (_agentId: AgentId): Promise<AgentPortfolio | null> => null,
+    getPortfolio: async (_agentId: AgentId): Promise<AgentPortfolio | null> => null,
     saveTrade: async (_trade: AgentTradeRecord) => {},
     loadTrades: async (_agentId: AgentId): Promise<AgentTradeRecord[]> => [],
+    updatePortfolio: async (_portfolio: AgentPortfolio) => {},
   };
 }
 
