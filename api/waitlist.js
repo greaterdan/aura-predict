@@ -92,10 +92,15 @@ Timestamp: ${timestamp}
     console.log(`========================\n`);
 
     try {
+      const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+      const smtpSecure = process.env.SMTP_SECURE
+        ? process.env.SMTP_SECURE.toLowerCase() === 'true'
+        : smtpPort === 465;
+
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: false,
+        port: smtpPort,
+        secure: smtpSecure,
         auth: {
           user: process.env.SMTP_USER || process.env.EMAIL_USER,
           pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
@@ -135,4 +140,3 @@ Timestamp: ${timestamp}
     });
   }
 }
-

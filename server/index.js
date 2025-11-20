@@ -1972,10 +1972,15 @@ Timestamp: ${timestamp}
       // Create transporter - configure based on your email service
       // For Gmail: Use app password (not regular password)
       // For other services: Update SMTP settings accordingly
+      const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+      const smtpSecure = process.env.SMTP_SECURE
+        ? process.env.SMTP_SECURE.toLowerCase() === 'true'
+        : smtpPort === 465;
+
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: false, // true for 465, false for other ports
+        port: smtpPort,
+        secure: smtpSecure, // Port 465 requires secure=true
         auth: {
           user: process.env.SMTP_USER || process.env.EMAIL_USER,
           pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
@@ -2155,4 +2160,3 @@ if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
     process.exit(1);
   }
 }
-
