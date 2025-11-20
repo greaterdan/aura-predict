@@ -18,6 +18,11 @@ import { getCachedAgentTrades, setCachedAgentTrades } from './cache';
 import { generateResearchForMarket, type ResearchDecision } from './research';
 
 /**
+ * Research decisions cache (separate from trades)
+ */
+const researchCache = new Map<AgentId, ResearchDecision[]>();
+
+/**
  * Generate trades for a specific agent
  * 
  * Pipeline:
