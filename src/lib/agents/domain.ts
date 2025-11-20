@@ -76,6 +76,10 @@ export interface Market {
   currentProbability: number; // 0-1
   priceChange24h: number; // -1 to +1 (percentage change as decimal)
   raw?: unknown; // Store raw Polymarket response for debugging
+  endDate?: string; // ISO date string when market ends/resolves
+  closed?: boolean; // Whether market is closed/resolved
+  archived?: boolean; // Whether market is archived
+  active?: boolean; // Whether market is currently active
 }
 
 /**

@@ -331,15 +331,49 @@ export async function generateTradeForMarket(
   // Round to nearest $10 for cleaner display (was $5, but $10 gives more variety)
   const finalInvestment = Math.round(investmentUsd / 10) * 10;
   
-  // Determine trade status - close some trades to show history
-  // Close trades deterministically based on market ID hash (so same market = same status)
-  const marketHash = scored.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const shouldClose = (marketHash % 3) === 0; // Close ~33% of trades
-  const status: 'OPEN' | 'CLOSED' = shouldClose ? 'CLOSED' : 'OPEN';
+  // Determine trade status - ONLY close trades for markets that have actually ended
+  // Check if market has ended based on endDate, closed, or archived status
+  const market = scored.raw as any;
+  const endDate = scored.endDate || market?.end_date_iso || market?.endDate;
+  const isClosed = scored.closed || market?.closed || false;
+  const isArchived = scored.archived || market?.archived || false;
+  
+  let hasEnded = false;
+  if (endDate) {
+    try {
+      const endDateObj = new Date(endDate);
+      const nowDate = new Date(now);
+      hasEnded = endDateObj < nowDate;
+    } catch {
+      // Invalid date, check other flags
+    }
+  }
+  
+  // Market has ended if: endDate is in past, or explicitly closed/archived
+  const marketHasEnded = hasEnded || isClosed || isArchived;
+  
+  // Only mark as CLOSED if market has actually ended
+  // Otherwise, keep as OPEN (even if we want to show some closed trades)
+  const status: 'OPEN' | 'CLOSED' = marketHasEnded ? 'CLOSED' : 'OPEN';
   
   // Generate timestamps deterministically
   const openedAt = new Date(now - (index * 1000)).toISOString(); // Stagger by 1 second per market
-  const closedAt = shouldClose ? new Date(now - (index * 1000) + (Math.abs(marketHash % 3600000))).toISOString() : undefined;
+  
+  // For closed trades, use the market's actual end date (preferably November)
+  let closedAt: string | undefined = undefined;
+  if (marketHasEnded && endDate) {
+    try {
+      const endDateObj = new Date(endDate);
+      // Use actual end date, but ensure it's after openedAt
+      closedAt = endDateObj > new Date(openedAt) 
+        ? endDateObj.toISOString() 
+        : new Date(new Date(openedAt).getTime() + 3600000).toISOString(); // 1 hour after open
+    } catch {
+      // Invalid date, use deterministic close time
+      const marketHash = scored.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      closedAt = new Date(now - (index * 1000) + (Math.abs(marketHash % 3600000))).toISOString();
+    }
+  }
   
   // Calculate PnL for closed trades (mock calculation based on confidence and score)
   // Higher confidence + better score = more likely to win
