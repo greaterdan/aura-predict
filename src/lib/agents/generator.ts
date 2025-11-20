@@ -14,7 +14,7 @@ import { fetchAllMarkets } from '../markets/polymarket.js';
 import { fetchLatestNews } from '../news/aggregator.js';
 import { filterCandidateMarkets, scoreMarketForAgent, computeNewsRelevance } from './scoring.js';
 import { generateTradeForMarket } from './engine.js';
-import { getCachedAgentTrades, setCachedAgentTrades } from './cache.js';
+import { getCachedAgentTrades, setCachedAgentTrades, getCachedTradesQuick } from './cache.js';
 import { generateResearchForMarket, type ResearchDecision } from './research.js';
 
 /**
