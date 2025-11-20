@@ -282,7 +282,7 @@ export async function getAgentsSummary(req, res) {
         try {
           // Try cached trades first (fast path)
           if (getCachedTradesQuick) {
-            const cached = getCachedTradesQuick(agentId);
+            const cached = await getCachedTradesQuick(agentId);
             if (cached && cached.length > 0) {
               console.log(`[API:${req.id}] 💾 Using cached trades for ${agentId}: ${cached.length} trades`);
               return cached;
