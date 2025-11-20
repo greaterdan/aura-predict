@@ -96,7 +96,9 @@ export async function fetchAllMarkets() {
         if (isServerSide) {
             // CRITICAL: Use the SAME transformed predictions as the frontend
             // This ensures market IDs match prediction IDs exactly
+            // @ts-ignore - JS modules don't have type declarations
             const { fetchAllMarkets } = await import('../../../server/services/polymarketService.js');
+            // @ts-ignore - JS modules don't have type declarations
             const { transformMarkets } = await import('../../../server/services/marketTransformer.js');
             // Fetch markets using the same function as bubble maps
             const rawMarkets = await fetchAllMarkets({
