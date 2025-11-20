@@ -8,7 +8,7 @@
 
 // Import TypeScript modules via bridge (uses tsx)
 // Load asynchronously to not block server startup
-let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAgentSummary, computeSummaryStats, calculateAllAgentStats, getAgentsStats;
+let generateAgentTrades, getAgentProfile, isValidAgentId, ALL_AGENT_IDS, buildAgentSummary, computeSummaryStats, calculateAllAgentStats;
 let agentsModuleLoading = false;
 let agentsModuleLoaded = false;
 const isProductionEnv = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
