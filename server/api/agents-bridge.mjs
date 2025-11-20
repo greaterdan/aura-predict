@@ -54,71 +54,73 @@ try {
   console.log('[API] Attempting to load TypeScript modules...');
   console.log('[API] tsx registered:', tsxRegistered);
   
-  // Try importing compiled JS first, then fallback to TS
+  // CRITICAL: Try compiled JS FIRST (production on Railway)
+  // Only fallback to TS if JS doesn't exist (local development)
   let agentsModule;
+  let loadedFrom = 'unknown';
+  
   try {
     // Try compiled JS first (production)
     agentsModule = await import('../../dist-server/lib/agents/generator.js');
-    console.log('[API] ✅ Loaded from compiled JS');
+    loadedFrom = 'compiled JS';
+    console.log('[API] ✅ Loaded generator from compiled JS');
   } catch (jsError) {
+    // If compiled JS doesn't exist, we're in development - use tsx
+    // But ONLY if tsx is available (check via --import tsx flag)
+    console.warn('[API] ⚠️ Compiled JS not found, trying TypeScript (development mode)');
+    console.warn('[API] ⚠️ JS error:', jsError.message);
+    
+    // In production, we should NEVER reach here - compiled JS must exist
+    // If we do, it means build:server didn't run
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('CRITICAL: Compiled JS not found in production. Ensure "npm run build:server" ran during build.');
+    }
+    
+    // Development fallback: try TypeScript
     try {
-      // Fallback to TypeScript (development with tsx)
       agentsModule = await import('../../src/lib/agents/generator.ts');
-      console.log('[API] ✅ Loaded from TypeScript');
+      loadedFrom = 'TypeScript';
+      console.log('[API] ✅ Loaded generator from TypeScript (development)');
     } catch (tsError) {
-      // Last resort: try without extension
-      console.warn('[API] ⚠️ Both JS and TS imports failed, trying without extension');
-      agentsModule = await import('../../src/lib/agents/generator');
+      throw new Error(`Failed to load generator: JS error: ${jsError.message}, TS error: ${tsError.message}`);
     }
   }
   
   console.log('[API] generator.ts loaded, exports:', Object.keys(agentsModule));
   
-  // Import other modules - try compiled JS first, then TS
+  // Import other modules - ALWAYS try compiled JS first in production
   let domainModule, summaryModule, statsModule, cacheModule;
   
-  try {
-    domainModule = await import('../../dist-server/lib/agents/domain.js');
-  } catch (e) {
+  const loadModule = async (modulePath, moduleName) => {
     try {
-      domainModule = await import('../../src/lib/agents/domain.ts');
-    } catch (e2) {
-      domainModule = await import('../../src/lib/agents/domain');
+      const jsPath = `../../dist-server/lib/agents/${modulePath}.js`;
+      const module = await import(jsPath);
+      console.log(`[API] ✅ Loaded ${moduleName} from compiled JS`);
+      return module;
+    } catch (jsError) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`CRITICAL: Compiled ${moduleName} not found in production. Build failed?`);
+      }
+      // Development fallback
+      try {
+        const tsPath = `../../src/lib/agents/${modulePath}.ts`;
+        const module = await import(tsPath);
+        console.log(`[API] ✅ Loaded ${moduleName} from TypeScript (development)`);
+        return module;
+      } catch (tsError) {
+        throw new Error(`Failed to load ${moduleName}: ${jsError.message}`);
+      }
     }
-  }
+  };
+  
+  domainModule = await loadModule('domain', 'domain');
+  summaryModule = await loadModule('summary', 'summary');
+  statsModule = await loadModule('stats', 'stats');
+  cacheModule = await loadModule('cache', 'cache');
+  
   console.log('[API] domain loaded, exports:', Object.keys(domainModule));
-  
-  try {
-    summaryModule = await import('../../dist-server/lib/agents/summary.js');
-  } catch (e) {
-    try {
-      summaryModule = await import('../../src/lib/agents/summary.ts');
-    } catch (e2) {
-      summaryModule = await import('../../src/lib/agents/summary');
-    }
-  }
   console.log('[API] summary loaded, exports:', Object.keys(summaryModule));
-  
-  try {
-    statsModule = await import('../../dist-server/lib/agents/stats.js');
-  } catch (e) {
-    try {
-      statsModule = await import('../../src/lib/agents/stats.ts');
-    } catch (e2) {
-      statsModule = await import('../../src/lib/agents/stats');
-    }
-  }
   console.log('[API] stats loaded, exports:', Object.keys(statsModule));
-  
-  try {
-    cacheModule = await import('../../dist-server/lib/agents/cache.js');
-  } catch (e) {
-    try {
-      cacheModule = await import('../../src/lib/agents/cache.ts');
-    } catch (e2) {
-      cacheModule = await import('../../src/lib/agents/cache');
-    }
-  }
   console.log('[API] cache loaded, exports:', Object.keys(cacheModule));
   
   // Verify exports exist
