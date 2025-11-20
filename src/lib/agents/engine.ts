@@ -5,9 +5,9 @@
  * Handles AI API calls, deterministic fallbacks, and personality rules.
  */
 
-import type { AgentProfile, ScoredMarket, AgentTrade, TradeSide, NewsRelevance, NewsArticle, Category } from './domain';
-import { getAITradeDecision, isAIConfigured } from './ai-clients';
-import { getPersonalityRules, applyPersonalityRules } from './personality';
+import type { AgentProfile, ScoredMarket, AgentTrade, TradeSide, NewsRelevance, NewsArticle, Category } from './domain.js';
+import { getAITradeDecision, isAIConfigured } from './ai-clients.js';
+import { getPersonalityRules, applyPersonalityRules } from './personality.js';
 import { createHash } from 'crypto';
 
 /**
