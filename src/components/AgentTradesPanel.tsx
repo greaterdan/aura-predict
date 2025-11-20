@@ -153,7 +153,7 @@ export const AgentTradesPanel = ({ agentId, agentName, agentEmoji, trades, onClo
           )}
           {typeof trade.entryProbability === 'number' && section === "OPEN" && (
             <div className="px-2 py-0.5 rounded-full text-[10px] font-mono border border-border text-muted-foreground">
-              Entry ${trade.entryProbability.toFixed(2)}
+              Entry ${(trade.entryProbability > 1 ? trade.entryProbability / 100 : trade.entryProbability).toFixed(2)}
             </div>
           )}
         </div>
