@@ -493,9 +493,6 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
             chartDataRef.current = finalData; // Persist to ref for next mount
             return finalData;
           });
-        } else {
-          console.error('Failed to fetch agent summary:', response.status, response.statusText);
-        }
       } catch (error) {
         console.error('Failed to fetch chart data:', error);
         // Keep showing initial data if API fails
@@ -504,13 +501,21 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
     
     // Load immediately on mount
     loadChartData();
-    // Update chart every 30 seconds
-    const interval = setInterval(loadChartData, 30 * 1000);
+    // Update chart every 30 seconds - CONTINUE UPDATING EVEN IF COMPONENT IS HIDDEN
+    // This ensures chart data stays fresh when panel is reopened
+    const interval = setInterval(() => {
+      if (isMounted) {
+        loadChartData();
+      }
+    }, 30 * 1000);
+    
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [isLoading, predictionProbabilityMap]);
+    // Remove isLoading from deps - we want this to run continuously
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [predictionProbabilityMap]);
 
   // Filter agents to only show those trading the selected market
   const filteredAgents = useMemo(() => {
