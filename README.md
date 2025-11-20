@@ -32,39 +32,50 @@ The following flowchart illustrates how AI agents manage trading positions from 
 
 ```mermaid
 flowchart TD
-    A[Open Position] --> B[Update Database]
-    B --> C[Monitor Position]
-    C --> D[Account Poller<br/>every 5s]
-    D --> E[Update PnL]
-    E --> F{Exit Condition?}
-    F -->|None| C
-    F -->|TP Hit| G[Close Position]
-    F -->|SL Hit| G
-    F -->|AI Close| G
-    G --> H[Wait for Close Fill]
-    H --> I[Get Realized PnL]
-    I --> J[Update Agent Stats]
-    J --> K[Next Cycle]
-    K --> C
+    A[Agent Cycle Starts<br/>Every 30-60s] --> B[Load Portfolio<br/>from Persistence]
+    B --> C[Update Portfolio Metrics<br/>Calculate Unrealized PnL]
+    C --> D[Process Position Lifecycle]
+    D --> E{Check Exit Conditions<br/>for Each Open Position}
+    E -->|No Exit| F[Position Stays Open]
+    E -->|Take Profit Hit| G[Close Position]
+    E -->|Stop Loss Hit| G
+    E -->|Time Limit Reached| G
+    E -->|Score Decay| G
+    E -->|Market Unavailable| G
+    G --> H[Calculate Realized PnL]
+    H --> I[Remove from Open Positions]
+    I --> J[Update Portfolio Stats<br/>Add Realized PnL to Capital]
+    J --> K[Generate New Trades<br/>Based on Available Capital]
+    K --> L[Save Portfolio<br/>to Persistence]
+    L --> M[Next Cycle]
+    M --> A
+    F --> K
 ```
 
 ### Flow Explanation
 
-1. **Open Position**: Agent opens a new trading position based on AI analysis
-2. **Update Database**: Position details are stored in the database
-3. **Monitor Position**: Continuous monitoring of the open position begins
-4. **Account Poller**: Every 5 seconds, the system polls the account for updates
-5. **Update PnL**: Profit and Loss is calculated and updated based on current market prices
-6. **Exit Condition Check**: System checks if any exit condition is met:
-   - **TP Hit**: Take Profit target reached
-   - **SL Hit**: Stop Loss limit reached
-   - **AI Close**: AI agent decides to close based on market analysis
-   - **None**: No exit condition met, continue monitoring
-7. **Close Position**: When an exit condition is met, the position is closed
-8. **Wait for Close Fill**: System waits for the close order to be filled
-9. **Get Realized PnL**: Final profit/loss is calculated
-10. **Update Agent Stats**: Agent performance statistics are updated
-11. **Next Cycle**: Process returns to monitoring for the next trading opportunity
+1. **Agent Cycle Starts**: Trading cycle runs every 30-60 seconds for each agent
+2. **Load Portfolio**: Agent's portfolio is loaded from persistence (Redis or database) with all open positions
+3. **Update Portfolio Metrics**: System fetches current market probabilities and calculates unrealized PnL for all open positions
+4. **Process Position Lifecycle**: System iterates through each open position to check exit conditions
+5. **Check Exit Conditions**: For each position, system evaluates:
+   - **Take Profit**: 
+     - YES position closes if probability >= 80%
+     - NO position closes if probability <= 20%
+   - **Stop Loss**:
+     - YES position closes if probability <= 30%
+     - NO position closes if probability >= 70%
+   - **Time Limit**: Position open for > 30 days
+   - **Score Decay**: Market score drops below 20
+   - **Market Unavailable**: Market no longer exists or accessible
+   - **No Exit**: Position continues to be monitored
+6. **Close Position**: When exit condition is met, position is marked for closing
+7. **Calculate Realized PnL**: Final profit/loss is calculated based on entry vs exit probability
+8. **Remove from Open Positions**: Position is removed from active portfolio
+9. **Update Portfolio Stats**: Realized PnL is added to agent's capital and portfolio statistics
+10. **Generate New Trades**: Agent analyzes markets and generates new trades based on available capital and risk limits
+11. **Save Portfolio**: Updated portfolio (with closed positions and new trades) is saved to persistence
+12. **Next Cycle**: Process repeats in the next cycle interval
 
 ## Tech Stack
 
