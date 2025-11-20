@@ -196,13 +196,39 @@ export async function getAgentsSummary(req, res) {
   try {
     console.log(`[API:${req.id}] 📥 GET /api/agents/summary`);
     
+    // Check if modules are loaded
+    if (!agentsModuleLoaded) {
+      console.warn(`[API:${req.id}] ⚠️ Agents module not yet loaded, waiting...`);
+      // Wait a bit for async loading to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!agentsModuleLoaded) {
+        return res.status(503).json({ 
+          error: 'Agents module still loading', 
+          message: 'Please wait a moment and try again'
+        });
+      }
+    }
+    
     const agentIds = ALL_AGENT_IDS || Object.keys(agentIdMap || {});
+    if (!agentIds || agentIds.length === 0) {
+      return res.status(503).json({ 
+        error: 'No agents available', 
+        message: 'Agent profiles not loaded'
+      });
+    }
+    
     console.log(`[API:${req.id}] 🤖 Generating trades for ${agentIds.length} agents: ${agentIds.join(', ')}`);
     
     // Try to get cached trades first (much faster for summary)
     // Only regenerate if cache is empty/expired
     // Import bridge to get getCachedTradesQuick and getAgentResearch
-    const bridge = await import('./agents-bridge.mjs');
+    let bridge;
+    try {
+      bridge = await import('./agents-bridge.mjs');
+    } catch (bridgeError) {
+      console.error(`[API:${req.id}] ❌ Failed to import bridge:`, bridgeError.message);
+      throw new Error(`Bridge import failed: ${bridgeError.message}`);
+    }
     const getCachedTradesQuick = bridge.getCachedTradesQuick;
     const getAgentResearch = bridge.getAgentResearch || (() => []); // Fallback if not available
     
