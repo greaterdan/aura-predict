@@ -302,8 +302,8 @@ export async function generateAgentTrades(agentId: AgentId): Promise<AgentTrade[
   const duration = Date.now() - startTime;
   console.log(`[Agent:${agentId}] ✅ Trade generation complete: ${trades.length} trades and ${researchDecisions.length} research decisions generated in ${duration}ms`);
   
-  // Cache results
-  setCachedAgentTrades(agentId, trades, currentMarketIds);
+  // Cache results (persists to Redis if available)
+  await setCachedAgentTrades(agentId, trades, currentMarketIds);
   
   // Cache research decisions separately
   researchCache.set(agentId, researchDecisions);

@@ -203,7 +203,9 @@ export async function getCachedTradesQuick(agentId: AgentId): Promise<AgentTrade
   // If not in memory, try Redis (for persistence across restarts)
   if (!entry && redisClient) {
     const redisEntry = await loadFromRedis(agentId);
-    entry = redisEntry || undefined;
+    if (redisEntry) {
+      entry = redisEntry;
+    }
   }
   
   if (!entry) {
