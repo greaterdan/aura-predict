@@ -1,7 +1,20 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { Brain, TrendingUp, TrendingDown, Activity, ChevronDown, ChevronUp, Globe } from "lucide-react";
 import { TypewriterText } from "./TypewriterText";
+
+const SUMMARY_CACHE_KEY = 'agent-summary-cache-v2';
+const MAX_DECISIONS = 50;
+
+const cardVariants = {
+  hidden: { opacity: 0, y: -12, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+  },
+};
 
 const DEFAULT_AGENT_OPTIONS = [
   { id: "grok", name: "GROK 4", emoji: "🔥" },
@@ -31,6 +44,22 @@ const getAgentLogo = (agentName: string): string => {
   if (agentUpper.includes("QWEN")) return "/Qwen_logo.svg";
   return "/placeholder.svg";
 };
+
+const hydrateCachedDecisions = (cached: any[]): AIDecision[] => {
+  if (!Array.isArray(cached)) return [];
+  return cached
+    .map(item => ({
+      ...item,
+      timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+    }))
+    .filter(item => item.id && item.agentName);
+};
+
+const serializeDecisionsForCache = (decisions: AIDecision[]) =>
+  decisions.map(decision => ({
+    ...decision,
+    timestamp: decision.timestamp.toISOString(),
+  }));
 
 interface AIDecision {
   id: string;
@@ -309,6 +338,57 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
   const [agents, setAgents] = useState<Array<{ id: string; name: string; emoji: string }>>(DEFAULT_AGENT_OPTIONS);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const hasLoadedRef = useRef(false);
+  const decisionsRef = useRef<AIDecision[]>([]);
+  const newDecisionIdsRef = useRef<Set<string>>(new Set());
+  const newDecisionOrderRef = useRef<Map<string, number>>(new Map());
+
+  // Restore cached decisions instantly when component mounts
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const cached = window.sessionStorage.getItem(SUMMARY_CACHE_KEY);
+      if (cached) {
+        const hydrated = hydrateCachedDecisions(JSON.parse(cached)).slice(0, MAX_DECISIONS);
+        if (hydrated.length > 0) {
+          decisionsRef.current = hydrated;
+          setDecisions(hydrated);
+          if (!hasLoadedRef.current) {
+            hasLoadedRef.current = true;
+            setLoading(false);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[AISummaryPanel] Failed to restore cached summary', error);
+    }
+  }, []);
+
+  // Persist decisions to cache and keep ref in sync
+  useEffect(() => {
+    decisionsRef.current = decisions;
+    if (typeof window === 'undefined') return;
+    if (decisions.length === 0) {
+      window.sessionStorage.removeItem(SUMMARY_CACHE_KEY);
+      return;
+    }
+    try {
+      const serialized = serializeDecisionsForCache(decisions.slice(0, MAX_DECISIONS));
+      window.sessionStorage.setItem(SUMMARY_CACHE_KEY, JSON.stringify(serialized));
+    } catch (error) {
+      console.warn('[AISummaryPanel] Failed to cache summary', error);
+    }
+  }, [decisions]);
+
+  // Automatically clear the "new" highlight once items have animated in
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (newDecisionIdsRef.current.size === 0) return;
+    const timeout = window.setTimeout(() => {
+      newDecisionIdsRef.current.clear();
+      newDecisionOrderRef.current.clear();
+    }, 2000);
+    return () => window.clearTimeout(timeout);
+  }, [decisions]);
 
 
   // Fetch agent summary from API
@@ -441,6 +521,20 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
           
           // Sort by timestamp (most recent first - newest at top)
           newDecisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+          // Track which decisions are genuinely new so they can animate one-by-one
+          const previousMap = new Map(decisionsRef.current.map(decision => [decision.id, decision]));
+          const freshIds = new Set<string>();
+          const freshOrder = new Map<string, number>();
+          newDecisions.forEach(decision => {
+            const existing = previousMap.get(decision.id);
+            if (!existing || existing.timestamp.getTime() !== decision.timestamp.getTime() || existing.reasoning !== decision.reasoning) {
+              freshOrder.set(decision.id, freshOrder.size);
+              freshIds.add(decision.id);
+            }
+          });
+          newDecisionIdsRef.current = freshIds;
+          newDecisionOrderRef.current = freshOrder;
           
           // CRITICAL: Merge new decisions with existing ones - NEVER clear, only add/update
           // This ensures the summary NEVER disappears
@@ -457,7 +551,7 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
             const remaining = prev.filter(d => !seenIds.has(d.id));
             merged.push(...remaining);
             merged.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-            return merged.slice(0, 100);
+            return merged.slice(0, MAX_DECISIONS);
           });
           
           if (!hasLoadedRef.current) {

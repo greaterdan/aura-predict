@@ -436,21 +436,9 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
               setIsLoading(false);
               return [newDataPoint];
             }
-            // Check if this timestamp already exists (avoid duplicates)
-            const existingIndex = prev.findIndex(p => 
-              p.timestamp && Math.abs(p.timestamp - newDataPoint.timestamp!) < 60000 // Within 1 minute
-            );
-            
-            let updated: ChartDataPoint[];
-            if (existingIndex >= 0) {
-              // Update existing point
-              updated = [...prev];
-              updated[existingIndex] = newDataPoint;
-            } else {
-              // Add new point
-              updated = [...prev, newDataPoint];
-            }
-            
+            // Always append latest point for historical view
+            let updated: ChartDataPoint[] = [...prev, newDataPoint];
+
             // Sort by timestamp and keep last 20 points for clean chart view
             updated.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             return updated.slice(-20);

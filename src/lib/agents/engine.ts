@@ -41,10 +41,28 @@ export function getDeterministicSide(scored: ScoredMarket, seed: string): TradeS
  * Get deterministic confidence based on score and risk
  */
 export function getDeterministicConfidence(scored: ScoredMarket, agent: AgentProfile, seed: string): number {
-  const baseConfidence = scored.score / 100;
-  const riskMultiplier = agent.risk === 'HIGH' ? 1.1 : agent.risk === 'LOW' ? 0.9 : 1.0;
-  const jitter = (deterministicNumber(seed + 'jitter') - 0.5) * 0.1; // ±5% jitter
-  return Math.max(0.4, Math.min(0.95, baseConfidence * riskMultiplier + jitter));
+  const scoreNormalized = Math.min(1, scored.score / 20);
+  const probabilityEdge = Math.min(1, Math.abs(scored.currentProbability - 0.5) * 2);
+  const volumeNormalized = Math.min(1, Math.log10((scored.volumeUsd || 1) + 1) / 6);
+  const newsScore = scored.components?.newsScore ?? 0;
+  const newsNormalized = Math.min(1, newsScore / 25);
+
+  let baseConfidence =
+    0.30 +
+    0.30 * scoreNormalized +
+    0.20 * probabilityEdge +
+    0.10 * volumeNormalized +
+    0.10 * newsNormalized;
+
+  if (agent.risk === 'HIGH') {
+    baseConfidence += 0.05;
+  } else if (agent.risk === 'LOW') {
+    baseConfidence -= 0.05;
+  }
+
+  const jitter = (deterministicNumber(seed + 'jitter') - 0.5) * 0.08; // ±4%
+  const confidence = baseConfidence + jitter;
+  return Math.max(0.35, Math.min(0.95, confidence));
 }
 
 function resolveSourceName(source?: string, url?: string): string {
