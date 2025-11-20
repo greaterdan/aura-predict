@@ -54,52 +54,72 @@ try {
   console.log('[API] Attempting to load TypeScript modules...');
   console.log('[API] tsx registered:', tsxRegistered);
   
-  // Try importing with explicit .ts extension first
+  // Try importing compiled JS first, then fallback to TS
   let agentsModule;
   try {
-    agentsModule = await import('../../src/lib/agents/generator.ts');
-  } catch (importError) {
-    // If that fails, try without extension (tsx should add it)
-    console.warn('[API] ⚠️ Import with .ts failed, trying without extension:', importError.message);
-    agentsModule = await import('../../src/lib/agents/generator');
+    // Try compiled JS first (production)
+    agentsModule = await import('../../dist-server/lib/agents/generator.js');
+    console.log('[API] ✅ Loaded from compiled JS');
+  } catch (jsError) {
+    try {
+      // Fallback to TypeScript (development with tsx)
+      agentsModule = await import('../../src/lib/agents/generator.ts');
+      console.log('[API] ✅ Loaded from TypeScript');
+    } catch (tsError) {
+      // Last resort: try without extension
+      console.warn('[API] ⚠️ Both JS and TS imports failed, trying without extension');
+      agentsModule = await import('../../src/lib/agents/generator');
+    }
   }
   
   console.log('[API] generator.ts loaded, exports:', Object.keys(agentsModule));
   
-  // Import other modules with error handling
+  // Import other modules - try compiled JS first, then TS
   let domainModule, summaryModule, statsModule, cacheModule;
   
   try {
-    domainModule = await import('../../src/lib/agents/domain.ts');
+    domainModule = await import('../../dist-server/lib/agents/domain.js');
   } catch (e) {
-    console.warn('[API] ⚠️ domain.ts import failed, trying without extension:', e.message);
-    domainModule = await import('../../src/lib/agents/domain');
+    try {
+      domainModule = await import('../../src/lib/agents/domain.ts');
+    } catch (e2) {
+      domainModule = await import('../../src/lib/agents/domain');
+    }
   }
-  console.log('[API] domain.ts loaded, exports:', Object.keys(domainModule));
+  console.log('[API] domain loaded, exports:', Object.keys(domainModule));
   
   try {
-    summaryModule = await import('../../src/lib/agents/summary.ts');
+    summaryModule = await import('../../dist-server/lib/agents/summary.js');
   } catch (e) {
-    console.warn('[API] ⚠️ summary.ts import failed, trying without extension:', e.message);
-    summaryModule = await import('../../src/lib/agents/summary');
+    try {
+      summaryModule = await import('../../src/lib/agents/summary.ts');
+    } catch (e2) {
+      summaryModule = await import('../../src/lib/agents/summary');
+    }
   }
-  console.log('[API] summary.ts loaded, exports:', Object.keys(summaryModule));
+  console.log('[API] summary loaded, exports:', Object.keys(summaryModule));
   
   try {
-    statsModule = await import('../../src/lib/agents/stats.ts');
+    statsModule = await import('../../dist-server/lib/agents/stats.js');
   } catch (e) {
-    console.warn('[API] ⚠️ stats.ts import failed, trying without extension:', e.message);
-    statsModule = await import('../../src/lib/agents/stats');
+    try {
+      statsModule = await import('../../src/lib/agents/stats.ts');
+    } catch (e2) {
+      statsModule = await import('../../src/lib/agents/stats');
+    }
   }
-  console.log('[API] stats.ts loaded, exports:', Object.keys(statsModule));
+  console.log('[API] stats loaded, exports:', Object.keys(statsModule));
   
   try {
-    cacheModule = await import('../../src/lib/agents/cache.ts');
+    cacheModule = await import('../../dist-server/lib/agents/cache.js');
   } catch (e) {
-    console.warn('[API] ⚠️ cache.ts import failed, trying without extension:', e.message);
-    cacheModule = await import('../../src/lib/agents/cache');
+    try {
+      cacheModule = await import('../../src/lib/agents/cache.ts');
+    } catch (e2) {
+      cacheModule = await import('../../src/lib/agents/cache');
+    }
   }
-  console.log('[API] cache.ts loaded, exports:', Object.keys(cacheModule));
+  console.log('[API] cache loaded, exports:', Object.keys(cacheModule));
   
   // Verify exports exist
   if (!agentsModule.generateAgentTrades) {
