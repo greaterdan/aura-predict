@@ -26,8 +26,8 @@ export function calculateAgentMetrics(agentId, portfolio, trades, window = 'all-
     // Calculate total PnL
     const totalPnlUsd = closedTrades.reduce((sum, t) => sum + (t.pnlUsd || 0), 0);
     // Calculate PnL percentage
-    const pnlPct = portfolio.startingCapitalUsd > 0
-        ? (portfolio.currentCapitalUsd - portfolio.startingCapitalUsd) / portfolio.startingCapitalUsd
+    const pnlPct = portfolio.portfolio.startingCapitalUsd > 0
+        ? (portfolio.portfolio.currentCapitalUsd - portfolio.portfolio.startingCapitalUsd) / portfolio.portfolio.startingCapitalUsd
         : 0;
     // Calculate average holding time
     const holdingTimes = closedTrades
