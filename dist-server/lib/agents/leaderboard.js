@@ -41,7 +41,7 @@ export function calculateAgentMetrics(agentId, portfolio, trades, window = 'all-
         ? holdingTimes.reduce((sum, t) => sum + t, 0) / holdingTimes.length
         : 0;
     // Calculate trades in last 24h
-    const trades24h = filteredTrades.filter(t => {
+    const tradesCount24h = filteredTrades.filter(t => {
         const opened = new Date(t.openedAt).getTime();
         return (now - opened) < 24 * 60 * 60 * 1000;
     }).length;
@@ -68,7 +68,7 @@ export function calculateAgentMetrics(agentId, portfolio, trades, window = 'all-
     }
     return {
         agentId,
-        currentCapitalUsd: portfolio.currentCapitalUsd,
+        currentCapitalUsd: portfolio.portfolio.currentCapitalUsd,
         pnlPct,
         totalPnlUsd,
         winRate,
