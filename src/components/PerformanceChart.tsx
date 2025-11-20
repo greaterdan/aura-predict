@@ -318,17 +318,22 @@ export const PerformanceChart = ({ predictions = [], selectedMarketId = null, se
   
   // PERSISTENT chart data - use ref to maintain across unmounts, state for rendering
   const chartDataRef = useRef<ChartDataPoint[]>(getInitialChartData());
-  const [chartData, setChartData] = useState<ChartDataPoint[]>(chartDataRef.current);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>(() => {
+    // Initialize from ref if available, otherwise use initial data
+    return chartDataRef.current.length > 0 ? [...chartDataRef.current] : getInitialChartData();
+  });
   const [isLoading, setIsLoading] = useState(true);
   const lastAgentPnlRef = useRef<Map<string, number>>(new Map());
   const animationDisabled = true;
   
-  // Restore chart data from ref on mount (if component was unmounted)
+  // CRITICAL: Restore chart data from ref whenever component mounts or becomes visible
+  // This ensures data persists even if component was unmounted
   useEffect(() => {
-    if (chartDataRef.current.length > 0) {
+    if (chartDataRef.current.length > 0 && chartData.length === 0) {
+      console.log('[Chart] Restoring chart data from ref:', chartDataRef.current.length, 'points');
       setChartData([...chartDataRef.current]);
     }
-  }, []);
+  }, [chartData.length]);
   
   // Fetch real agent portfolio data and update chart
   // CRITICAL: This effect should run regardless of component visibility

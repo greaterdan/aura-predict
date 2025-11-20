@@ -1328,8 +1328,13 @@ const Index = () => {
         </div>
 
         {/* LEFT: Performance Chart - Overlay */}
-        {/* Keep chart mounted but hidden when panel is closed - prevents data loss */}
-        <div style={{ display: isPerformanceOpen ? 'block' : 'none' }}>
+        {/* CRITICAL: Always keep chart mounted - never unmount it, just hide/show */}
+        <div style={{ 
+          display: isPerformanceOpen ? 'block' : 'none',
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: isPerformanceOpen ? 'auto' : 'none'
+        }}>
           <ResizablePanelGroup
             direction="horizontal"
             className="absolute inset-0 pointer-events-none"
