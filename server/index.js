@@ -1841,8 +1841,14 @@ app.get('/api/agents/summary', apiLimiter, async (req, res) => {
     }
     return getAgentsSummary(req, res);
   } catch (error) {
-    console.error('[API] Failed to load agents module:', error);
-    res.status(503).json({ error: 'Agents module not available', message: error.message });
+    console.error('[API] Failed to load agents module:', error.message);
+    console.error('[API] Stack:', error.stack);
+    // Return 503 but with more details for debugging
+    res.status(503).json({ 
+      error: 'Agents module not available', 
+      message: error.message,
+      hint: 'Check Railway logs for TypeScript module loading errors'
+    });
   }
 });
 console.log('✅ Registered: GET /api/agents/summary');
