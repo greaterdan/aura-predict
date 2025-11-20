@@ -120,6 +120,12 @@ export async function fetchAllMarkets() {
                 if (!marketId) {
                     return null;
                 }
+                // Extract end date and status from raw market data
+                const rawMarket = prediction.raw || {};
+                const endDate = rawMarket.end_date_iso || rawMarket.endDate || rawMarket.endDateIso || prediction.endDate;
+                const closed = rawMarket.closed || prediction.closed || false;
+                const archived = rawMarket.archived || prediction.archived || false;
+                const active = rawMarket.active !== false && prediction.active !== false;
                 // Extract data from transformed prediction
                 const question = prediction.question || '';
                 const volume = prediction.volume || prediction.volume24h || 0;
@@ -135,6 +141,10 @@ export async function fetchAllMarkets() {
                     liquidityUsd: liquidity,
                     currentProbability: probability / 100, // Convert from 0-100 to 0-1
                     priceChange24h: 0,
+                    endDate: endDate || undefined,
+                    closed: closed || false,
+                    archived: archived || false,
+                    active: active !== false,
                     raw: prediction, // Store full prediction for reference
                 };
             }).filter((m) => {

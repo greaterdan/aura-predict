@@ -378,8 +378,9 @@ export async function generateTradeForMarket(
   // Calculate PnL for closed trades (mock calculation based on confidence and score)
   // Higher confidence + better score = more likely to win
   let pnl: number | null = null;
-  if (shouldClose) {
+  if (marketHasEnded) {
     // Deterministic PnL calculation based on confidence, score, and market hash
+    const marketHash = scored.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const winProbability = Math.min(0.95, confidence * 0.8 + (scored.score / 100) * 0.2);
     const isWin = (marketHash % 100) < (winProbability * 100);
     
