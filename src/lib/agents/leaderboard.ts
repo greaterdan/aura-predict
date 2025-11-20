@@ -5,8 +5,8 @@
  * and portfolio snapshots.
  */
 
-import type { AgentId, Category } from './domain';
-import type { AgentTradeRecord, AgentPortfolioRecord } from './persistence';
+import type { AgentId, Category } from './domain.js';
+import type { AgentTradeRecord, AgentPortfolioRecord } from './persistence.js';
 
 /**
  * Leaderboard metrics for an agent

@@ -4,9 +4,9 @@
  * Generates research decisions for markets that agents analyze but don't trade on.
  * These show up in the summary as "RESEARCH" actions (not "TRADE").
  */
-import { deterministicSeed, getDeterministicSide, getDeterministicConfidence, getDeterministicReasoning } from './engine';
-import { getAITradeDecision, isAIConfigured } from './ai-clients';
-import { searchWebForMarket, buildMarketSearchQuery } from './web-search';
+import { deterministicSeed, getDeterministicSide, getDeterministicConfidence, getDeterministicReasoning } from './engine.js';
+import { getAITradeDecision, isAIConfigured } from './ai-clients.js';
+import { searchWebForMarket, buildMarketSearchQuery } from './web-search.js';
 /**
  * Generate a research decision for a market
  *

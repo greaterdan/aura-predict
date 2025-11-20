@@ -4,7 +4,7 @@
  * Lightweight adaptive layer that adjusts agent risk and category preferences
  * based on historical performance. Runs on a slower cadence (e.g. once per day).
  */
-import { RISK_BUDGET } from './portfolio';
+import { RISK_BUDGET } from './portfolio.js';
 /**
  * Compute risk multiplier based on performance
  *

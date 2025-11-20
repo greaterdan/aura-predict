@@ -5,7 +5,7 @@
  * All agents start with $3,000 USD.
  */
 
-import type { AgentId, Market } from './domain';
+import type { AgentId, Market } from './domain.js';
 
 /**
  * Starting capital for all agents (USD)

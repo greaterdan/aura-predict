@@ -5,7 +5,7 @@
  * with deduplication and caching. All agents share a single news pool to minimize API costs.
  */
 
-import type { NewsArticle } from '../agents/domain';
+import type { NewsArticle } from '../agents/domain.js';
 
 /**
  * News cache configuration

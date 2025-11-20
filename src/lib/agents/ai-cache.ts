@@ -6,8 +6,8 @@
  * TTL: 5 minutes (AI decisions should be relatively stable)
  */
 
-import type { AgentId } from './domain';
-import type { AITradeDecision } from './ai-clients';
+import type { AgentId } from './domain.js';
+import type { AITradeDecision } from './ai-clients.js';
 
 interface AICacheEntry {
   decision: AITradeDecision;

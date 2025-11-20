@@ -4,8 +4,8 @@
  * Core logic for generating individual trades for markets.
  * Handles AI API calls, deterministic fallbacks, and personality rules.
  */
-import { getAITradeDecision, isAIConfigured } from './ai-clients.js';
-import { getPersonalityRules, applyPersonalityRules } from './personality.js';
+import { getAITradeDecision, isAIConfigured } from './ai-clients.js.js';
+import { getPersonalityRules, applyPersonalityRules } from './personality.js.js';
 import { createHash } from 'crypto';
 /**
  * Create deterministic seed for a market

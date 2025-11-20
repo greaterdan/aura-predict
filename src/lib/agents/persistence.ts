@@ -4,8 +4,8 @@
  * Placeholder implementation - can be extended with database integration
  */
 
-import type { AgentId, Category } from './domain';
-import type { AgentPortfolio } from './portfolio';
+import type { AgentId, Category } from './domain.js';
+import type { AgentPortfolio } from './portfolio.js';
 
 /**
  * Agent trade record for persistence

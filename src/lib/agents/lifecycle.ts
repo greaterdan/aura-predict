@@ -5,8 +5,8 @@
  * Manages the lifecycle states: NONE → OPEN → CLOSING → CLOSED
  */
 
-import type { AgentProfile, AgentTrade, Market } from './domain';
-import type { AgentPortfolio, AgentPosition } from './portfolio';
+import type { AgentProfile, AgentTrade, Market } from './domain.js';
+import type { AgentPortfolio, AgentPosition } from './portfolio.js';
 
 /**
  * Exit condition thresholds

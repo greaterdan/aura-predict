@@ -6,7 +6,7 @@
  * TTL: 2 minutes
  */
 
-import type { AgentId, AgentTrade } from './domain';
+import type { AgentId, AgentTrade } from './domain.js';
 
 /**
  * Cache entry structure

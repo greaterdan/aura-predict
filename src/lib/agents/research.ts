@@ -5,10 +5,10 @@
  * These show up in the summary as "RESEARCH" actions (not "TRADE").
  */
 
-import type { AgentProfile, ScoredMarket, NewsArticle, NewsRelevance } from './domain';
-import { deterministicSeed, getDeterministicSide, getDeterministicConfidence, getDeterministicReasoning } from './engine';
-import { getAITradeDecision, isAIConfigured } from './ai-clients';
-import { searchWebForMarket, buildMarketSearchQuery, type WebSearchResult } from './web-search';
+import type { AgentProfile, ScoredMarket, NewsArticle, NewsRelevance } from './domain.js';
+import { deterministicSeed, getDeterministicSide, getDeterministicConfidence, getDeterministicReasoning } from './engine.js';
+import { getAITradeDecision, isAIConfigured } from './ai-clients.js';
+import { searchWebForMarket, buildMarketSearchQuery, type WebSearchResult } from './web-search.js';
 
 /**
  * Research decision (similar to trade but without investment/status)

@@ -9,7 +9,7 @@
  * - DeepSeek (DEEPSEEK V3)
  * - Qwen (QWEN 2.5)
  */
-import { getCachedAIDecision, setCachedAIDecision } from './ai-cache';
+import { getCachedAIDecision, setCachedAIDecision } from './ai-cache.js';
 /**
  * OpenAI API (GPT-5)
  */

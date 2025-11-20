@@ -4,14 +4,14 @@
  * Runs agents on a fixed cadence, independent of UI calls.
  * Separates heavy computation from API endpoints.
  */
-import { getAgentProfile, AGENT_PROFILES } from './domain';
+import { getAgentProfile, AGENT_PROFILES } from './domain.js';
 const ALL_AGENT_IDS = Object.keys(AGENT_PROFILES);
 // Use the same market fetching as bubble maps
-import { fetchAllMarkets } from '../markets/polymarket';
-import { fetchLatestNews } from '../news/aggregator';
-import { generateAgentTrades } from './generator';
-import { getPersistenceAdapter } from './persistence';
-import { createInitialPortfolio, updatePortfolioMetrics } from './portfolio';
+import { fetchAllMarkets } from '../markets/polymarket.js';
+import { fetchLatestNews } from '../news/aggregator.js';
+import { generateAgentTrades } from './generator.js';
+import { getPersistenceAdapter } from './persistence.js';
+import { createInitialPortfolio, updatePortfolioMetrics } from './portfolio.js';
 /**
  * Run trading cycle for a single agent
  *

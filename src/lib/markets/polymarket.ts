@@ -5,7 +5,7 @@
  * Cache TTL: 60 seconds to balance freshness with API rate limits.
  */
 
-import type { Market } from '../agents/domain';
+import type { Market } from '../agents/domain.js';
 
 /**
  * In-memory cache for Polymarket markets

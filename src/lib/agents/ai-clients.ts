@@ -10,8 +10,8 @@
  * - Qwen (QWEN 2.5)
  */
 
-import type { AgentId, Market, NewsArticle } from './domain';
-import { getCachedAIDecision, setCachedAIDecision } from './ai-cache';
+import type { AgentId, Market, NewsArticle } from './domain.js';
+import { getCachedAIDecision, setCachedAIDecision } from './ai-cache.js';
 
 /**
  * AI API response for trade decision

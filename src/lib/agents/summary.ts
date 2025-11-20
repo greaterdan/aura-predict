@@ -4,7 +4,7 @@
  * Helper functions to build human-readable summaries of agent trades and performance.
  */
 
-import type { AgentId, AgentTrade, AgentProfile } from './domain';
+import type { AgentId, AgentTrade, AgentProfile } from './domain.js';
 
 /**
  * Build a human-readable summary for an agent

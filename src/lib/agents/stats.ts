@@ -4,9 +4,9 @@
  * Calculates real-time agent performance metrics from trades.
  */
 
-import type { AgentId, AgentTrade } from './domain';
-import { getAgentProfile } from './domain';
-import { STARTING_CAPITAL_USD } from './portfolio';
+import type { AgentId, AgentTrade } from './domain.js';
+import { getAgentProfile } from './domain.js';
+import { STARTING_CAPITAL_USD } from './portfolio.js';
 
 /**
  * Agent statistics for display

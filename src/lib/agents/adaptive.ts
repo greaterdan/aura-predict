@@ -5,8 +5,8 @@
  * based on historical performance. Runs on a slower cadence (e.g. once per day).
  */
 
-import type { AgentId, Category } from './domain';
-import { RISK_BUDGET, type RiskLevel } from './portfolio';
+import type { AgentId, Category } from './domain.js';
+import { RISK_BUDGET, type RiskLevel } from './portfolio.js';
 
 // AgentTradeRecord type (if persistence.ts doesn't exist, define it here)
 export interface AgentTradeRecord {

@@ -5,7 +5,7 @@
  * Applied after base side, confidence, and size are computed.
  */
 
-import type { AgentProfile, ScoredMarket, TradeSide } from './domain';
+import type { AgentProfile, ScoredMarket, TradeSide } from './domain.js';
 
 /**
  * Personality rule context
