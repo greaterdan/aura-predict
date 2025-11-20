@@ -100,7 +100,7 @@ export async function runAgentCycle(
     }).length;
     
     // Persist portfolio
-    await persistence.updatePortfolio(portfolioToRecord(portfolio));
+    await persistence.savePortfolio(portfolio);
     
     const cycleMs = Date.now() - startTime;
     

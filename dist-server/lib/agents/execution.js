@@ -10,7 +10,7 @@ const ALL_AGENT_IDS = Object.keys(AGENT_PROFILES);
 import { fetchAllMarkets } from '../markets/polymarket';
 import { fetchLatestNews } from '../news/aggregator';
 import { generateAgentTrades } from './generator';
-import { getPersistenceAdapter, portfolioToRecord } from './persistence';
+import { getPersistenceAdapter } from './persistence';
 import { createInitialPortfolio, updatePortfolioMetrics } from './portfolio';
 /**
  * Run trading cycle for a single agent
@@ -62,7 +62,7 @@ export async function runAgentCycle(agentId, markets, marketsMap) {
             return volume && liquidity;
         }).length;
         // Persist portfolio
-        await persistence.updatePortfolio(portfolioToRecord(portfolio));
+        await persistence.savePortfolio(portfolio);
         const cycleMs = Date.now() - startTime;
         return {
             agentId,
