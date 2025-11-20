@@ -189,12 +189,18 @@ try {
   calculateAllAgentStats = statsModule.calculateAllAgentStats;
   getCachedTradesQuick = cacheModule.getCachedTradesQuick;
   
-  console.log('[API] ✅ Successfully loaded TypeScript trading engine modules');
+  console.log('[API] ✅ Successfully loaded agent trading engine modules');
   console.log('[API] generateAgentTrades type:', typeof generateAgentTrades);
 } catch (error) {
-  console.error('[API] ❌ Failed to load TypeScript modules:', error.message);
+  console.error('[API] ❌ Failed to load agent modules:', error.message);
   console.error('[API] Stack:', error.stack);
-  console.error('[API] Make sure server is run with: node --import tsx server/index.js');
+  if (isProduction) {
+    console.error('[API] ❌ PRODUCTION ERROR: This should never happen in production!');
+    console.error('[API] ❌ Check Railway build logs to ensure "npm run build:server" ran successfully');
+    console.error('[API] ❌ Verify dist-server/lib/agents/*.js files exist in Railway container');
+  } else {
+    console.error('[API] Make sure server is run with: node --import tsx server/index.js');
+  }
   throw error;
 }
 
