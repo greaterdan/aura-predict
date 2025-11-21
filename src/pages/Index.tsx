@@ -542,12 +542,15 @@ const Index = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch agent summary data from API
+  // Fetch agent summary data from API - load immediately on mount
   useEffect(() => {
     const loadAgentsSummary = async () => {
       try {
         const { API_BASE_URL } = await import('@/lib/apiConfig');
-        const response = await fetch(`${API_BASE_URL}/api/agents/summary`);
+        // Use cache: 'no-store' to bypass browser cache, but server Redis cache will still work
+        const response = await fetch(`${API_BASE_URL}/api/agents/summary`, {
+          cache: 'no-store', // Always fetch fresh (server Redis cache handles caching)
+        });
         
         if (response.ok) {
           const data = await response.json();
@@ -562,16 +565,44 @@ const Index = () => {
               lastTrade: agent.lastTrade || 'No trades',
             })));
           }
+          
+          // CRITICAL: Pre-load trades from summary to avoid separate API calls
+          if (data.tradesByAgent) {
+            const tradesMap: Record<string, Trade[]> = {};
+            Object.keys(data.tradesByAgent).forEach(agentId => {
+              const rawTrades = data.tradesByAgent[agentId] || [];
+              tradesMap[agentId] = rawTrades.map((trade: any) => ({
+                id: trade.id,
+                timestamp: new Date(trade.timestamp || trade.openedAt),
+                market: trade.market || trade.marketQuestion || trade.marketId,
+                marketSlug: trade.marketSlug,
+                conditionId: trade.conditionId,
+                decision: trade.decision || trade.side,
+                confidence: typeof trade.confidence === 'number' ? trade.confidence : parseInt(trade.confidence) || 0,
+                reasoning: typeof trade.reasoning === 'string' ? trade.reasoning : (Array.isArray(trade.reasoning) ? trade.reasoning.join(' ') : ''),
+                reasoningBullets: Array.isArray(trade.reasoningBullets) ? trade.reasoningBullets : [],
+                summaryDecision: trade.summaryDecision || trade.summary || '',
+                entryProbability: trade.entryProbability,
+                currentProbability: trade.currentProbability,
+                webResearchSummary: Array.isArray(trade.webResearchSummary) ? trade.webResearchSummary : [],
+                pnl: trade.pnl,
+                investmentUsd: trade.investmentUsd || 0,
+                status: trade.status || 'OPEN',
+                predictionId: trade.predictionId || trade.marketId,
+              }));
+            });
+            setAgentTrades(prev => ({ ...prev, ...tradesMap }));
+          }
         }
       } catch (error) {
         console.error('Failed to fetch agents summary:', error);
       }
     };
     
+    // Load immediately - don't wait
     loadAgentsSummary();
-    // Refresh every 60 seconds - optimized: Reduced from 30s to 60s (50% reduction)
-    // With Redis caching (30s TTL), 60s refresh is sufficient and reduces load
-    const interval = setInterval(loadAgentsSummary, 60 * 1000);
+    // Refresh every 30 seconds - optimized: With Redis cache (30s TTL), this ensures fresh data
+    const interval = setInterval(loadAgentsSummary, 30 * 1000);
     return () => clearInterval(interval);
   }, []);
 

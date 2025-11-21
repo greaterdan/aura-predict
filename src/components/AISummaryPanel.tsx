@@ -569,8 +569,9 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
       }
     };
     
+    // Load immediately on mount - don't wait
     loadSummary();
-    // Refresh every 30 seconds
+    // Refresh every 30 seconds (optimized: with Redis cache, this is sufficient)
     const interval = setInterval(loadSummary, 30 * 1000);
     
     return () => {

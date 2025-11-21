@@ -35,12 +35,13 @@ const Landing = () => {
       try {
         const { API_BASE_URL } = await import('@/lib/apiConfig');
         
-        // Create abort controller for timeout
+        // Create abort controller for timeout - reduced to 5 seconds for faster failure
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout (faster failure)
         
-        const response = await fetch(`${API_BASE_URL}/api/predictions`, {
+        const response = await fetch(`${API_BASE_URL}/api/predictions?category=All Markets&limit=50`, {
           signal: controller.signal,
+          cache: 'no-store', // Bypass browser cache, use server Redis cache
         });
         
         clearTimeout(timeoutId);

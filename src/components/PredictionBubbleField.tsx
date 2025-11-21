@@ -306,9 +306,66 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
     // Markets changed or first load - recalculate layout
     const maxVisible = markets.length;
     
-    // CRITICAL: For frosted mode (landing page), always use async layout to prevent blocking
-    // Also use async for larger counts to keep UI responsive
-    const shouldUseAsync = frosted || maxVisible > 100;
+    // CRITICAL: For frosted mode (landing page) with small counts, calculate synchronously for instant display
+    // Only use async for large counts (>100) to prevent blocking
+    const shouldUseAsync = !frosted && maxVisible > 100;
+    
+    // For landing page (frosted mode), calculate immediately - 50 bubbles is fast enough
+    if (frosted && maxVisible <= 50) {
+      // Calculate synchronously for instant display
+      try {
+        const bubbles = layoutRadialBubbleCloud(
+          markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
+          size.width,
+          size.height,
+          maxVisible
+        );
+        
+        // Store stable positions
+        const storedWidth = initialContainerSizeRef.current?.width || size.width;
+        const storedHeight = initialContainerSizeRef.current?.height || size.height;
+        bubbles.forEach(bubble => {
+          stablePositionsRef.current[bubble.id] = {
+            x: bubble.x,
+            y: bubble.y,
+            radius: bubble.radius,
+            width: storedWidth,
+            height: storedHeight,
+          };
+        });
+        
+        // Cache positions for landing page
+        try {
+          const marketIds = markets.map(m => m.id ?? '').filter(Boolean).join(',');
+          sessionStorage.setItem('landing_bubble_positions', JSON.stringify(
+            bubbles.map(b => ({ id: b.id, x: b.x, y: b.y, radius: b.radius }))
+          ));
+          sessionStorage.setItem('landing_bubble_market_ids', marketIds);
+        } catch (e) {
+          // Ignore storage errors
+        }
+        
+        // Clean up
+        Object.keys(stablePositionsRef.current).forEach(id => {
+          if (!currentMarketIds.has(id)) {
+            delete stablePositionsRef.current[id];
+          }
+        });
+        
+        previousMarketIdsRef.current = currentMarketIds;
+        
+        const validIds = new Set(bubbles.map(b => b.id));
+        Object.keys(persistentPositionsRef.current).forEach(id => {
+          if (!validIds.has(id)) {
+            delete persistentPositionsRef.current[id];
+          }
+        });
+        
+        return bubbles;
+      } catch (error) {
+        return [];
+      }
+    }
     
     if (shouldUseAsync) {
       // CRITICAL: Check cache FIRST before any calculations (for landing page)
@@ -370,19 +427,11 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
         return deferredBubbles;
       }
       
-      // Use requestIdleCallback if available, otherwise setTimeout with small delay
-      const scheduleLayout = (callback: () => void) => {
-        if ('requestIdleCallback' in window) {
-          (window as any).requestIdleCallback(callback, { timeout: 100 });
-        } else {
-          setTimeout(callback, 0);
-        }
-      };
-      
+      // Use requestAnimationFrame for immediate execution (faster than requestIdleCallback)
       // Only calculate if not already calculating
       if (!layoutCalculationRef.current) {
         layoutCalculationRef.current = setTimeout(() => {
-          scheduleLayout(() => {
+          requestAnimationFrame(() => {
             try {
               const bubbles = layoutRadialBubbleCloud(
                 markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
