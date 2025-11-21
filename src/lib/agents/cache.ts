@@ -19,10 +19,11 @@ interface AgentCacheEntry {
 }
 
 /**
- * Cache TTL: 2 minutes (balance between freshness and performance)
+ * Cache TTL: 5 minutes (balance between freshness and performance)
  * Summary requests use cached data, individual agent requests can regenerate if needed
+ * Increased from 2 minutes to reduce cache misses on concurrent requests
  */
-const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * In-memory cache: agentId -> cache entry (fallback if Redis unavailable)
