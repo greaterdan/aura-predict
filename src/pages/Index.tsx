@@ -489,7 +489,8 @@ const Index = () => {
       window.addEventListener('storage', handleStorageChange);
       
       // Also check periodically in case localStorage was updated in same tab
-      const interval = setInterval(loadWatchlist, 1000);
+      // Optimized: Reduced from 1s to 5s to reduce API calls (80% reduction)
+      const interval = setInterval(loadWatchlist, 5000);
       
       return () => {
         window.removeEventListener('storage', handleStorageChange);
@@ -535,8 +536,9 @@ const Index = () => {
     
     checkAuth();
     
-    // Check periodically
-    const interval = setInterval(checkAuth, 5000);
+    // Check periodically - optimized: Reduced from 5s to 30s (83% reduction)
+    // Auth status doesn't change frequently, 30s is sufficient
+    const interval = setInterval(checkAuth, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -567,8 +569,9 @@ const Index = () => {
     };
     
     loadAgentsSummary();
-    // Refresh every 30 seconds
-    const interval = setInterval(loadAgentsSummary, 30 * 1000);
+    // Refresh every 60 seconds - optimized: Reduced from 30s to 60s (50% reduction)
+    // With Redis caching (30s TTL), 60s refresh is sufficient and reduces load
+    const interval = setInterval(loadAgentsSummary, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1440,64 +1443,64 @@ const Index = () => {
         {/* Use visibility instead of display to keep component rendered in DOM */}
         {isPerformanceOpen && (
           <div 
-            style={{ 
-              position: 'absolute',
-              inset: 0,
+          style={{ 
+            position: 'absolute',
+            inset: 0,
               pointerEvents: 'none', // Don't block clicks - let them pass through to bubbles
               zIndex: 100
-            }}
-          >
-            <ResizablePanelGroup
-              direction="horizontal"
-              className="absolute inset-0"
-              style={{ 
+          }}
+        >
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="absolute inset-0"
+            style={{ 
                 pointerEvents: 'none', // Don't block clicks - only panels capture events
                 zIndex: 100
+            }}
+          >
+          <ResizablePanel 
+              defaultSize={leftPanelSize}
+            minSize={15} 
+            maxSize={30} 
+              onResize={(size) => {
+                setLeftPanelSize(size);
+                setSavedLeftPanelSize(size);
+              }}
+              className="border-r border-border bg-background"
+            style={{
+                  pointerEvents: 'auto', // Only the actual panel captures clicks
+                boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
+                  zIndex: 100,
               }}
             >
-            <ResizablePanel 
-                defaultSize={leftPanelSize}
-              minSize={15} 
-              maxSize={30} 
-                onResize={(size) => {
-                  setLeftPanelSize(size);
-                  setSavedLeftPanelSize(size);
-                }}
-                className="border-r border-border bg-background"
-              style={{
-                  pointerEvents: 'auto', // Only the actual panel captures clicks
-                  boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
-                  zIndex: 100,
-                }}
-              >
-                <div className="flex flex-col h-full">
-                  {/* When market is selected, hide chart and show full market details */}
-                  {selectedPrediction ? (
-                    <div className="h-full overflow-hidden bg-background">
-                      <MarketDetailsPanel
-                        market={selectedPrediction}
-                        onClose={handleCloseMarketDetails}
-                        onWatchlistChange={() => {
-                          setWatchlist(getWatchlist(userEmail));
-                        }}
-                        watchlist={watchlist}
-                        userEmail={userEmail}
-                      />
-                    </div>
-                  ) : (
+              <div className="flex flex-col h-full">
+                {/* When market is selected, hide chart and show full market details */}
+                {selectedPrediction ? (
+                  <div className="h-full overflow-hidden bg-background">
+                    <MarketDetailsPanel
+                      market={selectedPrediction}
+                      onClose={handleCloseMarketDetails}
+                      onWatchlistChange={() => {
+                        setWatchlist(getWatchlist(userEmail));
+                      }}
+                      watchlist={watchlist}
+                      userEmail={userEmail}
+                    />
+                  </div>
+                ) : (
                     <div className="h-full">
-                      <PerformanceChart
-                        predictions={predictions}
-                        selectedMarketId={selectedNode}
-                        selectedAgentId={selectedAgent} // Pass selected agent to update chart
-                      />
+                    <PerformanceChart
+                      predictions={predictions}
+                      selectedMarketId={selectedNode}
+                      selectedAgentId={selectedAgent} // Pass selected agent to update chart
+                    />
                     </div>
-                  )}
-                </div>
-              </ResizablePanel>
+                )}
+              </div>
+            </ResizablePanel>
               <ResizableHandle withHandle style={{ pointerEvents: 'auto', zIndex: 50 }} />
-              <ResizablePanel defaultSize={100 - leftPanelSize} minSize={70} maxSize={85} style={{ pointerEvents: 'none' }} />
-            </ResizablePanelGroup>
+            <ResizablePanel defaultSize={100 - leftPanelSize} minSize={70} maxSize={85} style={{ pointerEvents: 'none' }} />
+          </ResizablePanelGroup>
           </div>
         )}
 

@@ -472,9 +472,10 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   });
 }
 
-// Wallet storage - store wallets server-side tied to Google email
+// Shared Redis client for caching (wallets, predictions, news, agent summary)
 // Use Redis if available, otherwise fallback to in-memory (not recommended for production)
 let walletStorageClient = null;
+let cacheClient = null; // Shared cache client for API responses
 if (redisUrl) {
   try {
     // Create a separate Redis client for wallet storage
@@ -504,6 +505,34 @@ if (redisUrl) {
     
     console.log('[WALLET] ✅ Wallet storage configured (Redis)');
     
+    // Create shared cache client for API responses (predictions, news, agent summary)
+    cacheClient = createClient({
+      url: redisUrl,
+      socket: {
+        lazyConnect: true,
+        reconnectStrategy: (retries) => {
+          if (retries > 3) return false;
+          return Math.min(retries * 100, 3000);
+        },
+      },
+    });
+    
+    cacheClient.on('error', (err) => {
+      console.error('[CACHE] Redis cache error:', err.message);
+    });
+    
+    cacheClient.on('connect', () => {
+      console.log('[CACHE] ✅ Redis cache client connected');
+    });
+    
+    // Try to connect in background
+    cacheClient.connect().catch((err) => {
+      console.warn('[CACHE] ⚠️  Redis cache connection failed, using in-memory fallback');
+      cacheClient = null;
+    });
+    
+    console.log('[CACHE] ✅ Redis cache client configured');
+    
     // Also set Redis client for agent cache persistence
     try {
       // Try compiled JS first, then TypeScript
@@ -520,8 +549,45 @@ if (redisUrl) {
   } catch (error) {
     console.warn('[WALLET] ⚠️  Failed to create wallet storage Redis client:', error.message);
     walletStorageClient = null;
+    cacheClient = null;
   }
 }
+
+// Redis cache helper functions
+const redisCache = {
+  async get(key) {
+    if (!cacheClient) return null;
+    try {
+      const data = await cacheClient.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.warn(`[CACHE] Failed to get ${key} from Redis:`, error.message);
+      return null;
+    }
+  },
+  
+  async set(key, value, ttlSeconds = 300) {
+    if (!cacheClient) return false;
+    try {
+      await cacheClient.setEx(key, ttlSeconds, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      console.warn(`[CACHE] Failed to set ${key} in Redis:`, error.message);
+      return false;
+    }
+  },
+  
+  async del(key) {
+    if (!cacheClient) return false;
+    try {
+      await cacheClient.del(key);
+      return true;
+    } catch (error) {
+      console.warn(`[CACHE] Failed to delete ${key} from Redis:`, error.message);
+      return false;
+    }
+  }
+};
 
 // In-memory wallet storage fallback (only if Redis not available)
 const inMemoryWalletStorage = new Map();
@@ -683,13 +749,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Cache for predictions (2 minute cache - balance between freshness and server load)
-// Most users will get cached data, only first request in 2-min window hits Polymarket
+// Cache for predictions - fallback in-memory cache (used if Redis unavailable)
+// Most users will get cached data, only first request in 5-min window hits Polymarket
 let predictionsCache = {
   data: null,
   timestamp: null,
   category: null,
-  CACHE_DURATION: 2 * 60 * 1000, // 2 minutes - fresh data while serving many users
+  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes - fresh data while serving many users
 };
 
 // Main endpoint: Get predictions (ready-to-use format)
@@ -721,14 +787,25 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
     }
     
     // Check cache first (but don't cache search results - they should be fresh)
-    const cacheNow = Date.now();
     const isSearching = search && search.trim();
-    if (!isSearching && predictionsCache.data && 
-        predictionsCache.category === category &&
-        predictionsCache.timestamp && 
-        (cacheNow - predictionsCache.timestamp) < predictionsCache.CACHE_DURATION) {
-      // Cache hit - don't log to reduce log volume
-      return res.json(predictionsCache.data);
+    if (!isSearching) {
+      // Try Redis cache first
+      const cacheKey = `predictions:${category}:${limit}`;
+      const cached = await redisCache.get(cacheKey);
+      if (cached) {
+        // Cache hit from Redis - instant response
+        return res.json(cached);
+      }
+      
+      // Fallback to in-memory cache
+      const cacheNow = Date.now();
+      if (predictionsCache.data && 
+          predictionsCache.category === category &&
+          predictionsCache.timestamp && 
+          (cacheNow - predictionsCache.timestamp) < predictionsCache.CACHE_DURATION) {
+        // Cache hit from memory - don't log to reduce log volume
+        return res.json(predictionsCache.data);
+      }
     }
     
     // Only log cache misses occasionally (every 10th miss) to reduce log spam
@@ -884,12 +961,19 @@ app.get('/api/predictions', predictionsLimiter, async (req, res) => {
       totalTransformed: predictions.length,
     };
     
-    predictionsCache = {
-      data: responseData,
-      timestamp: Date.now(),
-      category: category,
-      CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
-    };
+    // Cache in Redis (5 minutes) if not searching
+    if (!isSearching) {
+      const cacheKey = `predictions:${category}:${limit}`;
+      await redisCache.set(cacheKey, responseData, 5 * 60); // 5 minutes TTL
+      
+      // Also update in-memory cache as fallback
+      predictionsCache = {
+        data: responseData,
+        timestamp: Date.now(),
+        category: category,
+        CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
+      };
+    }
     
     res.json(responseData);
   } catch (error) {
@@ -967,11 +1051,11 @@ console.log(`[NEWS]   GNews: ${GNEWS_API_KEY ? `✅ Configured (${GNEWS_API_KEY.
 console.log(`[NEWS]   World News API: ${WORLD_NEWS_API_KEY ? `✅ Configured (${WORLD_NEWS_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 console.log(`[NEWS]   Mediastack: ${MEDIASTACK_API_KEY ? `✅ Configured (${MEDIASTACK_API_KEY.substring(0, 8)}...)` : '❌ NOT SET'}`);
 
-// Simple in-memory cache (refresh every 5 minutes)
+// Simple in-memory cache (fallback if Redis unavailable)
 let newsCache = {
   data: null,
   timestamp: null,
-  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
+  CACHE_DURATION: 2 * 60 * 1000, // 2 minutes
 };
 
 // Helper function to normalize title for deduplication
@@ -1665,13 +1749,20 @@ app.get('/api/news', async (req, res) => {
   const { source = 'all' } = req.query; // 'all', 'newsapi', 'newsdata', 'gnews', 'worldnews', or 'mediastack'
   
   try {
-    // Check cache
-    const cacheKey = `news-${source}`;
+    // Check Redis cache first
+    const cacheKey = `news:${source}`;
+    const cached = await redisCache.get(cacheKey);
+    if (cached) {
+      // Cache hit from Redis - instant response
+      return res.json(cached);
+    }
+    
+    // Fallback to in-memory cache
     const cacheNow = Date.now();
     if (newsCache.data && newsCache.timestamp && (cacheNow - newsCache.timestamp) < newsCache.CACHE_DURATION) {
       // Filter by source if needed
       if (source === 'all') {
-      return res.json(newsCache.data);
+        return res.json(newsCache.data);
       } else {
         const filtered = {
           ...newsCache.data,
@@ -1763,18 +1854,25 @@ app.get('/api/news', async (req, res) => {
       },
     };
     
-      // Cache the response - reduced to 2 minutes for fresher news
-      newsCache = {
-      data: responseData,
-        timestamp: Date.now(),
-        CACHE_DURATION: 2 * 60 * 1000, // 2 minutes instead of 5
-      };
-      
-    // Filter by source if needed
+    // Filter by source if needed (before caching)
+    let finalResponse = responseData;
     if (source !== 'all') {
-      responseData.articles = responseData.articles.filter(a => a.sourceApi === source);
-      responseData.totalResults = responseData.articles.length;
+      finalResponse = {
+        ...responseData,
+        articles: responseData.articles.filter(a => a.sourceApi === source),
+        totalResults: responseData.articles.filter(a => a.sourceApi === source).length,
+      };
     }
+    
+    // Cache in Redis (2 minutes TTL)
+    await redisCache.set(cacheKey, finalResponse, 2 * 60); // 2 minutes
+    
+    // Also update in-memory cache as fallback
+    newsCache = {
+      data: responseData, // Store full data (not filtered) for other source requests
+      timestamp: Date.now(),
+      CACHE_DURATION: 2 * 60 * 1000, // 2 minutes
+    };
     
     // ALWAYS log final results
     if (allArticles.length === 0) {
@@ -1847,12 +1945,35 @@ console.log('✅ Registered: GET /api/agents/:agentId/trades');
 // GET /api/agents/summary - Get summary for all agents
 app.get('/api/agents/summary', apiLimiter, async (req, res) => {
   try {
+    // Check Redis cache first (30 second cache for agent summary)
+    const cacheKey = 'agents:summary';
+    const cached = await redisCache.get(cacheKey);
+    if (cached) {
+      // Cache hit from Redis - instant response
+      return res.json(cached);
+    }
+    
     if (!getAgentsSummary) {
       const agentsModule = await import('./api/agents.js');
       getAgentTrades = agentsModule.getAgentTrades;
       getAgentsSummary = agentsModule.getAgentsSummary;
       getAgentsStats = agentsModule.getAgentsStats;
     }
+    
+    // Call the handler and capture the response
+    const originalJson = res.json.bind(res);
+    let responseData = null;
+    res.json = function(data) {
+      responseData = data;
+      // Cache in Redis (30 seconds TTL - agent summary changes frequently)
+      if (responseData) {
+        redisCache.set(cacheKey, responseData, 30).catch(err => {
+          console.warn('[CACHE] Failed to cache agent summary:', err.message);
+        });
+      }
+      return originalJson(data);
+    };
+    
     return getAgentsSummary(req, res);
   } catch (error) {
     console.error('[API] Failed to load agents module:', error.message);

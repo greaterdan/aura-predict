@@ -63,14 +63,14 @@ const Landing = () => {
       } catch (error) {
         // Silently fail - use cache if available
         if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Failed to fetch predictions:', error);
+        console.error('Failed to fetch predictions:', error);
         }
       }
     };
     
     // Always fetch in background - don't block rendering
     // If we have cache, show it immediately, then update when fetch completes
-    loadPredictions();
+      loadPredictions();
   }, []);
 
   const handleEnterApp = () => {

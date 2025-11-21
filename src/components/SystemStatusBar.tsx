@@ -238,8 +238,8 @@ export const SystemStatusBar = ({
         <Button
           variant="outline"
           size="sm"
-          disabled
-          className="h-7 w-7 p-0 border-border bg-background text-foreground rounded-full cursor-default"
+          onClick={() => window.open('https://github.com/greaterdan/Mira', '_blank', 'noopener,noreferrer')}
+          className="h-7 w-7 p-0 border-border bg-background hover:bg-bg-elevated text-foreground hover:text-foreground rounded-full"
           title="GitHub"
         >
           <Github className="w-3.5 h-3.5" />
