@@ -207,17 +207,24 @@ export const NewsFeed = () => {
           </div>
         </div>
         {/* Category Selector Dropdown */}
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 relative z-10" style={{ pointerEvents: 'auto' }}>
           <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as NewsCategory)}>
-            <SelectTrigger className="h-7 text-[10px] font-mono border-border bg-muted/50 hover:bg-muted">
+            <SelectTrigger 
+              className="h-7 text-[10px] font-mono border-border bg-muted/50 hover:bg-muted"
+              style={{ pointerEvents: 'auto', zIndex: 10 }}
+            >
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent 
+              className="z-[9999]" 
+              style={{ pointerEvents: 'auto', zIndex: 9999 }}
+            >
               {NEWS_CATEGORIES.map((category) => (
                 <SelectItem 
                   key={category} 
                   value={category}
                   className="text-[10px] font-mono"
+                  style={{ pointerEvents: 'auto' }}
                 >
                   {category}
                 </SelectItem>
