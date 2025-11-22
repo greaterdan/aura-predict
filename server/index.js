@@ -2071,7 +2071,7 @@ console.log('✅ Registered: GET /api/agents/:agentId/trades');
 // GET /api/agents/summary - Get summary for all agents
 app.get('/api/agents/summary', apiLimiter, async (req, res) => {
   try {
-    // Check Redis cache first (30 second cache for agent summary)
+    // Check Redis cache first (60 second cache for agent summary - increased for better performance)
     const cacheKey = 'agents:summary';
     console.log(`[API:${req.id}] 🔍 Checking Redis cache for: ${cacheKey}`);
     const cached = await redisCache.get(cacheKey);
@@ -2080,7 +2080,7 @@ app.get('/api/agents/summary', apiLimiter, async (req, res) => {
       console.log(`[API:${req.id}] ✅ Returning cached agent summary (${cached.agents?.length || 0} agents)`);
       return res.json(cached);
     }
-    console.log(`[API:${req.id}] ❌ Cache miss - generating agent summary`);
+    console.log(`[API:${req.id}] ❌ Cache miss - generating agent summary (with 8s timeout)`);
     
     if (!getAgentsSummary) {
       const agentsModule = await import('./api/agents.js');
@@ -2094,10 +2094,10 @@ app.get('/api/agents/summary', apiLimiter, async (req, res) => {
     let responseData = null;
     res.json = function(data) {
       responseData = data;
-      // Cache in Redis (30 seconds TTL - agent summary changes frequently)
+      // Cache in Redis (60 seconds TTL - increased to reduce cache misses and improve performance)
       if (responseData) {
         console.log(`[API:${req.id}] 💾 Caching agent summary in Redis: ${cacheKey}`);
-        redisCache.set(cacheKey, responseData, 30).then(success => {
+        redisCache.set(cacheKey, responseData, 60).then(success => {
           if (success) {
             console.log(`[API:${req.id}] ✅ Cached agent summary (${responseData.agents?.length || 0} agents)`);
           }

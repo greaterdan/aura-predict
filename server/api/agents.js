@@ -288,26 +288,54 @@ export async function getAgentsSummary(req, res) {
     const getCachedTradesQuick = bridge.getCachedTradesQuick;
     const getAgentResearch = bridge.getAgentResearch || (() => []); // Fallback if not available
     
-    const results = await Promise.allSettled(
-      agentIds.map(async (agentId) => {
-        try {
-          // Try cached trades first (fast path)
-          if (getCachedTradesQuick) {
-            const cached = await getCachedTradesQuick(agentId);
-            if (cached && cached.length > 0) {
-              console.log(`[API:${req.id}] 💾 Using cached trades for ${agentId}: ${cached.length} trades`);
-              return cached;
-            }
+    // CRITICAL: Add timeout to prevent blocking for minutes
+    // Return cached data immediately, generate missing in background
+    const SUMMARY_TIMEOUT_MS = 8000; // 8 second max wait for summary
+    
+    const getTradesWithTimeout = async (agentId) => {
+      try {
+        // Try cached trades first (fast path)
+        if (getCachedTradesQuick) {
+          const cached = await getCachedTradesQuick(agentId);
+          if (cached && cached.length > 0) {
+            console.log(`[API:${req.id}] 💾 Using cached trades for ${agentId}: ${cached.length} trades`);
+            return cached;
           }
-          
-          // Cache miss or empty - generate new trades (but this is slow)
-          console.log(`[API:${req.id}] ⚠️ Cache miss for ${agentId} - generating trades (this may take time)`);
-          return await generateAgentTrades(agentId);
-        } catch (err) {
-          console.warn(`[API] Failed to get trades for agent ${agentId} for summary: ${err.message}`);
-          return []; // Return empty array for failed agents
         }
-      })
+        
+        // Cache miss - try to generate with timeout
+        console.log(`[API:${req.id}] ⚠️ Cache miss for ${agentId} - attempting quick generation (timeout: ${SUMMARY_TIMEOUT_MS}ms)`);
+        
+        // Race between generation and timeout
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout')), SUMMARY_TIMEOUT_MS);
+        });
+        
+        try {
+          const trades = await Promise.race([
+            generateAgentTrades(agentId),
+            timeoutPromise
+          ]);
+          return trades;
+        } catch (timeoutError) {
+          // Timeout or error - return empty array, generate in background
+          console.warn(`[API:${req.id}] ⏱️ Timeout generating trades for ${agentId} - returning empty, will generate in background`);
+          
+          // Generate in background (don't await)
+          generateAgentTrades(agentId).catch(err => {
+            console.error(`[API:${req.id}] ❌ Background generation failed for ${agentId}:`, err.message);
+          });
+          
+          return []; // Return empty for now
+        }
+      } catch (err) {
+        console.warn(`[API] Failed to get trades for agent ${agentId} for summary: ${err.message}`);
+        return []; // Return empty array for failed agents
+      }
+    };
+    
+    const results = await Promise.allSettled(
+      agentIds.map(agentId => getTradesWithTimeout(agentId))
     );
     
     const allTrades = results.map(r => r.status === 'fulfilled' ? r.value : []);

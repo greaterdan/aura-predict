@@ -454,7 +454,7 @@ const Index = () => {
         if (error instanceof Error && error.name === 'AbortError') {
           console.warn('Predictions fetch timeout - using cache if available');
         } else {
-          console.error('Error loading predictions:', error);
+        console.error('Error loading predictions:', error);
         }
       } finally {
         setLoadingMarkets(false);
@@ -566,7 +566,7 @@ const Index = () => {
         const response = await fetch(`${API_BASE_URL}/api/agents/summary`, {
           cache: 'no-store',
         });
-    
+        
         if (response.ok) {
           const data = await response.json();
           if (data.agents) {
