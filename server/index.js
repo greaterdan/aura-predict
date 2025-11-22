@@ -365,13 +365,15 @@ app.use(passport.session());
 // Google OAuth Strategy
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-// Determine callback URL - use environment variable if set, otherwise construct from current request
-// In production, default to mira.tech, but allow override for Railway deployments
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || (isProduction ? 'https://mira.tech/api/auth/google/callback' : 'http://localhost:3002/api/auth/google/callback');
+// Determine callback URL - use environment variable if set, otherwise default to probly.tech
+// CRITICAL: This must match EXACTLY what's configured in Google Cloud Console
+// Default to probly.tech to match the OAuth client configuration
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || (isProduction ? 'https://probly.tech/api/auth/google/callback' : 'http://localhost:3002/api/auth/google/callback');
 
 // Log the callback URL for debugging
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   console.log(`🔐 Google OAuth callback URL: ${GOOGLE_CALLBACK_URL}`);
+  console.log(`🔐 If you see redirect_uri_mismatch, ensure this URL matches Google Cloud Console exactly`);
 }
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
@@ -379,6 +381,8 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
     clientID: GOOGLE_CLIENT_ID,
     clientSecret: GOOGLE_CLIENT_SECRET,
     callbackURL: GOOGLE_CALLBACK_URL,
+    // CRITICAL: PassReqToCallback allows us to dynamically determine callback URL from request
+    passReqToCallback: false, // Keep false for now, but callbackURL should match Google Console
   }, (accessToken, refreshToken, profile, done) => {
     // This function is called after Google authentication succeeds
     // profile contains user information from Google
@@ -404,7 +408,23 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   
   // Google OAuth Routes
   // Initiate Google OAuth flow
-  app.get('/api/auth/google', passport.authenticate('google', {
+  app.get('/api/auth/google', (req, res, next) => {
+    // Log the callback URL being used for debugging
+    const protocol = req.protocol || (req.secure ? 'https' : 'http');
+    const host = req.get('host') || 'unknown';
+    const fullUrl = `${protocol}://${host}`;
+    
+    console.log(`🔐 [OAuth] Initiating Google OAuth flow`);
+    console.log(`🔐 [OAuth] Callback URL configured: ${GOOGLE_CALLBACK_URL}`);
+    console.log(`🔐 [OAuth] Request protocol: ${protocol}`);
+    console.log(`🔐 [OAuth] Request host: ${host}`);
+    console.log(`🔐 [OAuth] Request full URL: ${fullUrl}`);
+    console.log(`🔐 [OAuth] Request origin: ${req.get('origin') || req.get('referer') || 'unknown'}`);
+    console.log(`🔐 [OAuth] ⚠️  CRITICAL: Callback URL must match Google Cloud Console exactly!`);
+    console.log(`🔐 [OAuth] ⚠️  Expected in Google Console: ${GOOGLE_CALLBACK_URL}`);
+    
+    next();
+  }, passport.authenticate('google', {
     scope: ['profile', 'email'],
   }));
 
