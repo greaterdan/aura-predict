@@ -42,10 +42,19 @@ export const getSocket = async (): Promise<Socket> => {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: 5,
-        timeout: 20000,
+        timeout: 3000, // Reduced from 20s to 3s for faster fallback to polling
       });
 
+      // Add timeout to reject if connection takes too long
+      const timeoutId = setTimeout(() => {
+        if (!socket?.connected) {
+          console.warn('[WS] ⚠️  Connection timeout after 3s, falling back to polling');
+          reject(new Error('Connection timeout'));
+        }
+      }, 3000);
+
       socket.on('connect', () => {
+        clearTimeout(timeoutId);
         console.log('[WS] ✅ Connected to server');
         resolve(socket!);
       });
@@ -55,6 +64,7 @@ export const getSocket = async (): Promise<Socket> => {
       });
 
         socket.on('connect_error', (error) => {
+          clearTimeout(timeoutId);
           console.error('[WS] ⚠️  Connection error:', error.message);
           // Fallback to polling if WebSocket fails
           reject(error);

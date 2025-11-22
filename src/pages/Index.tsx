@@ -377,13 +377,21 @@ const Index = () => {
         // Search is handled client-side only to prevent glitching on every keystroke
         const { API_BASE_URL } = await import('@/lib/apiConfig');
         const apiUrl = `${API_BASE_URL}/api/predictions?category=${encodeURIComponent(selectedCategory)}&limit=5000`;
+        
+        // Add timeout to prevent blocking (5 seconds)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
         const response = await fetch(apiUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
           },
+          signal: controller.signal,
         });
+        
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`Server error: ${response.status} ${response.statusText}`);
@@ -443,7 +451,11 @@ const Index = () => {
         }
       } catch (error) {
         // Don't clear predictions on error - keep existing ones
-        console.error('Error loading predictions:', error);
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.warn('Predictions fetch timeout - using cache if available');
+        } else {
+          console.error('Error loading predictions:', error);
+        }
       } finally {
         setLoadingMarkets(false);
       }
@@ -547,6 +559,63 @@ const Index = () => {
     let unsubscribe: (() => void) | null = null;
     let fallbackTimeout: NodeJS.Timeout | null = null;
     
+    // CRITICAL: Fetch summary immediately (don't wait for WebSocket)
+    const loadAgentsSummary = async () => {
+      try {
+        const { API_BASE_URL } = await import('@/lib/apiConfig');
+        const response = await fetch(`${API_BASE_URL}/api/agents/summary`, {
+          cache: 'no-store',
+        });
+    
+        if (response.ok) {
+          const data = await response.json();
+          if (data.agents) {
+            setAgents(data.agents.map((agent: any) => ({
+              id: agent.id,
+              name: agent.name,
+              emoji: agent.emoji,
+              isActive: false,
+              pnl: agent.pnl || 0,
+              openMarkets: agent.openMarkets || 0,
+              lastTrade: agent.lastTrade || 'No trades',
+            })));
+          }
+              
+          if (data.tradesByAgent) {
+            const tradesMap: Record<string, Trade[]> = {};
+            Object.keys(data.tradesByAgent).forEach(agentId => {
+              const rawTrades = data.tradesByAgent[agentId] || [];
+              tradesMap[agentId] = rawTrades.map((trade: any) => ({
+                id: trade.id,
+                timestamp: new Date(trade.timestamp || trade.openedAt),
+                market: trade.market || trade.marketQuestion || trade.marketId,
+                marketSlug: trade.marketSlug,
+                conditionId: trade.conditionId,
+                decision: trade.decision || trade.side,
+                confidence: typeof trade.confidence === 'number' ? trade.confidence : parseInt(trade.confidence) || 0,
+                reasoning: typeof trade.reasoning === 'string' ? trade.reasoning : (Array.isArray(trade.reasoning) ? trade.reasoning.join(' ') : ''),
+                reasoningBullets: Array.isArray(trade.reasoningBullets) ? trade.reasoningBullets : [],
+                summaryDecision: trade.summaryDecision || trade.summary || '',
+                entryProbability: trade.entryProbability,
+                currentProbability: trade.currentProbability,
+                webResearchSummary: Array.isArray(trade.webResearchSummary) ? trade.webResearchSummary : [],
+                pnl: trade.pnl,
+                investmentUsd: trade.investmentUsd || 0,
+                status: trade.status || 'OPEN',
+                predictionId: trade.predictionId || trade.marketId,
+              }));
+            });
+            setAgentTrades(prev => ({ ...prev, ...tradesMap }));
+          }
+        }
+      } catch (err) {
+        console.error('[Index] Failed to fetch agents summary:', err);
+      }
+    };
+    
+    // Fetch immediately (don't wait for WebSocket)
+    loadAgentsSummary();
+    
     const setupWebSocket = async () => {
       try {
         const { subscribe } = await import('@/lib/websocket');
@@ -596,61 +665,7 @@ const Index = () => {
         console.log('[Index] ✅ WebSocket connected for agents:summary');
       } catch (error) {
         console.warn('[Index] ⚠️  WebSocket failed, falling back to polling:', error);
-        // Fallback to polling if WebSocket fails
-    const loadAgentsSummary = async () => {
-      try {
-        const { API_BASE_URL } = await import('@/lib/apiConfig');
-            const response = await fetch(`${API_BASE_URL}/api/agents/summary`, {
-              cache: 'no-store',
-            });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.agents) {
-            setAgents(data.agents.map((agent: any) => ({
-              id: agent.id,
-              name: agent.name,
-              emoji: agent.emoji,
-                  isActive: false,
-              pnl: agent.pnl || 0,
-              openMarkets: agent.openMarkets || 0,
-              lastTrade: agent.lastTrade || 'No trades',
-            })));
-          }
-              
-              if (data.tradesByAgent) {
-                const tradesMap: Record<string, Trade[]> = {};
-                Object.keys(data.tradesByAgent).forEach(agentId => {
-                  const rawTrades = data.tradesByAgent[agentId] || [];
-                  tradesMap[agentId] = rawTrades.map((trade: any) => ({
-                    id: trade.id,
-                    timestamp: new Date(trade.timestamp || trade.openedAt),
-                    market: trade.market || trade.marketQuestion || trade.marketId,
-                    marketSlug: trade.marketSlug,
-                    conditionId: trade.conditionId,
-                    decision: trade.decision || trade.side,
-                    confidence: typeof trade.confidence === 'number' ? trade.confidence : parseInt(trade.confidence) || 0,
-                    reasoning: typeof trade.reasoning === 'string' ? trade.reasoning : (Array.isArray(trade.reasoning) ? trade.reasoning.join(' ') : ''),
-                    reasoningBullets: Array.isArray(trade.reasoningBullets) ? trade.reasoningBullets : [],
-                    summaryDecision: trade.summaryDecision || trade.summary || '',
-                    entryProbability: trade.entryProbability,
-                    currentProbability: trade.currentProbability,
-                    webResearchSummary: Array.isArray(trade.webResearchSummary) ? trade.webResearchSummary : [],
-                    pnl: trade.pnl,
-                    investmentUsd: trade.investmentUsd || 0,
-                    status: trade.status || 'OPEN',
-                    predictionId: trade.predictionId || trade.marketId,
-                  }));
-                });
-                setAgentTrades(prev => ({ ...prev, ...tradesMap }));
-              }
-            }
-          } catch (err) {
-            console.error('[Index] Failed to fetch agents summary:', err);
-      }
-    };
-    
-    loadAgentsSummary();
+        // Fallback to polling if WebSocket fails (already fetched once above)
         fallbackTimeout = setInterval(loadAgentsSummary, 30 * 1000);
       }
     };

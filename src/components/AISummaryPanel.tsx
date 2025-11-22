@@ -540,6 +540,32 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
     let unsubscribe: (() => void) | null = null;
     let fallbackInterval: NodeJS.Timeout | null = null;
     
+    // CRITICAL: Fetch summary immediately (don't wait for WebSocket)
+    const loadSummary = async () => {
+      try {
+        const { API_BASE_URL } = await import('@/lib/apiConfig');
+        const response = await fetch(`${API_BASE_URL}/api/agents/summary`, {
+          cache: 'no-store',
+        });
+        
+        if (!isMounted) return;
+        
+        if (response.ok) {
+          const data = await response.json();
+          processSummaryData(data, isMounted);
+        }
+      } catch (err) {
+        console.error('[AISummary] Failed to fetch summary:', err);
+        if (!hasLoadedRef.current) {
+          hasLoadedRef.current = true;
+          setLoading(false);
+        }
+      }
+    };
+    
+    // Fetch immediately (don't wait for WebSocket)
+    loadSummary();
+    
     const setupWebSocket = async () => {
       try {
         const { subscribe } = await import('@/lib/websocket');
@@ -551,31 +577,7 @@ export const AISummaryPanel = ({ onTradeClick }: AISummaryPanelProps = {}) => {
         console.log('[AISummary] ✅ WebSocket connected for agents:summary');
       } catch (error) {
         console.warn('[AISummary] ⚠️  WebSocket failed, falling back to polling:', error);
-        
-        // Fallback to polling
-        const loadSummary = async () => {
-          try {
-            const { API_BASE_URL } = await import('@/lib/apiConfig');
-            const response = await fetch(`${API_BASE_URL}/api/agents/summary`, {
-              cache: 'no-store',
-            });
-            
-            if (!isMounted) return;
-            
-            if (response.ok) {
-              const data = await response.json();
-              processSummaryData(data, isMounted);
-            }
-          } catch (err) {
-            console.error('[AISummary] Failed to fetch summary:', err);
-        if (!hasLoadedRef.current) {
-          hasLoadedRef.current = true;
-          setLoading(false);
-        }
-      }
-    };
-    
-    loadSummary();
+        // Fallback to polling (already fetched once above)
         fallbackInterval = setInterval(loadSummary, 30 * 1000);
       }
     };

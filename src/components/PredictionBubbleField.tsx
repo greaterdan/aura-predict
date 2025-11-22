@@ -479,70 +479,80 @@ const PredictionBubbleFieldComponent: React.FC<Props> = ({
         return deferredBubbles;
       }
       
-      // Use requestAnimationFrame for immediate execution (faster than requestIdleCallback)
+      // Use requestIdleCallback for non-blocking calculation (prevents UI blocking)
       // Only calculate if not already calculating
       if (!layoutCalculationRef.current) {
-        layoutCalculationRef.current = setTimeout(() => {
-          requestAnimationFrame(() => {
-        try {
-          const bubbles = layoutRadialBubbleCloud(
-            markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
-            size.width,
-            size.height,
-            maxVisible
-          );
-          
-      // Store stable positions with initial container size (not current size)
-      // This ensures bubbles don't move when panels resize
-      const storedWidth = initialContainerSizeRef.current?.width || size.width;
-      const storedHeight = initialContainerSizeRef.current?.height || size.height;
-      bubbles.forEach(bubble => {
-        stablePositionsRef.current[bubble.id] = {
-          x: bubble.x,
-          y: bubble.y,
-          radius: bubble.radius,
-          width: storedWidth,
-          height: storedHeight,
-        };
-      });
-              
-              // Cache positions for landing page (include market IDs in cache key)
-              if (frosted) {
-                try {
-                  const marketIds = markets.map(m => m.id ?? '').filter(Boolean).join(',');
-                  sessionStorage.setItem('landing_bubble_positions', JSON.stringify(
-                    bubbles.map(b => ({ id: b.id, x: b.x, y: b.y, radius: b.radius }))
-                  ));
-                  sessionStorage.setItem('landing_bubble_market_ids', marketIds);
-                } catch (e) {
-                  // Ignore storage errors
-                }
+        const calculateLayout = () => {
+          try {
+            const bubbles = layoutRadialBubbleCloud(
+              markets.map((m, idx) => ({ id: m.id ?? String(idx), data: m })),
+              size.width,
+              size.height,
+              maxVisible
+            );
+            
+            // Store stable positions with initial container size (not current size)
+            // This ensures bubbles don't move when panels resize
+            const storedWidth = initialContainerSizeRef.current?.width || size.width;
+            const storedHeight = initialContainerSizeRef.current?.height || size.height;
+            bubbles.forEach(bubble => {
+              stablePositionsRef.current[bubble.id] = {
+                x: bubble.x,
+                y: bubble.y,
+                radius: bubble.radius,
+                width: storedWidth,
+                height: storedHeight,
+              };
+            });
+            
+            // Cache positions for landing page (include market IDs in cache key)
+            if (frosted) {
+              try {
+                const marketIds = markets.map(m => m.id ?? '').filter(Boolean).join(',');
+                sessionStorage.setItem('landing_bubble_positions', JSON.stringify(
+                  bubbles.map(b => ({ id: b.id, x: b.x, y: b.y, radius: b.radius }))
+                ));
+                sessionStorage.setItem('landing_bubble_market_ids', marketIds);
+              } catch (e) {
+                // Ignore storage errors
               }
-          
-          // Clean up
-          Object.keys(stablePositionsRef.current).forEach(id => {
-            if (!currentMarketIds.has(id)) {
-              delete stablePositionsRef.current[id];
             }
-          });
-          
-          previousMarketIdsRef.current = currentMarketIds;
-          
-          const validIds = new Set(bubbles.map(b => b.id));
-          Object.keys(persistentPositionsRef.current).forEach(id => {
-            if (!validIds.has(id)) {
-              delete persistentPositionsRef.current[id];
-            }
-          });
-          
-          setDeferredBubbles(bubbles);
-        } catch (error) {
-          setDeferredBubbles([]);
-            } finally {
-              layoutCalculationRef.current = null;
+            
+            // Clean up
+            Object.keys(stablePositionsRef.current).forEach(id => {
+              if (!currentMarketIds.has(id)) {
+                delete stablePositionsRef.current[id];
+              }
+            });
+            
+            previousMarketIdsRef.current = currentMarketIds;
+            
+            const validIds = new Set(bubbles.map(b => b.id));
+            Object.keys(persistentPositionsRef.current).forEach(id => {
+              if (!validIds.has(id)) {
+                delete persistentPositionsRef.current[id];
+              }
+            });
+            
+            setDeferredBubbles(bubbles);
+          } catch (error) {
+            setDeferredBubbles([]);
+          } finally {
+            layoutCalculationRef.current = null;
+          }
+        };
+        
+        // Use requestIdleCallback for non-blocking (better performance)
+        if ('requestIdleCallback' in window) {
+          layoutCalculationRef.current = setTimeout(() => {
+            requestIdleCallback(calculateLayout, { timeout: 100 });
+          }, 0);
+        } else {
+          // Fallback to requestAnimationFrame
+          layoutCalculationRef.current = setTimeout(() => {
+            requestAnimationFrame(calculateLayout);
+          }, 0);
         }
-          });
-      }, 0);
       }
       
       // Return empty array - will update when async calculation completes
